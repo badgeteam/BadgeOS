@@ -4,6 +4,7 @@
 #include "log.h"
 #include "time.h"
 #include "gpio.h"
+#include "attributes.h"
 #include "port/interrupt.h"
 
 #include <stdint.h>
@@ -14,7 +15,7 @@ static kernel_ctx_t kctx;
 
 // This is the entrypoint after the stack has been set up and the init functions have been run.
 // Main is not allowed to return, so declare it noreturn.
-void main() __attribute__((noreturn));
+void main() NORETURN;
 void main() {
 	// Install interrupt and trap handlers.
 	interrupt_init(&kctx);

@@ -18,11 +18,11 @@ typedef void (*sched_entry_point_t)(void *arg);
 typedef enum
 {
     // will be scheduled with smaller time slices than normal
-    SCHED_PRIO_LOW = -1,
+    SCHED_PRIO_LOW = 0,
     // default value
-    SCHED_PRIO_NORMAL = 0,
+    SCHED_PRIO_NORMAL = 10,
     // will be scheduled with bigger time slices than normal
-    SCHED_PRIO_HIGH = 1,
+    SCHED_PRIO_HIGH = 20,
 } sched_thread_priority_t;
 
 // Initializes the scheduler and setups up the system to be ready to
@@ -34,20 +34,37 @@ void sched_init(badge_err_t *ec);
 // This also includes kernel threads.
 void sched_run(void);
 
-// Creates a new suspended thread.
+// Creates a new suspended userland thread.
 //
-// - `process` is the process that is associated with this thread. This is often useful in syscalls to determine the
-//   current context.
+// Userland threads have no initial stack pointer set, this must be done by `entry_point` in the userland application
+// itself.
+//
+// - `process` is the process that is associated with this thread.
 // - `entry_point` is the function the thread will execute.
 // - `arg` is passed to `entry_point` upon start.
-// - `stack_size` is the minimum number of bytes the thread should have as a stack space. The scheduler is free to
-// assign more than that, but never less.
 // - `priority` defines how much time the thread gets in regards to all other threads. Higher priority threads will have
 //   a higher time contigent as others.
 //
 // Returns a handle to the thread or NULL if the thread could not be created.
-sched_thread_t *sched_create_thread(badge_err_t *ec, process_t *process, sched_entry_point_t entry_point, void *arg,
-                                    size_t stack_size, sched_thread_priority_t priority);
+sched_thread_t *sched_create_userland_thread(badge_err_t *ec, process_t *process, sched_entry_point_t entry_point,
+                                             void *arg, sched_thread_priority_t priority);
+
+// Creates a new suspended kernel thread.
+//
+// - `process` is the process that is associated with this thread.
+// - `entry_point` is the function the thread will execute.
+// - `arg` is passed to `entry_point` upon start.
+// - `stack_bottom` is a pointer to the stack space for this thread. Pointer must be aligned to `STACK_ALIGNMENT`
+// and
+//   must not be `NULL`.
+// - `stack_size` is the number of bytes available from `stack_bottom` on. Must be a multiple of `STACK_ALIGNMENT`.
+// - `priority` defines how much time the thread gets in regards to all other threads. Higher priority threads will
+// have
+//   a higher time contigent as others.
+//
+// Returns a handle to the thread or NULL if the thread could not be created.
+sched_thread_t *sched_create_kernel_thread(badge_err_t *ec, sched_entry_point_t entry_point, void *arg,
+                                           void *stack_bottom, size_t stack_size, sched_thread_priority_t priority);
 
 // Kills the given thread and releases all scheduler resources allocated by the operating system associated with this
 // thread.
@@ -74,7 +91,7 @@ void sched_resume_thread(badge_err_t *ec, sched_thread_t *thread);
 // schedule other threads.
 //
 // NOTE: It's illegal to invoke this function outside a thread context!
-void sched_yield();
+void sched_yield(void);
 
 // Returns the currently active thread or NULL if the scheduler isn't running.
 sched_thread_t *sched_get_current_thread(void);

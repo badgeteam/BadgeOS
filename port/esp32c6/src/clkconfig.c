@@ -3,6 +3,7 @@
 
 #include "port/clkconfig.h"
 
+#include "attributes.h"
 #include "port/hardware.h"
 
 // UART0 configuration register (Access: R/W)
@@ -195,7 +196,8 @@
 
 // Compute frequency dividers for a certain target frequency and source
 // frequency.
-static uint32_t clk_compute_div(uint32_t source_hz, uint32_t target_hz) __attribute__((const));
+static uint32_t clk_compute_div(uint32_t source_hz, uint32_t target_hz) PURE;
+
 static uint32_t clk_compute_div(uint32_t source_hz, uint32_t target_hz) {
     // Divider integral part.
     uint32_t integral   = source_hz / target_hz;

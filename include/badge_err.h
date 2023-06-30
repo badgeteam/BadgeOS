@@ -84,3 +84,21 @@ typedef enum {
 	// The operation was cancelled
 	ECAUSE_CANCELLED,
 } badge_ecause_t;
+
+
+// Sets `ec` to the given `location` and `cause` values if `ec` is not `NULL`.
+// `ec` must be a variable name.
+#define badge_err_set(ec, location_value, cause_value) do { \
+	if(ec != NULL) {                                          \
+		ec->location = location_value;                          \
+		ec->cause = cause_value;                                \
+	}                                                         \
+} while(false)
+
+// Sets `ec` to a "no error"-value.
+// `ec` must be a variable name.
+#define badge_err_set_ok(ec) badge_err_set(ec, 0, 0)
+
+// Returns a non-zero value if `ec` is `NULL` or `ec` contains a non-error value.
+// `ec` must be a variable name.
+#define badge_err_is_ok(ec) ((ec == NULL) || ((ec->cause == 0) && (ec->location == 0)))
