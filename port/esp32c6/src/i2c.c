@@ -171,11 +171,11 @@ void i2c_master_deinit(badge_err_t *ec, int i2c_num) {
 // Reads len bytes into buffer buf from I²C slave with ID slave_id.
 // This function blocks until the entire transaction is completed and returns the number of acknowledged read bytes.
 size_t i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, uint8_t *buf, size_t len) {
-	
+	return 0;
 }
 
 // Writes len bytes from buffer buf to I²C slave with ID slave_id.
 // This function blocks until the entire transaction is completed and returns the number of acknowledged written bytes.
 size_t i2c_master_write_to(badge_err_t *ec, int i2c_num, int slave_id, uint8_t *buf, size_t len) {
-	
+	return 0;
 }
