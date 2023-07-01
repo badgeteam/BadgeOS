@@ -22,7 +22,7 @@ void kernel_assertion_failure(char const *assertion_msg) NORETURN;
 #define assert_always(condition)                                                                                       \
     do                                                                                                                 \
     {                                                                                                                  \
-        if ((condition) == 0)                                                                                          \
+        if (__builtin_expect(condition, 0) == 0)                                                                       \
         {                                                                                                              \
             kernel_assertion_failure(__FILE__ ":" convert_macro_to_string(__LINE__) ": " convert_macro_to_string(      \
                 __func__) ": Assertion `" #condition "` failed.");                                                     \
@@ -32,7 +32,17 @@ void kernel_assertion_failure(char const *assertion_msg) NORETURN;
 #ifdef NDEBUG
 
 // Assertion that will only assert in debug builds, will be kept in release builds
-#define assert_dev_keep(condition) (void)(condition)
+#define assert_dev_keep(condition)                                                                                     \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        if (__builtin_expect(condition, 0) == 0)                                                                       \
+        {                                                                                                              \
+    // this hints the compiler that the assertion will never be met                                                    \
+    // and everthing that does not have side effects or evaluates to 0 can be dropped.                                 \
+            __builtin_unreachable();                                                                                   \
+        }                                                                                                              \
+        \                                                                                                              \
+    } while (false)
 
 // Assertion that will only assert in debug builds, will be removed in release builds
 #define assert_dev_drop(condition) (void)0

@@ -17,5 +17,15 @@
 // even in fast builds.
 #define COLD __attribute__((cold))
 
+// Declares that a function is called very often and should be speed-optimized
+// even in small builds.
+#define HOT __attribute__((hot))
+
 // Declares that a function call must be inlined whenever possible.
 #define FORCEINLINE __attribute__((always_inline))
+
+// Declares that a symbol will be placed in a section called `name`
+#define SECTION(name) __attribute__((section(name)))
+
+// Declares that a symbol will be aligned to `alignment`
+#define ALIGNED_TO(alignment) __attribute__((aligned(alignment)))

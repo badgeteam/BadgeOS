@@ -1,99 +1,87 @@
 #include "scheduler.h"
 
 #include "assertions.h"
+#include "attributes.h"
+#include "kernel_ctx.h"
 #include "list.h"
 #include "meta.h"
-#include "attributes.h"
 
 #include <inttypes.h>
 
-#define THREAD_RUNNING (1 << 0)  // thread is currently in the scheduling queues
-#define THREAD_EXITED (1 << 1)   // thread has finished and is waiting for destruction
-#define THREAD_DETACHED (1 << 2) // thread is detached and will self-destroy after exit
+/// Returns non-0 value if `V` is aligned to `A`.
+#define is_aligned(V, A) (((V) & ((A)-1)) == 0)
+
+enum
+{
+    // thread is currently in the scheduling queues
+    THREAD_RUNNING = (1 << 0),
+
+    // thread has finished and is waiting for destruction
+    THREAD_COMPLETED = (1 << 1),
+
+    // thread is detached and will self-destroy after exit
+    THREAD_DETACHED = (1 << 2)
+};
 
 // Stack alignment is enforced by the RISC-V calling convention
-#define STACK_ALIGNMENT (16)
+enum
+{
+    STACK_ALIGNMENT = 16,
+};
 
 static_assert((STACK_ALIGNMENT & (STACK_ALIGNMENT - 1)) == 0, "STACK_ALIGNMENT must be a power of two!");
+
+enum
+{
+    SCHED_THREAD_NAME_LEN = 32,
+};
 
 struct sched_thread_t
 {
     // fixed info:
     process_t *process;
-    size_t stack_size;
+    uintptr_t stack_bottom;
+    uintptr_t stack_top;
+    sched_thread_priority_t priority;
 
     // dynamic info:
     uint32_t flags;
     dlist_node_t schedule_node;
+    uint32_t exit_code;
 
     // runtime state:
-    uintptr_t stack_pointer;
-    uintptr_t instruction_pointer;
+    kernel_ctx_t kernel_ctx;
+
+#ifndef NDEBUG
+    // debug info:
+    char name[SCHED_THREAD_NAME_LEN];
+#endif
 };
 
-/// Returns non-0 value if `V` is aligned to `A`.
-#define is_aligned(V, A) (((V) & ~(A)) == 0)
+// List of currently queued threads. `head` will be queued next, `tail` will be
+// queued last.
+static dlist_t thread_wait_queue = DLIST_EMPTY;
 
-static inline uintptr_t FORCEINLINE compute_stack_bottom(sched_thread_t *const thread)
+enum
 {
-    assert_dev_drop(thread != NULL);
+    // Size of the
+    idle_task_stack_len = 128
+};
+static uint8_t idle_task_stack[idle_task_stack_len] ALIGNED_TO(STACK_ALIGNMENT);
 
-    uintptr_t const base = (uintptr_t)thread;
-    uintptr_t const stack_top = base + sizeof(sched_thread_t);
-    uintptr_t const stack_bottom = base - thread->stack_size;
-    return stack_bottom;
-}
+static_assert(is_aligned(idle_task_stack_len, STACK_ALIGNMENT));
 
-// Computes the initial stack pointer that will be valid right before the thread starts.
-static inline uintptr_t FORCEINLINE compute_stack_top(sched_thread_t *const thread)
-{
-    assert_dev_drop(thread != NULL);
+// The scheduler must schedule something, and the idle task is what
+// the scheduler will schedule when nothing can be scheduled.
+static sched_thread_t idle_task = {
+    .name = "idle",
+    .stack_bottom = (uintptr_t)&idle_task_stack,
+    .stack_top = (uintptr_t)&idle_task_stack + idle_task_stack_len,
+};
 
-    uintptr_t const base = (uintptr_t)thread;
-    uintptr_t const aligned_stack_ptr = (base & ~STACK_ALIGNMENT);
-    return aligned_stack_ptr;
-}
-
-/// Computes the initial memory location returned by the stack allocator.
-static inline void *FORCEINLINE restore_stack_bottom(sched_thread_t *const thread)
-{
-    return (void *)compute_stack_top(thread);
-}
-
-// Asserts that the threads (stored) stack pointer did not under- or overflow.
-static inline void validate_stack_pointer(sched_thread_t *const thread)
-{
-    assert_dev_drop(thread != NULL);
-    assert_dev_drop(thread->stack_pointer <= compute_stack_top(thread));   // Underflow check
-    assert_dev_drop(thread->stack_pointer > compute_stack_bottom(thread)); // Overflow check
-}
-
-// Pushes a u32 to the stack of the given thread.
-static void push_value(sched_thread_t *const thread, uint32_t const value)
-{
-    assert_dev_drop(thread != NULL);
-
-    assert_dev_drop(is_aligned(thread->stack_pointer, 4));
-    assert_dev_drop(thread->stack_pointer > compute_stack_bottom(thread)); // Overflow check
-    thread->stack_pointer -= 4;
-    uint32_t *const pointer = (uint32_t *)thread->stack_pointer;
-    *pointer = value;
-}
-
-// Pops a u32 from the stack of the given thread.
-static uint32_t pop_value(sched_thread_t *const thread)
-{
-    assert_dev_drop(thread != NULL);
-    assert_dev_drop(is_aligned(thread->stack_pointer, 4));
-    assert_dev_drop(thread->stack_pointer < compute_stack_top(thread)); // Underflow check
-
-    uint32_t const *const pointer = (uint32_t const *)thread->stack_pointer;
-    thread->stack_pointer += 4;
-    return *pointer;
-}
-
-// Enters a scheduler-local critical section that cannot be interrupted from the scheduler itself.
-// Call `leave_critical_section` after the critical section has ended.
+// Enters a scheduler-local critical section that cannot be interrupted from the
+// scheduler itself. Call `leave_critical_section` after the critical section
+// has ended.
 //
 // During a critical section, no thread switches can occurr.
 static void enter_critical_section(void)
@@ -106,38 +94,151 @@ static void leave_critical_section(void)
     //
 }
 
-// List of currently queued threads. `head` will be queued next, `tail` will be queued last.
-static dlist_t thread_wait_queue = DLIST_EMPTY;
+static sched_thread_t *thread_alloc(void)
+{
+    // TODO: Allocate thread here
+    return NULL;
+}
 
-static sched_thread_t *current_thread = NULL;
+static void thread_free(sched_thread_t *thread)
+{
+    // TODO: Free thread here
+}
+
+static void idle_thread_function(void *arg)
+{
+    (void)arg;
+    while (true)
+    {
+        asm volatile("" ::: "memory"); // make the loop not be undefined behaviour
+    }
+}
+
+// The trampoline is used to jump into the thread code and return from it,
+// ensuring that we can detect when a thread has exited.
+static void thread_trampoline(sched_entry_point_t ep, void *arg)
+{
+    assert_always(ep != NULL);
+
+    sched_thread_t *const this_thread = sched_get_current_thread();
+    assert_always(this_thread != NULL);
+
+    ep(arg);
+
+    // make sure the thread is always exited properly
+    sched_exit(0);
+}
+
+static void setup_thread_state(kernel_ctx_t *const ctx, uintptr_t initial_stack_pointer,
+                               sched_entry_point_t entry_point, void *arg)
+{
+    // TODO: Implement that function here cross-platform for other CPUs or move it to the cpu-port
+
+    ctx->regs->pc = (uintptr_t)thread_trampoline;
+    ctx->regs->sp = initial_stack_pointer;
+    ctx->regs->a0 = (uintptr_t)entry_point;
+    ctx->regs->a1 = (uintptr_t)arg;
+
+    // TODO: Also set up GP and TP for RISC-V
+}
+
+static void trigger_task_switch_isr(void)
+{
+    // TODO: Explicitly invoke the timer ISR here to "preempt" the process early
+    // on
+}
+
+static void destroy_thread(sched_thread_t *thread)
+{
+    assert_dev_drop(thread != NULL);
+
+    if ((thread->flags & THREAD_RUNNING) == 0)
+    {
+        // thread is still running, we have to remove it from the thread queue:
+        sched_suspend_thread(NULL, thread);
+    }
+
+    // At last, we free the memory:
+    thread_free(thread);
+}
+
+sched_thread_t *sched_get_current_thread(void)
+{
+    enter_critical_section();
+    kernel_ctx_t *const kernel_ctx = kernel_ctx_get();
+    leave_critical_section();
+    return field_parent_ptr(sched_thread_t, kernel_ctx, kernel_ctx);
+}
 
 void sched_init(badge_err_t *const ec)
 {
+    setup_thread_state(&idle_task.kernel_ctx, idle_task.stack_top, idle_thread_function, NULL);
+
     badge_err_set_ok(ec);
 }
 
-void sched_run(void)
+void sched_exec(void)
 {
-    if (thread_wait_queue.len == 0)
+    trigger_task_switch_isr();
+
+    // we can never reach this line, as the ISR will switch into the idle task
+    __builtin_unreachable();
+}
+
+void sched_request_switch_from_isr(void)
+{
+    sched_thread_t *const current_thread = sched_get_current_thread();
+    if (current_thread != NULL)
     {
-        return;
+        if ((current_thread->flags & THREAD_RUNNING) != 0)
+        {
+
+            // if we have a current thread, append it to the wait queue again before
+            // popping the next task. This is necessary as we if we only have a single
+            // task, that should be scheduled again. Otheriwse, `dlist_pop_front` would
+            // return `NULL` instead of `current_thread`.
+            dlist_append(&thread_wait_queue, &current_thread->schedule_node);
+        }
+        else
+        {
+            // current thread is dead, we don't push it into the scheduler again
+
+            if ((current_thread->flags & THREAD_DETACHED))
+            {
+                destroy_thread(current_thread);
+            }
+        }
     }
 
-    // kick-off the multithreading here
+    dlist_node_t *const next_thread_node = dlist_pop_front(&thread_wait_queue);
+    if (next_thread_node != NULL)
+    {
+        sched_thread_t *const next_thread = field_parent_ptr(sched_thread_t, schedule_node, next_thread_node);
 
-    assert_dev_drop(thread_wait_queue.len == 0);
+        // Set the switch target
+        kernel_ctx_switch_set(&next_thread->kernel_ctx);
+
+        // TODO: Set timer timeout here!
+    }
+    else
+    {
+        // nothing to do, switch to idle task:
+
+        kernel_ctx_switch_set(&idle_task.kernel_ctx);
+        // TODO: Set timer timeout here!
+    }
 }
 
 sched_thread_t *sched_create_userland_thread(badge_err_t *const ec, process_t *const process,
-                                             sched_entry_point_t const entry_point, void *const arg,
-                                             sched_thread_priority_t const priority)
+                                             const sched_entry_point_t entry_point, void *const arg,
+                                             const sched_thread_priority_t priority)
 {
     (void)process;
     (void)entry_point;
     (void)arg;
     (void)priority;
 
-    badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_UNSUPPORTED);
+    badge_err_set(ec, ELOC_THREADS, ECAUSE_UNSUPPORTED);
 
     return NULL;
 }
@@ -152,7 +253,7 @@ sched_thread_t *sched_create_kernel_thread(badge_err_t *const ec, sched_entry_po
     (void)stack_bottom;
     (void)stack_size;
 
-    badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_UNSUPPORTED);
+    badge_err_set(ec, ELOC_THREADS, ECAUSE_UNSUPPORTED);
 
     return NULL;
 }
@@ -163,7 +264,18 @@ void sched_destroy_thread(badge_err_t *ec, sched_thread_t *thread)
 
     (void)thread;
 
-    badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_UNSUPPORTED);
+    if (thread == sched_get_current_thread())
+    {
+        sched_detach_thread(ec, thread);
+        if (!badge_err_is_ok(ec))
+        {
+            return;
+        }
+        sched_exit(0);
+    }
+
+    destroy_thread(thread);
+    badge_err_set_ok(ec);
 }
 
 void sched_detach_thread(badge_err_t *ec, sched_thread_t *thread)
@@ -174,7 +286,7 @@ void sched_detach_thread(badge_err_t *ec, sched_thread_t *thread)
     (void)thread;
     leave_critical_section();
 
-    badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_UNSUPPORTED);
+    badge_err_set(ec, ELOC_THREADS, ECAUSE_UNSUPPORTED);
 }
 
 void sched_suspend_thread(badge_err_t *const ec, sched_thread_t *const thread)
@@ -185,7 +297,7 @@ void sched_suspend_thread(badge_err_t *const ec, sched_thread_t *const thread)
     (void)thread;
     leave_critical_section();
 
-    badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_UNSUPPORTED);
+    badge_err_set(ec, ELOC_THREADS, ECAUSE_UNSUPPORTED);
 }
 
 void sched_resume_thread(badge_err_t *const ec, sched_thread_t *const thread)
@@ -193,9 +305,9 @@ void sched_resume_thread(badge_err_t *const ec, sched_thread_t *const thread)
     assert_dev_drop(thread != NULL);
     enter_critical_section();
 
-    if ((thread->flags & THREAD_EXITED) != 0)
+    if ((thread->flags & THREAD_COMPLETED) != 0)
     {
-        badge_err_set(ec, 0, 0);
+        badge_err_set(ec, ELOC_THREADS, ECAUSE_ILLEGAL);
         leave_critical_section();
         return;
     }
@@ -211,38 +323,6 @@ void sched_resume_thread(badge_err_t *const ec, sched_thread_t *const thread)
     badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_UNSUPPORTED);
 }
 
-// Probes the current stack and tests if it did over or underflow.
-// Must be called from a critical section!
-static inline void FORCEINLINE probe_stack(void)
-{
-    uintptr_t stack_pointer;
-
-    assert_dev_drop(stack_pointer <= compute_stack_top(current_thread));   // Underflow check
-    assert_dev_drop(stack_pointer > compute_stack_bottom(current_thread)); // Overflow check
-}
-
-void sched_yield(void)
-{
-    enter_critical_section();
-    assert_always(current_thread != NULL);
-
-    probe_stack();
-
-    // TODO: Explicitly invoke the timer ISR here to "preempt" the process early on
-
-    probe_stack();
-
-    leave_critical_section();
-}
-
-sched_thread_t *sched_get_current_thread(void)
-{
-    enter_critical_section();
-    sched_thread_t *const current = current_thread;
-    leave_critical_section();
-    return current;
-}
-
 process_t *sched_get_associated_process(sched_thread_t const *const thread)
 {
     enter_critical_section();
@@ -253,4 +333,27 @@ process_t *sched_get_associated_process(sched_thread_t const *const thread)
     }
     leave_critical_section();
     return process;
+}
+
+void sched_yield(void)
+{
+    sched_thread_t *const current_thread = sched_get_current_thread();
+    assert_always(current_thread != NULL);
+
+    trigger_task_switch_isr();
+}
+
+void sched_exit(uint32_t exit_code)
+{
+    sched_thread_t *const current_thread = sched_get_current_thread();
+    assert_always(current_thread != NULL);
+
+    current_thread->exit_code = exit_code;
+    current_thread->flags |= THREAD_COMPLETED;
+
+    sched_yield();
+
+    // hint the compiler that we cannot reach this part of the code and
+    // it will never be reached:
+    __builtin_unreachable();
 }
