@@ -1,0 +1,41 @@
+name: CMake
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main', 'format_tooling']
+
+env:
+  CMAKE_GENERATOR: Ninja
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        # Build with all four build types:
+        build_type: ['Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel']
+
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install ninja
+        run: sudo apt-get install -y ninja-build
+
+      - name: Fetch & install RISC-V GNU Compiler Toolchain
+        run: |
+          curl -Lo riscv32-elf-ubuntu-22.04-nightly.tar.gz 'https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2023.06.09/riscv32-elf-ubuntu-22.04-nightly-2023.06.09-nightly.tar.gz'
+          tar -xf riscv32-elf-ubuntu-22.04-nightly.tar.gz
+          echo "${PWD}/riscv/bin" >> $GITHUB_PATH
+
+      - name: Configure CMake
+        run: cmake -B "${{github.workspace}}/build" -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+      - name: Build
+        run: cmake --build ${{github.workspace}}/build --config ${{ matrix.build_type }}
+
+      - name: Build Statistics
+        run: |
+          riscv32-unknown-elf-size -B build/main.elf
