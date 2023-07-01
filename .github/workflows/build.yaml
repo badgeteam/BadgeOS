@@ -39,3 +39,14 @@ jobs:
       - name: Build Statistics
         run: |
           riscv32-unknown-elf-size -B build/main.elf
+
+      - name: Create firmware image
+        run: ./packimage.py
+
+      - name: Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: Firmware
+          path: |
+            build/main.elf
+            build/main.bin

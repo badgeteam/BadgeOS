@@ -38,6 +38,6 @@ void main() {
 	io_pull(NULL, 22, IO_PULL_UP);
 	while (1) {
 		int64_t now = time_us();
-		io_write(NULL, 15, (now / 1000000) & 1 ^ io_read(NULL, 22));
+		io_write(NULL, 15, ((now / 1000000) & 1) ^ io_read(NULL, 22));
 	}
 }

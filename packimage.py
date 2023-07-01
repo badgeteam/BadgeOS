@@ -4,7 +4,7 @@
 import os
 
 # Use objcopy to extract the image from the ELF file.
-os.system("riscv32-unknown-linux-gnu-objcopy -O binary build/main.elf build/main.bin")
+os.system("riscv32-unknown-elf-objcopy -O binary build/main.elf build/main.bin")
 
 # Open the generated file for appending a checksum.
 fd = open("build/main.bin", "+ab")
@@ -26,15 +26,17 @@ xsum_state = 0xEF
 fd.seek(1, 0)
 seg_num = fd.read(1)[0]
 
+
 def readword():
     raw = fd.read(4)
     return raw[0] + (raw[1] << 8) + (raw[2] << 16) + (raw[3] << 24)
+
 
 # Compute checksum.
 fd.seek(24)
 for _ in range(seg_num):
     seg_laddr = readword()
-    seg_len   = readword()
+    seg_len = readword()
     for _ in range(seg_len):
         xsum_state ^= fd.read(1)[0]
 

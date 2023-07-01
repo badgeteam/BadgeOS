@@ -1,0 +1,54 @@
+name: Code Check
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main', 'format_tooling']
+
+jobs:
+  validate-format:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run clang-format style check
+        uses: jidicula/clang-format-action@v4.11.0
+        with:
+          clang-format-version: '16'
+          check-path: '.'
+
+  static-analysis:
+    runs-on: ubuntu-22.04
+
+    # might be enabled in the future:
+    # https://github.com/marketplace/actions/clang-tidy-review
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install clang-tidy
+        run: |
+          # see https://apt.llvm.org/
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 16
+
+          sudo apt-get install -y clang-tidy-16
+
+      - name: Fetch & install RISC-V GNU Compiler Toolchain
+        run: |
+          curl -Lo riscv32-elf-ubuntu-22.04-nightly.tar.gz 'https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2023.06.09/riscv32-elf-ubuntu-22.04-nightly-2023.06.09-nightly.tar.gz'
+          tar -xf riscv32-elf-ubuntu-22.04-nightly.tar.gz
+          echo "${PWD}/riscv/bin" >> $GITHUB_PATH
+
+      - name: Configure CMake
+        run: cmake -B "${{github.workspace}}/build" -DCMAKE_BUILD_TYPE=Debug -DTARGET_ARCH=rv32imac
+
+      - name: Run clang-tidy
+        run: |
+          echo "scan the following files:"
+          jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$'
+          clang-tidy-16 --version
+          clang-tidy-16 -p build $(jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$') --warnings-as-errors="*"

@@ -9,7 +9,7 @@ typedef __builtin_va_list va_list;
 #define va_end(x) __builtin_va_end(x)
 #define va_arg(x,y) __builtin_va_arg(x,y)
 
-#define isvalidlevel(level) (level >= 0 && level < 5)
+#define isvalidlevel(level) ((level) >= 0 && (level) < 5)
 
 static const char *prefix[] = {
 	"FATAL ",

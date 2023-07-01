@@ -208,10 +208,10 @@ static uint32_t clk_compute_div(uint32_t source_hz, uint32_t target_hz) {
 	uint_fast8_t closest_num  = 0;
 	
 	// Perform a search.
-	for (uint_fast8_t num  = 2; num < 64; num++) {
+	for (uint_fast8_t num  = 2; num < 64;  num++) {
 		uint_fast8_t  den  = (fractional * num) >> 24;
 		uint32_t      frac = (den << 24) / num;
-		int32_t       err  = frac - fractional;
+		int32_t       err  = (int32_t)(frac - fractional);
 		if (err < 0)  err  = -err;
 		if (err < closest_err) {
 			closest_err = err;
