@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main']
   pull_request:
-    branches: ['main', 'format_tooling']
+    branches: ['main']
 
 jobs:
   validate-format:
@@ -50,5 +50,5 @@ jobs:
         run: |
           echo "scan the following files:"
           jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$'
-          clang-tidy-16 --version
+          echo "analysis results:"
           clang-tidy-16 -p build $(jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$') --warnings-as-errors="*"
