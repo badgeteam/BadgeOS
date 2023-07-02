@@ -19,14 +19,12 @@
 void kernel_assertion_failure(char const *assertion_msg) COLD NORETURN;
 
 // Assertion that will be always active
-#define assert_always(condition)                                               \
-    do {                                                                       \
-        if (__builtin_expect(condition, 0) == 0) {                             \
-            kernel_assertion_failure(__FILE__ ":" convert_macro_to_string(     \
-                __LINE__                                                       \
-            ) ": " convert_macro_to_string(__func__                            \
-            ) ": Assertion `" #condition "` failed.");                         \
-        }                                                                      \
+#define assert_always(condition)                                                                                       \
+    do {                                                                                                               \
+        if (__builtin_expect(condition, 0) == 0) {                                                                     \
+            kernel_assertion_failure(__FILE__ ":" convert_macro_to_string(__LINE__                                     \
+            ) ": " convert_macro_to_string(__func__) ": Assertion `" #condition "` failed.");                          \
+        }                                                                                                              \
     } while (false)
 
 #ifdef NDEBUG
@@ -36,12 +34,12 @@ void kernel_assertion_failure(char const *assertion_msg) COLD NORETURN;
 // The combination of `__builtin_expect` and `__builtin_unreachable` will hint
 // the optimizer that we do expect the condition to never be false in any case,
 // allowing better codegen.
-#define assert_dev_keep(condition)                                             \
-    do {                                                                       \
-        if (__builtin_expect(condition, 0) == 0) {                             \
-            __builtin_unreachable();                                           \
-        }                                                                      \
-        \                                                                      \
+#define assert_dev_keep(condition)                                                                                     \
+    do {                                                                                                               \
+        if (__builtin_expect(condition, 0) == 0) {                                                                     \
+            __builtin_unreachable();                                                                                   \
+        }                                                                                                              \
+        \                                                                                                              \
     } while (false)
 
 // Assertion that will only assert in debug builds, will be removed in release

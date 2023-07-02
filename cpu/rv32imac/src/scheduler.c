@@ -40,11 +40,7 @@ void sched_prepare_kernel_entry(
 }
 
 
-void sched_prepare_user_entry(
-    kernel_ctx_t *const       ctx,
-    sched_entry_point_t const entry_point,
-    void *const               arg
-) {
+void sched_prepare_user_entry(kernel_ctx_t *const ctx, sched_entry_point_t const entry_point, void *const arg) {
 
     ctx->regs->pc = (uintptr_t)entry_point;
     ctx->regs->a0 = (uintptr_t)arg;

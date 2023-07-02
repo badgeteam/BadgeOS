@@ -51,10 +51,7 @@ enum {
     THREAD_KERNEL    = (1 << 3),
 };
 
-static_assert(
-    (STACK_ALIGNMENT & (STACK_ALIGNMENT - 1)) == 0,
-    "STACK_ALIGNMENT must be a power of two!"
-);
+static_assert((STACK_ALIGNMENT & (STACK_ALIGNMENT - 1)) == 0, "STACK_ALIGNMENT must be a power of two!");
 
 enum {
     SCHED_THREAD_NAME_LEN = 32,
@@ -155,8 +152,7 @@ static sched_thread_t *thread_alloc(void) {
         return NULL;
     }
 
-    sched_thread_t *const thread =
-        field_parent_ptr(sched_thread_t, schedule_node, node);
+    sched_thread_t *const thread = field_parent_ptr(sched_thread_t, schedule_node, node);
 
     assert_dev_drop(thread->flags == THREAD_ALLOCATOR_SENTINEL);
 
@@ -165,7 +161,7 @@ static sched_thread_t *thread_alloc(void) {
     // we initialized everything properly:
     mem_set(thread, 0xAA, sizeof(sched_thread_t));
 #endif
-    
+
     return thread;
 }
 
@@ -236,12 +232,7 @@ sched_thread_t *sched_get_current_thread(void) {
 
 void sched_init(badge_err_t *const ec) {
     // Set up the idle task:
-    sched_prepare_kernel_entry(
-        &idle_task.kernel_ctx,
-        idle_task.stack_top,
-        idle_thread_function,
-        NULL
-    );
+    sched_prepare_kernel_entry(&idle_task.kernel_ctx, idle_task.stack_top, idle_thread_function, NULL);
 
     // Initialize thread allocator:
     for (size_t i = 0; i < SCHEDULER_MAX_THREADS; i++) {
@@ -249,10 +240,7 @@ void sched_init(badge_err_t *const ec) {
             .flags         = THREAD_ALLOCATOR_SENTINEL,
             .schedule_node = DLIST_NODE_EMPTY,
         };
-        dlist_append(
-            &thread_alloc_pool,
-            &thread_alloc_pool_storage[i].schedule_node
-        );
+        dlist_append(&thread_alloc_pool, &thread_alloc_pool_storage[i].schedule_node);
     }
 
     badge_err_set_ok(ec);
@@ -314,15 +302,12 @@ void sched_request_switch_from_isr(void) {
     dlist_node_t *const next_thread_node = dlist_pop_front(&thread_wait_queue);
 
     if (next_thread_node != NULL) {
-        sched_thread_t *const next_thread =
-            field_parent_ptr(sched_thread_t, schedule_node, next_thread_node);
+        sched_thread_t *const next_thread = field_parent_ptr(sched_thread_t, schedule_node, next_thread_node);
 
         // Set the switch target
         kernel_ctx_switch_set(&next_thread->kernel_ctx);
 
-        task_time_quota =
-            SCHEDULER_MIN_TASK_TIME_US +
-            (uint32_t)next_thread->priority * SCHEDULER_TIME_QUOTA_INCR_US;
+        task_time_quota = SCHEDULER_MIN_TASK_TIME_US + (uint32_t)next_thread->priority * SCHEDULER_TIME_QUOTA_INCR_US;
 
     } else {
         // nothing to do, switch to idle task:
@@ -399,12 +384,7 @@ sched_thread_t *sched_create_kernel_thread(
         .kernel_ctx    = {},
     };
 
-    sched_prepare_kernel_entry(
-        &thread->kernel_ctx,
-        thread->stack_top,
-        entry_point,
-        arg
-    );
+    sched_prepare_kernel_entry(&thread->kernel_ctx, thread->stack_top, entry_point, arg);
 
     return thread;
 }
@@ -476,9 +456,7 @@ void sched_suspend_thread(badge_err_t *const ec, sched_thread_t *const thread) {
 
 // Implementation for both `sched_resume_thread` and `sched_resume_thread_next`.
 static void sched_resume_thread_inner(
-    badge_err_t *const             ec,
-    sched_thread_t *const          thread,
-    thread_insert_position_t const position
+    badge_err_t *const ec, sched_thread_t *const thread, thread_insert_position_t const position
 ) {
     assert_dev_drop(thread != NULL);
     enter_critical_section();
@@ -504,9 +482,7 @@ static void sched_resume_thread_inner(
     } else if (position == INSERT_THREAD_FRONT) {
         // Thread is already running and in the wait queue. Remove it and push
         // it to the front:
-        assert_dev_drop(
-            dlist_contains(&thread_wait_queue, &thread->schedule_node)
-        );
+        assert_dev_drop(dlist_contains(&thread_wait_queue, &thread->schedule_node));
 
         dlist_remove(&thread_wait_queue, &thread->schedule_node);
         dlist_prepend(&thread_wait_queue, &thread->schedule_node);
@@ -514,9 +490,7 @@ static void sched_resume_thread_inner(
         badge_err_set_ok(ec);
     } else {
         // Thread is already running and in the wait queue
-        assert_dev_drop(
-            dlist_contains(&thread_wait_queue, &thread->schedule_node)
-        );
+        assert_dev_drop(dlist_contains(&thread_wait_queue, &thread->schedule_node));
         badge_err_set_ok(ec);
     }
 
@@ -527,9 +501,7 @@ void sched_resume_thread(badge_err_t *const ec, sched_thread_t *const thread) {
     sched_resume_thread_inner(ec, thread, INSERT_THREAD_BACK);
 }
 
-void sched_resume_thread_next(
-    badge_err_t *const ec, sched_thread_t *const thread
-) {
+void sched_resume_thread_next(badge_err_t *const ec, sched_thread_t *const thread) {
     sched_resume_thread_inner(ec, thread, INSERT_THREAD_FRONT);
 }
 

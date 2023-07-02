@@ -106,10 +106,7 @@ bool dlist_contains(dlist_t const *const list, dlist_node_t const *const node) {
 }
 
 void dlist_remove(dlist_t *const list, dlist_node_t *const node) {
-    assert_dev_drop(
-        dlist_contains(list, node) ||
-        ((node->next == NULL) && (node->previous == NULL))
-    );
+    assert_dev_drop(dlist_contains(list, node) || ((node->next == NULL) && (node->previous == NULL)));
 
     if (node->previous != NULL) {
         node->previous->next = node->next;

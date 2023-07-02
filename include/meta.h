@@ -9,9 +9,8 @@
 
 // A meta-programming macro to obtain a pointer to `Container` from
 // a pointer to `field_name`.
-#define field_parent_ptr(Container, field_name, pointer_to_field)              \
-    ((Container                                                                \
-          *)(((char *)(pointer_to_field)) - offsetof(Container, field_name)))
+#define field_parent_ptr(Container, field_name, pointer_to_field)                                                      \
+    ((Container *)(((char *)(pointer_to_field)) - offsetof(Container, field_name)))
 
 // Takes whatever `value` is and returns it as a string literal
 #define comptime_stringify(value) #value

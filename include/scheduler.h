@@ -50,11 +50,7 @@ void sched_exec(void) NORETURN;
 // Potential errors:
 // - `ECAUSE_NOMEM` is issued when the thread could not be allocated.
 sched_thread_t *sched_create_userland_thread(
-    badge_err_t            *ec,
-    process_t              *process,
-    sched_entry_point_t     entry_point,
-    void                   *arg,
-    sched_thread_priority_t priority
+    badge_err_t *ec, process_t *process, sched_entry_point_t entry_point, void *arg, sched_thread_priority_t priority
 );
 
 // Creates a new suspended kernel thread.
@@ -164,15 +160,10 @@ typedef struct kernel_ctx_t kernel_ctx_t;
 //
 // NOTE: This function must be implemented in the `cpu` package!
 void sched_prepare_kernel_entry(
-    kernel_ctx_t       *ctx,
-    uintptr_t           initial_stack_pointer,
-    sched_entry_point_t entry_point,
-    void               *arg
+    kernel_ctx_t *ctx, uintptr_t initial_stack_pointer, sched_entry_point_t entry_point, void *arg
 );
 
 // Prepares a kernel `ctx` to be invoked as a user thread.
 //
 // NOTE: This function must be implemented in the `cpu` package!
-void sched_prepare_user_entry(
-    kernel_ctx_t *ctx, sched_entry_point_t entry_point, void *arg
-);
+void sched_prepare_user_entry(kernel_ctx_t *ctx, sched_entry_point_t entry_point, void *arg);
