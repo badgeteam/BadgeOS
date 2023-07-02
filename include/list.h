@@ -57,4 +57,4 @@ dlist_node_t *dlist_pop_back(dlist_t *list);
 // Checks if `list` contains the given `node`.
 //
 // Both `list` and `node` must be non-`NULL`
-bool dlist_contains(const dlist_t *list, const dlist_node_t *node);
+bool dlist_contains(dlist_t const *list, dlist_node_t const *node);

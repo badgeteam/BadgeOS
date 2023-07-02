@@ -123,7 +123,7 @@ void sched_resume_thread(badge_err_t *ec, sched_thread_t *thread);
 sched_thread_t *sched_get_current_thread(void);
 
 // Returns the associated process for a given thread.
-process_t *sched_get_associated_process(const sched_thread_t *thread);
+process_t *sched_get_associated_process(sched_thread_t const *thread);
 
 // thread self-control interface:
 
