@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "log.h"
+
 #include "rawprint.h"
 
 typedef __builtin_va_list va_list;

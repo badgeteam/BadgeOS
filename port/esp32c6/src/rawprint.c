@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: MIT
 
 #include "rawprint.h"
-#include "port/hardware.h"
+
 #include "time.h"
+#include "port/hardware.h"
 
 const char hextab[] = "0123456789ABCDEF";
 

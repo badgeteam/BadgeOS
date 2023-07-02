@@ -3,11 +3,12 @@
 
 #pragma once
 
+#include "badge_err.h"
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
 
-#include "badge_err.h"
 
 // Returns the amount of I²C peripherals present.
 // Cannot produce an error.

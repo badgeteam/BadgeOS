@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "i2c.h"
+
 #include "gpio.h"
 #include "port/rawgpio.h"
 #include "port/hardware.h"

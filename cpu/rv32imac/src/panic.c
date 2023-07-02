@@ -1,5 +1,6 @@
 
 #include "cpu/panic.h"
+
 #include "log.h"
 #include "rawprint.h"
 #include "cpu/kernel_ctx.h"

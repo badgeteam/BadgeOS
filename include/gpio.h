@@ -3,12 +3,11 @@
 
 #pragma once
 
+#include "badge_err.h"
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-
-#include "badge_err.h"
-
 
 typedef enum {
 	// high-impedance; no digital or analog functions

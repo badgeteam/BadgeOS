@@ -3,9 +3,10 @@
 // Note: This file implements placeholder ISRs and will be removed eventually.
 
 #include "cpu/isr.h"
+
 #include "log.h"
-#include "cpu/panic.h"
 #include "rawprint.h"
+#include "cpu/panic.h"
 #include "cpu/kernel_ctx.h"
 
 

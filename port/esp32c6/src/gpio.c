@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "gpio.h"
+
 #include "port/hardware.h"
 
 // Function index for GPIO mode.

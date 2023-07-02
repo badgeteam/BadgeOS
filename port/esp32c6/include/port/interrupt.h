@@ -3,10 +3,11 @@
 
 #pragma once
 
+#include "cpu/kernel_ctx.h"
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "cpu/kernel_ctx.h"
 
 // Interrupt channel used for timer alarms.
 #define INT_TIMER_ALARM_CH		16

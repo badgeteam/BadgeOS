@@ -3,13 +3,14 @@
 
 #pragma once
 
+#include "cpu/regs.h"
+#include "cpu/kernel_ctx.h"
+
 #ifndef __ASSEMBLER__
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
 #endif
-#include "cpu/regs.h"
-#include "cpu/kernel_ctx.h"
 
 // Word size of the stack used for interrupt and trap handlers.
 #define ISR_STACK_DEPTH 4096

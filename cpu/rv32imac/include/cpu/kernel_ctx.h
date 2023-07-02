@@ -3,12 +3,13 @@
 
 #pragma once
 
+#include "cpu/regs.h"
+
 #ifndef __ASSEMBLER__
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
 #endif
-#include "cpu/regs.h"
 
 #ifdef __ASSEMBLER__
 

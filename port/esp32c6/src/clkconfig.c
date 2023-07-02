@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "port/clkconfig.h"
+
 #include "port/hardware.h"
 
 // UART0 configuration register (Access: R/W)

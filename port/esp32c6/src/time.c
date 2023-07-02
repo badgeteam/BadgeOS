@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: MIT
 
 #include "time.h"
+
+#include "log.h"
 #include "port/interrupt.h"
 #include "port/intmtx.h"
-#include "log.h"
 
 
 

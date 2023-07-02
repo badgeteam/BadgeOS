@@ -1,12 +1,12 @@
 
 // SPDX-License-Identifier: MIT
 
-#include <stdint.h>
 #include "log.h"
 #include "time.h"
 #include "gpio.h"
 #include "port/interrupt.h"
 
+#include <stdint.h>
 
 
 // Temporary kernel context until threading is implemented.
