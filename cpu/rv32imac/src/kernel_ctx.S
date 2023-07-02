@@ -1,7 +1,7 @@
 
 # SPDX-License-Identifier: MIT
 
-#include <regs.h>
+#include "cpu/regs.h"
 	.global _kernel_reg_dump
 
 

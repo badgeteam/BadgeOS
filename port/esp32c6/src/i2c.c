@@ -1,11 +1,11 @@
 
 // SPDX-License-Identifier: MIT
 
-#include <i2c.h>
-#include <gpio.h>
-#include <rawgpio.h>
-#include <hardware.h>
-#include <clkconfig.h>
+#include "i2c.h"
+#include "gpio.h"
+#include "port/rawgpio.h"
+#include "port/hardware.h"
+#include "port/clkconfig.h"
 
 // Signal number for I²C SDA.
 #define I2C_0_SDA_SIGNAL 46

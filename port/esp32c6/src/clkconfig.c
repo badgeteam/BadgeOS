@@ -1,8 +1,8 @@
 
 // SPDX-License-Identifier: MIT
 
-#include <clkconfig.h>
-#include <hardware.h>
+#include "port/clkconfig.h"
+#include "port/hardware.h"
 
 // UART0 configuration register (Access: R/W)
 #define PCR_UART0_CONF_REG					(PCR_BASE + 0x0000)

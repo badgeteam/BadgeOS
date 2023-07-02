@@ -8,7 +8,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #endif
-#include <regs.h>
+#include "cpu/regs.h"
 
 #ifdef __ASSEMBLER__
 

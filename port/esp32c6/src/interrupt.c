@@ -1,11 +1,11 @@
 
 // SPDX-License-Identifier: MIT
 
-#include <isr.h>
-#include <interrupt.h>
-#include <intmtx.h>
+#include "cpu/isr.h"
+#include "port/interrupt.h"
+#include "port/intmtx.h"
 
-#include <time.h>
+#include "time.h"
 
 // Install interrupt and trap handlers.
 void interrupt_init(kernel_ctx_t *ctx, cpu_regs_t *regs) {

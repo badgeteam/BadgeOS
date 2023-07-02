@@ -1,7 +1,7 @@
 
 // SPDX-License-Identifier: MIT
 
-#include <intmtx.h>
+#include "port/intmtx.h"
 
 // Initialise the interrupt matrix with defaults.
 void intmtx_init() {

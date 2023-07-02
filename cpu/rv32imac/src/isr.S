@@ -1,7 +1,7 @@
 
 # SPDX-License-Identifier: MIT
 
-#include <isr.h>
+#include "cpu/isr.h"
 	.global __global_pointer$
 
 

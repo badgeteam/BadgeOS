@@ -1,6 +1,6 @@
 
-#include <kernel_ctx.h>
-#include <rawprint.h>
+#include "cpu/kernel_ctx.h"
+#include "rawprint.h"
 
 // Number of columns in register dump.
 // Must be a power of 2.

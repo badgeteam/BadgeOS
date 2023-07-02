@@ -1,8 +1,8 @@
 
 // SPDX-License-Identifier: MIT
 
-#include <gpio.h>
-#include <hardware.h>
+#include "gpio.h"
+#include "port/hardware.h"
 
 // Function index for GPIO mode.
 #define ESP32C6_IOMUX_FUNC_GPIO 1

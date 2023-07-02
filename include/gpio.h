@@ -7,7 +7,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#include <badge_err.h>
+#include "badge_err.h"
 
 
 typedef enum {

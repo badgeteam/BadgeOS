@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <regs.h>
+#include "cpu/regs.h"
 
 // Call this function when and only when the kernel has encountered a fatal error.
 // Prints register dump for current kernel context and jumps to `panic_poweroff`.

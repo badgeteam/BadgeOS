@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: MIT
 // Note: This file implements placeholder ISRs and will be removed eventually.
 
-#include <isr.h>
-#include <log.h>
-#include <panic.h>
-#include <rawprint.h>
-#include <kernel_ctx.h>
+#include "cpu/isr.h"
+#include "log.h"
+#include "cpu/panic.h"
+#include "rawprint.h"
+#include "cpu/kernel_ctx.h"
 
 
 
