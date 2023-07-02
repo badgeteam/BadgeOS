@@ -111,7 +111,7 @@ The `bool` type is not to be treated as a regular integer:
 
 
 ## Variable declarations
-Variable declarations should be on one line unless that means exceeding 80 columns.
+Variable declarations should be on one line unless that means exceeding 120 columns.
 Every variable should have at least a one-line comment explaining the purpose.
 Here is a general example of how to declare variables:
 ```c
@@ -137,7 +137,7 @@ The following rules apply:
 
 
 ## Function declarations
-Function declarations should be on one line unless that means exceeding 80 columns.
+Function declarations should be on one line unless that means exceeding 120 columns.
 Every function should have at least a one-line comment explaining the purpose and functions with return values should explain what is returned on error.
 Here is a general example of how to declare functions:
 ```c
@@ -167,7 +167,7 @@ The following rules apply:
 
 
 ## Function definitions
-Function definitions should be on one line unless that means exceeding 80 columns.
+Function definitions should be on one line unless that means exceeding 120 columns.
 Every function should have at least a one-line comment explaining the purpose and functions with return values should explain what is returned on error.
 Function definitions should have the same exact comment as their matching declaration.
 Here is a general example of how to define functions:

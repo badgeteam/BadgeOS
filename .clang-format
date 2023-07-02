@@ -8,7 +8,7 @@ ContinuationIndentWidth: 4
 TabWidth: 4
 UseCRLF: false
 UseTab: Never
-ColumnLimit: 80
+ColumnLimit: 120
 MaxEmptyLinesToKeep: 3
 
 IndentCaseLabels: true
