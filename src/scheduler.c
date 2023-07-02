@@ -94,7 +94,9 @@ enum {
 };
 static uint8_t idle_task_stack[IDLE_TASK_STACK_LEN] ALIGNED_TO(STACK_ALIGNMENT);
 
-static_assert(is_aligned(IDLE_TASK_STACK_LEN, STACK_ALIGNMENT));
+static_assert(
+    is_aligned(IDLE_TASK_STACK_LEN, STACK_ALIGNMENT), "IDLE_TASK_STACK_LEN must be aligned to STACK_ALIGNMENT!"
+);
 
 // The scheduler must schedule something, and the idle task is what
 // the scheduler will schedule when nothing can be scheduled.

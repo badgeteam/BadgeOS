@@ -29,6 +29,7 @@ set(common_compiler_flags
     -fsanitize-undefined-trap-on-error # Invoke a trap instruction instead of calling into the UBsan runtime.
     -Werror=return-type                # Error when a function doesn't return a value, but declares to do so.
     -Wall -Wextra                      # Ramp up warning level.
+    -std=gnu11                         # We use the C11 standard
 )
 
 # we must pass the same options to GCC and LD when using LTO, as the linker will actually do the codegen
