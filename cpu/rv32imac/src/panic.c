@@ -3,7 +3,7 @@
 
 #include "log.h"
 #include "rawprint.h"
-#include "cpu/kernel_ctx.h"
+#include "kernel_ctx.h"
 
 // Call this function when and only when the kernel has encountered a fatal error.
 // Prints register dump for current kernel context and jumps to `panic_poweroff`.

@@ -5,6 +5,7 @@
 void dlist_append(dlist_t *const list, dlist_node_t *const node) {
     assert_dev_drop(list != NULL);
     assert_dev_drop(node != NULL);
+    assert_dev_drop(!dlist_contains(list, node));
 
     if (list->tail == NULL) {
         assert_dev_drop(list->head == NULL);
@@ -24,6 +25,7 @@ void dlist_append(dlist_t *const list, dlist_node_t *const node) {
 void dlist_prepend(dlist_t *const list, dlist_node_t *const node) {
     assert_dev_drop(list != NULL);
     assert_dev_drop(node != NULL);
+    assert_dev_drop(!dlist_contains(list, node));
 
     if (list->head == NULL) {
         assert_dev_drop(list->tail == NULL);
@@ -101,4 +103,25 @@ bool dlist_contains(dlist_t const *const list, dlist_node_t const *const node) {
     }
 
     return false;
+}
+
+void dlist_remove(dlist_t *const list, dlist_node_t *const node) {
+    assert_dev_drop(
+        dlist_contains(list, node) ||
+        ((node->next == NULL) && (node->previous == NULL))
+    );
+
+    if (node->previous != NULL) {
+        node->previous->next = node->next;
+    }
+    if (node->next != NULL) {
+        node->next->previous = node->previous;
+    }
+    if (node == list->head) {
+        list->head = node->next;
+    }
+    if (node == list->tail) {
+        list->tail = node->previous;
+    }
+    *node = DLIST_NODE_EMPTY;
 }

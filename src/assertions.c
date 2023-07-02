@@ -1,7 +1,7 @@
 #include "assertions.h"
 
+#include "cpu/panic.h"
 #include "log.h"
-#include "panic.h"
 
 void kernel_assertion_failure(char const *assertion_msg) {
     // TODO: Panic here

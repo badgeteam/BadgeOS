@@ -34,27 +34,37 @@ typedef struct dlist_t {
 // Initializer value for a list node. Convenience macro for zero-initialization.
 #define DLIST_NODE_EMPTY ((dlist_node_t){.next = NULL, .previous = NULL})
 
-// Appends an item after the `tail` of the `list`.
-// Both `list` and `node` must be non-`NULL`
+// Appends `node` after the `tail` of the `list`.
+// `node` must not be in `list` already.
+//
+// Both `list` and `node` must be non-`NULL`.
 void dlist_append(dlist_t *list, dlist_node_t *node);
 
-// Prepends an item before the `head` of the `list`.
-// Both `list` and `node` must be non-`NULL`
+// Prepends `node` before the `head` of the `list`.
+// `node` must not be in `list` already.
+//
+// Both `list` and `node` must be non-`NULL`.
 void dlist_prepend(dlist_t *list, dlist_node_t *node);
 
 // Removes the `head` of the given `list`. Will return `NULL`
 // if the list was empty.
 //
-// `list` must be non-`NULL`
+// `list` must be non-`NULL`.
 dlist_node_t *dlist_pop_front(dlist_t *list);
 
 // Removes the `tail` of the given `list`. Will return `NULL`
 // if the list was empty.
 //
-// `list` must be non-`NULL`
+// `list` must be non-`NULL`.
 dlist_node_t *dlist_pop_back(dlist_t *list);
 
 // Checks if `list` contains the given `node`.
 //
-// Both `list` and `node` must be non-`NULL`
+// Both `list` and `node` must be non-`NULL`.
 bool dlist_contains(dlist_t const *list, dlist_node_t const *node);
+
+// Removes `node` from `list`. `node` must be either an empty (non-inserted)
+// node or must be contained in `list`.
+//
+// Both `list` and `node` must be non-`NULL`.
+void dlist_remove(dlist_t *list, dlist_node_t *node);

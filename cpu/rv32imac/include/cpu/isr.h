@@ -4,7 +4,7 @@
 #pragma once
 
 #include "cpu/regs.h"
-#include "cpu/kernel_ctx.h"
+#include "kernel_ctx.h"
 
 #ifndef __ASSEMBLER__
 #include <stdint.h>

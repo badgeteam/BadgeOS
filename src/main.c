@@ -9,7 +9,6 @@
 
 #include <stdint.h>
 
-
 // Temporary kernel context until threading is implemented.
 static kernel_ctx_t kctx;
 

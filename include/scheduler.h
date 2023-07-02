@@ -104,7 +104,8 @@ void sched_detach_thread(badge_err_t *ec, sched_thread_t *thread);
 // If the thread is already suspended, nothing will happen.
 //
 // If `thread` is NULL, the current thread will be suspended and `sched_yield()`
-// is invoked implicitly.
+// is invoked implicitly. It will return with success after the thread will be
+// resumed again.
 //
 // Potential errors:
 // - `ECAUSE_ILLEGAL` is issued when the thread has finished.
@@ -118,6 +119,16 @@ void sched_suspend_thread(badge_err_t *ec, sched_thread_t *thread);
 // Potential errors:
 // - `ECAUSE_ILLEGAL` is issued when the thread has finished.
 void sched_resume_thread(badge_err_t *ec, sched_thread_t *thread);
+
+// Resumes a previously suspended thread or starts it.
+// Will move the thread to the start of the wait queue and will make it the
+// next thread executed.
+//
+// NOTE: When `thread` is the current thread, this function will do nothing.
+//
+// Potential errors:
+// - `ECAUSE_ILLEGAL` is issued when the thread has finished.
+void sched_resume_thread_next(badge_err_t *ec, sched_thread_t *thread);
 
 // Returns the currently active thread or NULL if the scheduler isn't running.
 sched_thread_t *sched_get_current_thread(void);
@@ -144,3 +155,24 @@ void sched_exit(uint32_t exit_code) NORETURN;
 // Requests the scheduler to prepare a switch from inside an interrupt
 // routine.
 void sched_request_switch_from_isr(void);
+
+// forward-declared from "kernel_ctx.h"
+typedef struct kernel_ctx_t kernel_ctx_t;
+
+
+// Prepares a kernel `ctx` to be invoked as a kernel thread.
+//
+// NOTE: This function must be implemented in the `cpu` package!
+void sched_prepare_kernel_entry(
+    kernel_ctx_t       *ctx,
+    uintptr_t           initial_stack_pointer,
+    sched_entry_point_t entry_point,
+    void               *arg
+);
+
+// Prepares a kernel `ctx` to be invoked as a user thread.
+//
+// NOTE: This function must be implemented in the `cpu` package!
+void sched_prepare_user_entry(
+    kernel_ctx_t *ctx, sched_entry_point_t entry_point, void *arg
+);

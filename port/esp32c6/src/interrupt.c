@@ -3,8 +3,8 @@
 
 #include "port/interrupt.h"
 
-#include "cpu/isr.h"
 #include "time.h"
+#include "cpu/isr.h"
 #include "port/intmtx.h"
 
 #include "rawprint.h"
