@@ -12,9 +12,6 @@ typedef struct kernel_ctx_t kernel_ctx_t;
 // Get the current kernel context.
 static inline kernel_ctx_t *kernel_ctx_get();
 
-// Set the current kernel context.
-static inline void kernel_ctx_set(kernel_ctx_t *kctx);
-
 // Get the outstanding context swap target, if any.
 static inline kernel_ctx_t *kernel_ctx_switch_get();
 

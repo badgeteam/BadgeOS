@@ -127,7 +127,11 @@ enum {
 static sched_thread_t thread_alloc_pool_storage[SCHEDULER_MAX_THREADS];
 
 // Linked list of all available, non-allocated threads.
-static dlist_t thread_alloc_pool = DLIST_EMPTY;
+static dlist_t thread_alloc_pool    = DLIST_EMPTY;
+
+
+// Sanity check for critical sections
+static bool critical_section_active = false;
 
 // Enters a scheduler-local critical section that cannot be interrupted from the
 // scheduler itself. Call `leave_critical_section` after the critical section
@@ -135,11 +139,15 @@ static dlist_t thread_alloc_pool = DLIST_EMPTY;
 //
 // During a critical section, no thread switches can occurr.
 static void enter_critical_section(void) {
+    assert_dev_drop(!critical_section_active);
     // TODO: Enable interrupts here
+    critical_section_active = true;
 }
 
 static void leave_critical_section(void) {
+    assert_dev_drop(critical_section_active);
     // TODO: Disable interrupts here
+    critical_section_active = false;
 }
 
 
