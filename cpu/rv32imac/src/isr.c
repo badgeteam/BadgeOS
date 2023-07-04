@@ -77,3 +77,4 @@ void __trap_handler() {
 	// When the kernel traps it's a bad time.
 	panic_poweroff();
 }
+

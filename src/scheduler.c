@@ -2,6 +2,7 @@
 
 #include "assertions.h"
 #include "attributes.h"
+#include "cpu/isr.h"
 #include "kernel_ctx.h"
 #include "list.h"
 #include "memory.h"
@@ -146,14 +147,14 @@ static bool critical_section_had_interrupts = false;
 // During a critical section, no thread switches can occurr.
 static void enter_critical_section(void) {
     assert_dev_drop(!critical_section_active);
-    critical_section_had_interrupts = interrupt_disable();
+    critical_section_had_interrupts = isr_global_disable();
     critical_section_active         = true;
 }
 
 static void leave_critical_section(void) {
     assert_dev_drop(critical_section_active);
     if (critical_section_had_interrupts) {
-        interrupt_enable();
+        isr_global_enable();
     }
     critical_section_active = false;
 }
@@ -222,8 +223,8 @@ static sched_thread_t *sched_get_current_thread_unsafe(void) {
 static void trigger_task_switch_isr(void) {
     assert_dev_drop(scheduler_enabled);
 
-    // TODO: Explicitly invoke the timer ISR here to "preempt" the process early
-    // on
+    // This is an explicit invocation of the task switch ISR:
+    isr_invoke(INT_TIMER_ALARM_CH);
 }
 
 // Destroys a thread and releases its resources.
