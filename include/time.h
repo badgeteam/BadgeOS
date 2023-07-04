@@ -5,9 +5,9 @@
 
 #include "port/hardware.h"
 
-#include <stdint.h>
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 typedef int32_t frequency_hz_t;
 typedef int64_t timestamp_us_t;
@@ -19,10 +19,21 @@ enum {
     TIME_US_PER_S  = 1000U * 1000U,
 };
 
+enum {
+    // The system clock timer. Runs at 1 MHz and will be used for scheduling
+    // and measuring the time since system start.
+    TIMER_SYSTICK_NO   = 0,
+
+    // Timer isn't used yet. Rename symbol when usage is found.
+    TIMER_UNDEFINED_NO = 1,
+};
+
 // Initialise timer and watchdog subsystem.
 void time_init();
 // Get current time in microseconds.
 timestamp_us_t time_us();
+// Sets the alarm time when the next task switch should occur.
+void time_set_next_task_switch(timestamp_us_t timestamp);
 
 // Get the number of hardware timers.
 #define timer_count() (2)
@@ -33,9 +44,7 @@ void timer_int_config(int timerno, bool enable, int channel);
 
 
 // Configure timer alarm.
-void timer_alarm_config(
-    int timerno, timestamp_unspec_t threshold, bool reset_on_alarm
-);
+void timer_alarm_config(int timerno, timestamp_unspec_t threshold, bool reset_on_alarm);
 // Get the current value of timer.
 timestamp_unspec_t timer_value_get(int timerno);
 // Set the current value of timer.

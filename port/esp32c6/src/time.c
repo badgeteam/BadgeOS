@@ -6,6 +6,7 @@
 #include "log.h"
 #include "port/interrupt.h"
 #include "port/intmtx.h"
+#include "scheduler.h"
 
 #define LP_WDT_CONFIG0_REG       (LP_WDT_BASE + 0x0000)
 #define LP_WDT_CONFIG1_REG       (LP_WDT_BASE + 0x0004)
@@ -115,18 +116,22 @@ void time_init() {
     // Disable LP WDT.
     WRITE_REG(LP_WDT_WRPROTECT_REG, LD_WDT_WRPROTECT_MAGIC);
     WRITE_REG(LP_WDT_CONFIG0_REG, 0);
-    
+
     // Set up TIMG0 T0 as a 1MHz counter.
-    timer_stop(0);
-    timer_set_freq(0, 1000000);
-    timer_value_set(0, 0);
-    timer_start(0);
+    timer_stop(TIMER_SYSTICK_NO);
+    timer_set_freq(TIMER_SYSTICK_NO, 1000000);
+    timer_value_set(TIMER_SYSTICK_NO, 0);
+    timer_start(TIMER_SYSTICK_NO);
 }
 
 // Get current time in microseconds.
-int64_t time_us() { return timer_value_get(0); }
+int64_t time_us() {
+    return timer_value_get(TIMER_SYSTICK_NO);
+}
 
-
+void time_set_next_task_switch(timestamp_us_t timestamp) {
+    timer_alarm_config(TIMER_SYSTICK_NO, timestamp, false);
+}
 
 // Set the counting frequency of a hardware timer.
 void timer_set_freq(int timerno, int32_t frequency) {
@@ -179,7 +184,8 @@ int64_t timer_value_get(int timerno) {
     uint32_t lo   = READ_REG(base + T0LO_REG);
     int      div  = 32;
     WRITE_REG(base + T0UPDATE_REG, -1);
-    while (READ_REG(base + T0LO_REG) == lo && --div);
+    while (READ_REG(base + T0LO_REG) == lo && --div)
+        ;
     return READ_REG(base + T0LO_REG) | ((uint64_t)READ_REG(base + T0HI_REG) << 32LLU);
 }
 
@@ -206,7 +212,21 @@ void timer_stop(int timerno) {
 
 
 // Callback to the timer driver for when a timer alarm fires.
-void timer_isr_timer_alarm() { logk(LOG_DEBUG, "Timer alarm ISR"); }
+void timer_isr_timer_alarm() {
+    logk(LOG_DEBUG, "Timer alarm ISR");
+
+    size_t const systick_base = timg_base(TIMER_SYSTICK_NO);
+    if ((READ_REG(systick_base + INT_RAW_TIMERS_REG) & 1) != 0) {
+        // TIMER_SYSTICK_NO had an interrupt, perform task switch
+
+        sched_request_switch_from_isr(); // will rearm the timer with a new value
+
+        // acknowledge interrupt
+        WRITE_REG(systick_base + INT_CLR_TIMERS_REG, 1);
+    }
+}
 
 // Callback to the timer driver for when a watchdog alarm fires.
-void timer_isr_watchdog_alarm() { logk(LOG_DEBUG, "Watchdog alarm ISR"); }
+void timer_isr_watchdog_alarm() {
+    logk(LOG_DEBUG, "Watchdog alarm ISR");
+}

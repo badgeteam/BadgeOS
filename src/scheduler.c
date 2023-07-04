@@ -277,6 +277,10 @@ void sched_exec(void) {
 }
 
 void sched_request_switch_from_isr(void) {
+    if (!scheduler_enabled) {
+        // only switch tasks when the scheduler is ready to run
+        return;
+    }
 
     timestamp_us_t const  now             = time_us();
 
@@ -335,7 +339,7 @@ void sched_request_switch_from_isr(void) {
     assert_dev_drop(task_time_quota > 0);
 
     next_isr_invocation_time += task_time_quota;
-    // TODO: Set timer timeout here!
+    time_set_next_task_switch(next_isr_invocation_time);
 }
 
 sched_thread_t *sched_create_userland_thread(
