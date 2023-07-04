@@ -29,28 +29,28 @@ void sched_prepare_kernel_entry(
     mem_set(&ctx->regs, 0, sizeof(cpu_regs_t));
 
     // setup the trampoline
-    ctx->regs->pc = (uintptr_t)thread_trampoline;
-    ctx->regs->sp = initial_stack_pointer;
-    ctx->regs->a0 = (uintptr_t)entry_point;
-    ctx->regs->a1 = (uintptr_t)arg;
+    ctx->regs.pc = (uintptr_t)thread_trampoline;
+    ctx->regs.sp = initial_stack_pointer;
+    ctx->regs.a0 = (uintptr_t)entry_point;
+    ctx->regs.a1 = (uintptr_t)arg;
 
     // Copy over TP and GP from the current context
-    ctx->regs->gp = current_context->regs->gp;
-    ctx->regs->tp = current_context->regs->tp;
+    ctx->regs.gp = current_context->regs.gp;
+    ctx->regs.tp = current_context->regs.tp;
 }
 
 
 void sched_prepare_user_entry(kernel_ctx_t *const ctx, sched_entry_point_t const entry_point, void *const arg) {
 
-    ctx->regs->pc = (uintptr_t)entry_point;
-    ctx->regs->a0 = (uintptr_t)arg;
+    ctx->regs.pc = (uintptr_t)entry_point;
+    ctx->regs.a0 = (uintptr_t)arg;
 
     // return to invalid code so we get a crash
-    ctx->regs->ra = 0xDEADC0DEUL;
+    ctx->regs.ra = 0xDEADC0DEUL;
 
     // Setup the rest of the registers to bogus values
     // to early-on detect
-    ctx->regs->sp = 0xDEADC0DEUL;
-    ctx->regs->gp = 0xDEADC0DEUL;
-    ctx->regs->tp = 0xDEADC0DEUL;
+    ctx->regs.sp = 0xDEADC0DEUL;
+    ctx->regs.gp = 0xDEADC0DEUL;
+    ctx->regs.tp = 0xDEADC0DEUL;
 }
