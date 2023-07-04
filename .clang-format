@@ -56,6 +56,12 @@ BraceWrapping:
   SplitEmptyFunction: true
   SplitEmptyRecord: true
 
+AllowShortFunctionsOnASingleLine: None # never collapse empty functions
+AllowShortBlocksOnASingleLine: Never # never make single-line blocks
+AllowShortIfStatementsOnASingleLine: Never # never make single-line ifs
+AllowShortLoopsOnASingleLine: false # never make single-line loops
+AllowShortEnumsOnASingleLine: true # allow enum { FOO = 10 };
+
 # configure general code:
 
 # The = has at least one space to the left and one space to the right.
@@ -112,11 +118,7 @@ BreakBeforeTernaryOperators: true
 # AlignOperands: Align
 # AlignTrailingComments: true
 # AllowAllParametersOfDeclarationOnNextLine: true
-# AllowShortEnumsOnASingleLine: true
-# AllowShortBlocksOnASingleLine: Never
-# AllowShortFunctionsOnASingleLine: None
-# AllowShortIfStatementsOnASingleLine: Never
-# AllowShortLoopsOnASingleLine: false
+
 # AlwaysBreakAfterDefinitionReturnType: None
 # AlwaysBreakAfterReturnType: None
 # AlwaysBreakBeforeMultilineStrings: false
