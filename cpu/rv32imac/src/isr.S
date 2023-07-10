@@ -225,8 +225,13 @@ __isr_asm:
     isr_exit
     mret
 
+
+
+
+
 # void isr_invoke(uint32_t isr)
     .text
+    .global isr_invoke # export to linker
     .type isr_invoke, %function
     .align 2
 isr_invoke:
@@ -242,6 +247,10 @@ isr_invoke:
     # Set mepc to the return address.
     csrw    mepc,    ra
 
+    # Since this code is only runnable from M-Mode, MPIE should also be set to 3.
+    li      t0,      (3<<RV32_MSTATUS_MPP_BASE_BIT)
+    csrs    mstatus, t0
+
     # Set mcause to 0x800000XX
     li      t0,      0x80000000      # base cause
     add     t0,      t0, a0          # a0 contains isr number
@@ -252,6 +261,8 @@ isr_invoke:
     slli    t1,      a0, 2     # isr *= 4;
     add     t0,      t0, t1    # jump to `mtvec + 4 * isr`
     jr      t0
+
+
 
 
 

@@ -22,10 +22,7 @@ enum {
 enum {
     // The system clock timer. Runs at 1 MHz and will be used for scheduling
     // and measuring the time since system start.
-    TIMER_SYSTICK_NO   = 0,
-
-    // Timer isn't used yet. Rename symbol when usage is found.
-    TIMER_UNDEFINED_NO = 1,
+    TIMER_SYSTICK_NO = 0,
 };
 
 // Initialise timer and watchdog subsystem.
@@ -58,3 +55,6 @@ void timer_stop(int timerno);
 void timer_isr_timer_alarm();
 // Callback to the timer driver for when a watchdog alarm fires.
 void timer_isr_watchdog_alarm();
+
+// Triggers the ISR for the given timer manually. Required for the scheduler.
+void timer_trigger_isr(int timerno);

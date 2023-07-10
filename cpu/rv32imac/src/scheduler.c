@@ -2,11 +2,14 @@
 
 #include "assertions.h"
 #include "kernel_ctx.h"
+#include "log.h"
 #include "memory.h"
 
 // The trampoline is used to jump into the thread code and return from it,
 // ensuring that we can detect when a thread has exited.
+static void thread_trampoline(sched_entry_point_t ep, void *arg) ALIGNED_TO(4);
 static void thread_trampoline(sched_entry_point_t ep, void *arg) {
+    logk(LOG_INFO, "starting thread...");
     assert_always(ep != NULL);
 
     sched_thread_t *const this_thread = sched_get_current_thread();
@@ -15,6 +18,7 @@ static void thread_trampoline(sched_entry_point_t ep, void *arg) {
     ep(arg);
 
     // make sure the thread is always exited properly
+    logk(LOG_INFO, "thread done!");
     sched_exit(0);
 }
 
@@ -24,8 +28,6 @@ void sched_prepare_kernel_entry(
     sched_entry_point_t const entry_point,
     void *const               arg
 ) {
-    kernel_ctx_t const *const current_context = kernel_ctx_get();
-
     mem_set(&ctx->regs, 0, sizeof(cpu_regs_t));
 
     // setup the trampoline
@@ -35,8 +37,8 @@ void sched_prepare_kernel_entry(
     ctx->regs.a1 = (uintptr_t)arg;
 
     // Copy over TP and GP from the current context
-    ctx->regs.gp = current_context->regs.gp;
-    ctx->regs.tp = current_context->regs.tp;
+    asm volatile("" : "={gp}"(ctx->regs.gp));
+    asm volatile("" : "={tp}"(ctx->regs.tp));
 }
 
 

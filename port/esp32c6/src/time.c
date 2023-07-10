@@ -3,6 +3,7 @@
 
 #include "time.h"
 
+#include "cpu/isr.h"
 #include "log.h"
 #include "port/interrupt.h"
 #include "port/intmtx.h"
@@ -102,9 +103,7 @@
 
 
 // Get timer group base address based on timer index.
-static inline size_t timg_base(int timerno) {
-    return timerno ? TIMG1_BASE : TIMG0_BASE;
-}
+static inline size_t timg_base(int timerno) { return timerno ? TIMG1_BASE : TIMG0_BASE; }
 
 // Get timer clock source frequency based on timer index.
 #define timer_clk_freq(x) (40000000)
@@ -125,13 +124,9 @@ void time_init() {
 }
 
 // Get current time in microseconds.
-int64_t time_us() {
-    return timer_value_get(TIMER_SYSTICK_NO);
-}
+int64_t time_us() { return timer_value_get(TIMER_SYSTICK_NO); }
 
-void time_set_next_task_switch(timestamp_us_t timestamp) {
-    timer_alarm_config(TIMER_SYSTICK_NO, timestamp, false);
-}
+void    time_set_next_task_switch(timestamp_us_t timestamp) { timer_alarm_config(TIMER_SYSTICK_NO, timestamp, false); }
 
 // Set the counting frequency of a hardware timer.
 void timer_set_freq(int timerno, int32_t frequency) {
@@ -209,24 +204,39 @@ void timer_stop(int timerno) {
     WRITE_REG(addr, READ_REG(addr) & ~0x80000000);
 }
 
+static bool volatile force_task_switch = false;
 
 
 // Callback to the timer driver for when a timer alarm fires.
 void timer_isr_timer_alarm() {
     logk(LOG_DEBUG, "Timer alarm ISR");
 
+
+
     size_t const systick_base = timg_base(TIMER_SYSTICK_NO);
     if ((READ_REG(systick_base + INT_RAW_TIMERS_REG) & 1) != 0) {
         // TIMER_SYSTICK_NO had an interrupt, perform task switch
 
-        sched_request_switch_from_isr(); // will rearm the timer with a new value
+        force_task_switch = true;
 
         // acknowledge interrupt
         WRITE_REG(systick_base + INT_CLR_TIMERS_REG, 1);
     }
+
+    if (force_task_switch) {
+        sched_request_switch_from_isr(); // will rearm the timer with a new value
+        force_task_switch = false;
+    }
+
+    logk(LOG_DEBUG, "</Timer alarm ISR>");
 }
 
 // Callback to the timer driver for when a watchdog alarm fires.
-void timer_isr_watchdog_alarm() {
-    logk(LOG_DEBUG, "Watchdog alarm ISR");
+void timer_isr_watchdog_alarm() { logk(LOG_DEBUG, "Watchdog alarm ISR"); }
+
+void timer_trigger_isr(int timerno) {
+    if (timerno == TIMER_SYSTICK_NO) {
+        force_task_switch = true;
+    }
+    isr_invoke(INT_TIMER_ALARM_CH);
 }

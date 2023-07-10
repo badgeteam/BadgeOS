@@ -224,7 +224,7 @@ static void trigger_task_switch_isr(void) {
     assert_dev_drop(scheduler_enabled);
 
     // This is an explicit invocation of the task switch ISR:
-    isr_invoke(INT_TIMER_ALARM_CH);
+    timer_trigger_isr(TIMER_SYSTICK_NO);
 }
 
 // Destroys a thread and releases its resources.
@@ -246,6 +246,8 @@ sched_thread_t *sched_get_current_thread(void) {
     leave_critical_section();
     return thread;
 }
+
+#include "rawprint.h"
 
 void sched_init(badge_err_t *const ec) {
     // Set up the idle task:
@@ -276,17 +278,21 @@ void sched_exec(void) {
     __builtin_unreachable();
 }
 
+#include "log.h"
+
 void sched_request_switch_from_isr(void) {
     if (!scheduler_enabled) {
         // only switch tasks when the scheduler is ready to run
         return;
     }
 
+    logk(LOG_INFO, "sched_request_switch_from_isr");
+
     timestamp_us_t const  now             = time_us();
 
     int64_t const         time_quota_left = next_isr_invocation_time - now;
 
-    sched_thread_t *const current_thread  = sched_get_current_thread();
+    sched_thread_t *const current_thread  = sched_get_current_thread_unsafe();
     if (current_thread == &idle_task) {
         // Idle task cannot be destroyed, idle task cannot be killed.
 
@@ -329,12 +335,14 @@ void sched_request_switch_from_isr(void) {
         kernel_ctx_switch_set(&next_thread->kernel_ctx);
 
         task_time_quota = SCHEDULER_MIN_TASK_TIME_US + (uint32_t)next_thread->priority * SCHEDULER_TIME_QUOTA_INCR_US;
+        logk(LOG_DEBUG, "switch to task");
 
     } else {
         // nothing to do, switch to idle task:
 
         kernel_ctx_switch_set(&idle_task.kernel_ctx);
         task_time_quota = SCHEDULER_IDLE_TASK_QUOTA_US;
+        logk(LOG_DEBUG, "switch to idle");
     }
     assert_dev_drop(task_time_quota > 0);
 

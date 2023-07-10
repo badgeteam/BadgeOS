@@ -16,13 +16,14 @@ clean-tools:
 build:
 	@mkdir -p build && cmake -B build
 	@cmake --build build
+	@riscv32-unknown-elf-objdump -Sd build/main.elf > build/main.elf.disasm
 	@./packimage.py
 
 clean:
 	rm -rf build
 
 flash:
-	@source "$(IDF_PATH)/export.sh" >/dev/null && esptool.py -b 921600 \
+	esptool.py -b 921600 \
 		write_flash --flash_mode dio --flash_freq 80m --flash_size 2MB \
 		0x0 bin/bootloader.bin \
 		0x10000 build/main.bin \
@@ -30,4 +31,4 @@ flash:
 
 monitor:
 	@echo -e "\033[1mType ^A^X to exit.\033[0m"
-	@picocom -q -b 115200 $(PORT)
+	@picocom -q -b 115200 $(PORT) | ./tools/address-filter.py build/main.elf 
