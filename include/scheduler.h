@@ -144,7 +144,12 @@ void sched_yield(void);
 // scheduled anymore, as all work is done.
 //
 // NOTE: It's illegal to invoke this function outside a thread context!
-void sched_exit(uint32_t exit_code) NORETURN;
+void        sched_exit(uint32_t exit_code) NORETURN;
+
+
+void        sched_set_name(badge_err_t *ec, sched_thread_t *thread, char const *name);
+
+char const *sched_get_name(sched_thread_t *thread);
 
 // ISR interface:
 

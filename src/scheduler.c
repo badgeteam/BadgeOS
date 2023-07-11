@@ -301,6 +301,8 @@ void sched_request_switch_from_isr(void) {
         }
 
     } else if (current_thread != NULL) {
+        logk(LOG_DEBUG, "leave thread");
+        logk(LOG_DEBUG, current_thread->name);
         if (time_quota_left > 0) {
             // Thread is a good boy and didn't use up all of its time in the
             // CPU. We should give it some credit here.
@@ -336,6 +338,7 @@ void sched_request_switch_from_isr(void) {
 
         task_time_quota = SCHEDULER_MIN_TASK_TIME_US + (uint32_t)next_thread->priority * SCHEDULER_TIME_QUOTA_INCR_US;
         logk(LOG_DEBUG, "switch to task");
+        logk(LOG_DEBUG, next_thread->name);
 
     } else {
         // nothing to do, switch to idle task:
@@ -567,4 +570,29 @@ void sched_exit(uint32_t const exit_code) {
     // hint the compiler that we cannot reach this part of the code and
     // it will never be reached:
     __builtin_unreachable();
+}
+
+
+void sched_set_name(badge_err_t *ec, sched_thread_t *thread, char const *name) {
+#if NDEBUG
+    badge_err_set(ec, ELOC_THREADS, ECAUSE_UNSUPPORTED);
+#else
+    size_t l = 0;
+    for (l = 0; name[l]; l++) {
+    }
+    if (l + 1 >= sizeof(thread->name)) {
+        badge_err_set(ec, ELOC_THREADS, ECAUSE_TOOLONG);
+        return;
+    }
+    mem_copy(thread->name, name, l);
+    thread->name[l] = 0;
+#endif
+}
+
+char const *sched_get_name(sched_thread_t *thread) {
+#if NDEBUG
+    return "<optimized out>";
+#else
+    return thread->name;
+#endif
 }

@@ -209,10 +209,6 @@ static bool volatile force_task_switch = false;
 
 // Callback to the timer driver for when a timer alarm fires.
 void timer_isr_timer_alarm() {
-    logk(LOG_DEBUG, "Timer alarm ISR");
-
-
-
     size_t const systick_base = timg_base(TIMER_SYSTICK_NO);
     if ((READ_REG(systick_base + INT_RAW_TIMERS_REG) & 1) != 0) {
         // TIMER_SYSTICK_NO had an interrupt, perform task switch
@@ -227,8 +223,6 @@ void timer_isr_timer_alarm() {
         sched_request_switch_from_isr(); // will rearm the timer with a new value
         force_task_switch = false;
     }
-
-    logk(LOG_DEBUG, "</Timer alarm ISR>");
 }
 
 // Callback to the timer driver for when a watchdog alarm fires.

@@ -18,8 +18,8 @@ static kernel_ctx_t kctx;
 static void         led_blink_loop(void *);
 static void         uart_print_loop(void *);
 
-static uint8_t      led_blink_stack[64] ALIGNED_TO(STACK_ALIGNMENT);
-static uint8_t      uart_print_stack[64] ALIGNED_TO(STACK_ALIGNMENT);
+static uint8_t      led_blink_stack[256] ALIGNED_TO(STACK_ALIGNMENT);
+static uint8_t      uart_print_stack[256] ALIGNED_TO(STACK_ALIGNMENT);
 
 // This is the entrypoint after the stack has been set up and the init functions
 // have been run. Main is not allowed to return, so declare it noreturn.
@@ -73,6 +73,12 @@ void main() {
     );
     assert_always(badge_err_is_ok(&err));
     assert_always(print_thread != NULL);
+
+    sched_set_name(&err, led_thread, "led");
+    assert_always(badge_err_is_ok(&err));
+
+    sched_set_name(&err, print_thread, "print");
+    assert_always(badge_err_is_ok(&err));
 
     sched_resume_thread(&err, led_thread);
     assert_always(badge_err_is_ok(&err));
