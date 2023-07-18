@@ -18,8 +18,19 @@ static kernel_ctx_t kctx;
 static void         led_blink_loop(void *);
 static void         uart_print_loop(void *);
 
-static uint8_t      led_blink_stack[256] ALIGNED_TO(STACK_ALIGNMENT);
-static uint8_t      uart_print_stack[256] ALIGNED_TO(STACK_ALIGNMENT);
+struct led_config {
+    int      pin;
+    uint64_t off_time;
+    uint64_t on_time;
+};
+
+static struct led_config led_pins[3] = {
+    {.pin = 19, .off_time = 300LL * TIME_US_PER_MS, .on_time = 200LL * TIME_US_PER_MS},
+    {.pin = 20, .off_time = 250LL * TIME_US_PER_MS, .on_time = 350LL * TIME_US_PER_MS},
+    {.pin = 21, .off_time = 500LL * TIME_US_PER_MS, .on_time = 400LL * TIME_US_PER_MS},
+};
+static uint8_t led_blink_stack[3][512] ALIGNED_TO(STACK_ALIGNMENT);
+static uint8_t uart_print_stack[3][256] ALIGNED_TO(STACK_ALIGNMENT);
 
 // This is the entrypoint after the stack has been set up and the init functions
 // have been run. Main is not allowed to return, so declare it noreturn.
@@ -43,25 +54,35 @@ void main() {
     logk(LOG_DEBUG, "The ultimage log message test");
 
     // Test a GPIO.
-    io_mode(NULL, 15, IO_MODE_OUTPUT);
     io_mode(NULL, 22, IO_MODE_INPUT);
     io_pull(NULL, 22, IO_PULL_UP);
+
 
 
     sched_init(&err);
     assert_always(badge_err_is_ok(&err));
 
+    for (size_t i = 0; i < 3; i++) {
 
-    sched_thread_t *const led_thread = sched_create_kernel_thread(
-        &err,
-        led_blink_loop,
-        NULL,
-        led_blink_stack,
-        sizeof led_blink_stack,
-        SCHED_PRIO_NORMAL
-    );
-    assert_always(badge_err_is_ok(&err));
-    assert_always(led_thread != NULL);
+        sched_thread_t *const led_thread = sched_create_kernel_thread(
+            &err,
+            led_blink_loop,
+            &led_pins[i],
+            led_blink_stack[i],
+            sizeof led_blink_stack[i],
+            SCHED_PRIO_NORMAL
+        );
+        assert_always(badge_err_is_ok(&err));
+        assert_always(led_thread != NULL);
+
+        char thread_name[] = {'l', 'e', 'd', '-', '0' + i, 0};
+
+        sched_set_name(&err, led_thread, thread_name);
+        assert_always(badge_err_is_ok(&err));
+
+        sched_resume_thread(&err, led_thread);
+        assert_always(badge_err_is_ok(&err));
+    }
 
     sched_thread_t *const print_thread = sched_create_kernel_thread(
         &err,
@@ -74,13 +95,7 @@ void main() {
     assert_always(badge_err_is_ok(&err));
     assert_always(print_thread != NULL);
 
-    sched_set_name(&err, led_thread, "led");
-    assert_always(badge_err_is_ok(&err));
-
     sched_set_name(&err, print_thread, "print");
-    assert_always(badge_err_is_ok(&err));
-
-    sched_resume_thread(&err, led_thread);
     assert_always(badge_err_is_ok(&err));
 
     sched_resume_thread(&err, print_thread);
@@ -93,34 +108,40 @@ void main() {
     __builtin_unreachable();
 }
 
-static void led_blink_loop(void *) {
+static void led_blink_loop(void *ptr) {
+    struct led_config *cfg = ptr;
 
-    bool status = false;
+    logkf(LOG_INFO, "led thread %{d} (%{size;x})", cfg->pin, (size_t)cfg);
+
+    io_mode(NULL, cfg->pin, IO_MODE_OUTPUT);
+
+    int64_t next_blink = time_us();
     while (1) {
-
-        io_write(NULL, 15, status);
-        status            = !status;
-
-        int64_t const now = time_us();
-        while (time_us() < now + 500LL * TIME_US_PER_MS) {
-            logk(LOG_DEBUG, "<yield process=led>");
+        io_write(NULL, cfg->pin, true);
+        next_blink += cfg->on_time;
+        while (time_us() < next_blink) {
             sched_yield();
-            logk(LOG_DEBUG, "</yield process=led>");
+        }
+
+        io_write(NULL, cfg->pin, false);
+        next_blink += cfg->off_time;
+        while (time_us() < next_blink) {
+            sched_yield();
         }
     }
 }
 
 static void uart_print_loop(void *) {
 
+    int loops = 0;
+
     while (1) {
         int64_t const now = time_us();
 
 
         while (time_us() < now + 700LL * TIME_US_PER_MS) {
-            logk(LOG_DEBUG, "<yield process=uart>");
             sched_yield();
-            logk(LOG_DEBUG, "</yield process=uart>");
         }
-        logk(LOG_INFO, "timer");
+        logkf(LOG_INFO, "timer loop %{d}", ++loops);
     }
 }

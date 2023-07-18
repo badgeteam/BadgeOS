@@ -4,8 +4,8 @@
 #include "port/interrupt.h"
 
 #include "cpu/isr.h"
+#include "log.h"
 #include "port/intmtx.h"
-#include "rawprint.h"
 #include "time.h"
 
 
@@ -38,9 +38,8 @@ void __interrupt_handler() {
     uint32_t mcause;
     asm("csrr %0, mcause" : "=r"(mcause));
     mcause &= 31;
-    rawprint("Interrupt ");
-    rawprintdec(mcause, -1);
-    rawprint("\n");
+
+    // logkf(LOG_DEBUG, "Interrupt %{u32;d}", mcause);
 
     // Jump to ISRs.
     switch (mcause) {

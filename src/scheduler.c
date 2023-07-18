@@ -112,7 +112,11 @@ static sched_thread_t idle_task = {
 };
 
 // Variable for safety. Is set to `true` once `sched_exec()` was called.
-static bool scheduler_enabled = false;
+static bool scheduler_enabled      = false;
+
+// We need to have a flag for the first task switch, so don't suspend a
+// non-existing task.
+static bool scheduler_bootstrapped = false;
 
 // Stores the time when the next interrupt routine should come along.
 // This is then incremented gradually to keep the system running at a steady
@@ -286,46 +290,83 @@ void sched_request_switch_from_isr(void) {
         return;
     }
 
-    logk(LOG_INFO, "sched_request_switch_from_isr");
+    // logk(LOG_INFO, "sched_request_switch_from_isr");
 
-    timestamp_us_t const  now             = time_us();
+    timestamp_us_t const now             = time_us();
 
-    int64_t const         time_quota_left = next_isr_invocation_time - now;
+    int64_t const        time_quota_left = next_isr_invocation_time - now;
 
-    sched_thread_t *const current_thread  = sched_get_current_thread_unsafe();
-    if (current_thread == &idle_task) {
-        // Idle task cannot be destroyed, idle task cannot be killed.
 
-        if (time_quota_left > 0) {
-            // TODO: Implement CPU usage statistics for threads
-        }
+    if (scheduler_bootstrapped) {
+        sched_thread_t *const current_thread = sched_get_current_thread_unsafe();
+        // logkf(
+        //     LOG_DEBUG,
+        //     "yielding from task '%{cs}', flags=%{u32;x}",
+        //     sched_get_name(current_thread),
+        //     current_thread->flags
+        // );
+        if (current_thread == &idle_task) {
+            // logk(LOG_DEBUG, "thread is idle task, do nothing special");
+            // Idle task cannot be destroyed, idle task cannot be killed.
 
-    } else if (current_thread != NULL) {
-        logk(LOG_DEBUG, "leave thread");
-        logk(LOG_DEBUG, current_thread->name);
-        if (time_quota_left > 0) {
-            // Thread is a good boy and didn't use up all of its time in the
-            // CPU. We should give it some credit here.
+            if (time_quota_left > 0) {
+                // TODO: Implement CPU usage statistics for threads
+            }
 
-            // TODO: Implement CPU usage statistics for threads
-        }
+        } else if (current_thread != NULL) {
+            if (time_quota_left > 0) {
+                // Thread is a good boy and didn't use up all of its time in the
+                // CPU. We should give it some credit here.
 
-        if (is_flag_set(current_thread->flags, THREAD_RUNNING)) {
+                // TODO: Implement CPU usage statistics for threads
+            }
 
-            // if we have a current thread, append it to the wait queue again
-            // before popping the next task. This is necessary as we if we only
-            // have a single task, that should be scheduled again. Otheriwse,
-            // `dlist_pop_front` would return `NULL` instead of
-            // `current_thread`.
-            dlist_append(&thread_wait_queue, &current_thread->schedule_node);
-        } else {
-            // current thread is dead, we don't push it into the scheduler again
+            if (is_flag_set(current_thread->flags, THREAD_RUNNING)) {
+                // logk(LOG_DEBUG, "thread is still running, put into queue again");
 
-            if (is_flag_set(current_thread->flags, THREAD_DETACHED)) {
-                destroy_thread(current_thread);
+                // if we have a current thread, append it to the wait queue again
+                // before popping the next task. This is necessary as we if we only
+                // have a single task, that should be scheduled again. Otheriwse,
+                // `dlist_pop_front` would return `NULL` instead of
+                // `current_thread`.
+                dlist_append(&thread_wait_queue, &current_thread->schedule_node);
+            } else {
+                // current thread is dead, we don't push it into the scheduler again
+
+                if (is_flag_set(current_thread->flags, THREAD_COMPLETED)) {
+                    if (is_flag_set(current_thread->flags, THREAD_DETACHED)) {
+                        // logk(LOG_DEBUG, "thread is finished+detached, kill");
+                        destroy_thread(current_thread);
+                    } else {
+                        // logk(LOG_DEBUG, "thread is finished, just stop");
+                    }
+                } else {
+                    // logk(LOG_DEBUG, "thread is suspended");
+                }
             }
         }
+    } else {
+        // First run must never call `sched_get_current_thread_unsafe` as we don't even have
+        // a thread set already.
+        //
+        // The next thread switch ISR must use the regular path tho:
+        scheduler_bootstrapped = true;
+        // logk(LOG_DEBUG, "scheduler bootstrapping done...");
     }
+
+    // {
+    //     dlist_node_t *iter = thread_wait_queue.head;
+    //
+    //     logkf(LOG_DEBUG, "queued threads(%{size;x}):", (size_t)&thread_wait_queue);
+    //     while (iter != NULL) {
+    //
+    //         sched_thread_t *const thread = field_parent_ptr(sched_thread_t, schedule_node, iter);
+    //
+    //         logkf(LOG_DEBUG, "  - %{cs}", sched_get_name(thread));
+    //
+    //         iter = iter->next;
+    //     }
+    // }
 
     uint32_t            task_time_quota  = 0;
     dlist_node_t *const next_thread_node = dlist_pop_front(&thread_wait_queue);
@@ -337,15 +378,14 @@ void sched_request_switch_from_isr(void) {
         kernel_ctx_switch_set(&next_thread->kernel_ctx);
 
         task_time_quota = SCHEDULER_MIN_TASK_TIME_US + (uint32_t)next_thread->priority * SCHEDULER_TIME_QUOTA_INCR_US;
-        logk(LOG_DEBUG, "switch to task");
-        logk(LOG_DEBUG, next_thread->name);
+        // logkf(LOG_DEBUG, "switch to task '%{cs}'", next_thread->name);
 
     } else {
         // nothing to do, switch to idle task:
 
         kernel_ctx_switch_set(&idle_task.kernel_ctx);
         task_time_quota = SCHEDULER_IDLE_TASK_QUOTA_US;
-        logk(LOG_DEBUG, "switch to idle");
+        // logk(LOG_DEBUG, "switch to idle");
     }
     assert_dev_drop(task_time_quota > 0);
 

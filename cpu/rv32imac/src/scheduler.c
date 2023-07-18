@@ -9,16 +9,23 @@
 // ensuring that we can detect when a thread has exited.
 static void thread_trampoline(sched_entry_point_t ep, void *arg) ALIGNED_TO(4);
 static void thread_trampoline(sched_entry_point_t ep, void *arg) {
-    logk(LOG_INFO, "starting thread...");
     assert_always(ep != NULL);
 
     sched_thread_t *const this_thread = sched_get_current_thread();
     assert_always(this_thread != NULL);
 
+#ifndef NDEBUG
+    logkf(LOG_INFO, "thread '%{cs}' starting...", sched_get_name(this_thread));
+#endif
+
+    // Invoke the actual thread function
     ep(arg);
 
+#ifndef NDEBUG
+    logkf(LOG_INFO, "thread '%{cs}' has regular exit", sched_get_name(this_thread));
+#endif
+
     // make sure the thread is always exited properly
-    logk(LOG_INFO, "thread done!");
     sched_exit(0);
 }
 
@@ -37,8 +44,10 @@ void sched_prepare_kernel_entry(
     ctx->regs.a1 = (uintptr_t)arg;
 
     // Copy over TP and GP from the current context
-    asm volatile("" : "={gp}"(ctx->regs.gp));
-    asm volatile("" : "={tp}"(ctx->regs.tp));
+    asm volatile("mv %[gp], gp" : [gp] "=r"(ctx->regs.gp));
+    asm volatile("mv %[tp], tp" : [tp] "=r"(ctx->regs.tp));
+
+    logkf(LOG_DEBUG, "thread init: gp=%{size;x}, tp=%{size;x})", ctx->regs.gp, ctx->regs.tp);
 }
 
 
