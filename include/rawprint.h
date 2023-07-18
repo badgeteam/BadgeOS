@@ -5,8 +5,10 @@
 
 #include <stdint.h>
 
+// Simple printer with specified length.
+void rawprint_substr(char const *msg, size_t length);
 // Simple printer.
-void rawprint(const char *msg);
+void rawprint(char const *msg);
 // Simple printer.
 void rawputc(char msg);
 // Bin 2 hex printer.

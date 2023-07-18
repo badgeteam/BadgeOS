@@ -48,7 +48,9 @@ void logk(log_level_t level, char const *msg) {
 
 
 static bool putccb(char const *msg, size_t len, void *cookie) {
-    while (len--) rawputc(*(msg++));
+    for (size_t i = 0; i < len; i++) {
+        rawputc(msg[i]);
+    }
     return true;
 }
 
@@ -56,11 +58,12 @@ static bool putccb(char const *msg, size_t len, void *cookie) {
 void logkf(log_level_t level, char const *msg, ...) {
     if (isvalidlevel(level)) rawprint(colcode[level]);
     rawprintuptime();
+    rawputc(' ');
     if (isvalidlevel(level)) rawprint(prefix[level]);
     else rawprint("      ");
     va_list vararg;
     va_start(vararg, msg);
-    format_str(msg, putccb, NULL, vararg);
+    format_str_va(msg, cstr_length(msg), putccb, NULL, vararg);
     va_end(vararg);
     rawprint(term);
 }
@@ -69,13 +72,47 @@ void logkf(log_level_t level, char const *msg, ...) {
 
 // Print a hexdump (usually for debug purposes).
 void logk_hexdump(log_level_t level, char const *msg, void const *data, size_t size) {
-    logk_hexdump(level, msg, data, size, (size_t) data);
+    logk_hexdump_vaddr(level, msg, data, size, (size_t) data);
 }
 
+#define LOGK_HEXDUMP_COLS 16
+#define LOGK_HEXDUMP_GROUPS 4
 // Print a hexdump, override the address shown (usually for debug purposes).
 void logk_hexdump_vaddr(log_level_t level, char const *msg, void const *data, size_t size, size_t vaddr) {
     logk(level, msg);
     if (isvalidlevel(level)) rawprint(colcode[level]);
     
     uint8_t const *ptr = data;
+    for (size_t y = 0; y*LOGK_HEXDUMP_COLS < size; y++) {
+        rawprinthex((size_t) ptr + y*LOGK_HEXDUMP_COLS, sizeof(size_t)*2);
+        rawputc(':');
+        size_t x;
+        for (x = 0; y*LOGK_HEXDUMP_COLS+x < size && x < LOGK_HEXDUMP_COLS; x++) {
+            if ((x % LOGK_HEXDUMP_GROUPS) == 0) {
+                rawputc(' ');
+            }
+            rawputc(' ');
+            rawprinthex(ptr[y*LOGK_HEXDUMP_COLS+x], 2);
+        }
+        for (; x < LOGK_HEXDUMP_GROUPS; x++) {
+            if ((x % LOGK_HEXDUMP_GROUPS) == 0) {
+                rawputc(' ');
+            }
+            rawputc(' ');
+            rawputc(' ');
+            rawputc(' ');
+        }
+        rawputc(' ');
+        rawputc(' ');
+        for (x = 0; y*LOGK_HEXDUMP_COLS+x < size && x < LOGK_HEXDUMP_COLS; x++) {
+            char c = (char) ptr[y*LOGK_HEXDUMP_COLS+x];
+            if (c >= 0x20 && c <= 0x7e) {
+                rawputc(c);
+            } else {
+                rawputc('.');
+            }
+        }
+        rawputc('\r');
+        rawputc('\n');
+    }
 }

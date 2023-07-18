@@ -47,6 +47,7 @@ add_executable(${target}
     ${CMAKE_CURRENT_LIST_DIR}/src/main.c
     ${CMAKE_CURRENT_LIST_DIR}/src/badge_format_str.c
     ${CMAKE_CURRENT_LIST_DIR}/src/badge_strings.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/num_to_str.c
 )
 target_include_directories(${target} PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
 

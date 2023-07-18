@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <stddef.h>
+
 typedef enum {
 	LOG_FATAL,
 	LOG_ERROR,
@@ -17,3 +19,5 @@ void logk (log_level_t level, char const *msg);
 void logkf(log_level_t level, char const *msg, ...);
 // Print a hexdump (usually for debug purposes).
 void logk_hexdump(log_level_t level, char const *msg, void const *data, size_t size);
+// Print a hexdump, override the address shown (usually for debug purposes).
+void logk_hexdump_vaddr(log_level_t level, char const *msg, void const *data, size_t size, size_t vaddr);
