@@ -54,7 +54,6 @@ add_executable(${target}
     ${CMAKE_CURRENT_LIST_DIR}/src/list.c
     ${CMAKE_CURRENT_LIST_DIR}/src/scheduler.c
     ${CMAKE_CURRENT_LIST_DIR}/src/assertions.c
-	${CMAKE_CURRENT_LIST_DIR}/src/memory.c
 )
 target_include_directories(${target} PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
 
