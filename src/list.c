@@ -55,8 +55,12 @@ dlist_node_t *dlist_pop_front(dlist_t *const list) {
 
         dlist_node_t *const node = list->head;
 
-        list->len                -= 1;
-        list->head               = node->next;
+        if (node->next != NULL) {
+            node->next->previous = node->previous;
+        }
+
+        list->len  -= 1;
+        list->head = node->next;
         if (list->head == NULL) {
             list->tail = NULL;
         }
@@ -80,15 +84,14 @@ dlist_node_t *dlist_pop_back(dlist_t *const list) {
         assert_dev_drop(list->head != NULL);
         assert_dev_drop(list->len > 0);
 
-        if (list->tail == list->head) {
-            list->head = NULL;
-            assert_dev_drop(list->head->next == NULL);
-            assert_dev_drop(list->head->previous == NULL);
-        }
         dlist_node_t *const node = list->tail;
 
-        list->len                -= 1;
-        list->tail               = node->previous;
+        if (node->previous != NULL) {
+            node->previous->next = node->next;
+        }
+
+        list->len  -= 1;
+        list->tail = node->previous;
         if (list->tail == NULL) {
             list->head = NULL;
         }
@@ -123,17 +126,27 @@ bool dlist_contains(dlist_t const *const list, dlist_node_t const *const node) {
 void dlist_remove(dlist_t *const list, dlist_node_t *const node) {
     assert_dev_drop(dlist_contains(list, node) || ((node->next == NULL) && (node->previous == NULL)));
 
+    bool decrement = false;
     if (node->previous != NULL) {
         node->previous->next = node->next;
+        decrement            = true;
     }
     if (node->next != NULL) {
         node->next->previous = node->previous;
+        decrement            = true;
     }
+
     if (node == list->head) {
         list->head = node->next;
+        decrement  = true;
     }
     if (node == list->tail) {
         list->tail = node->previous;
+        decrement  = true;
+    }
+
+    if (decrement) {
+        list->len -= 1;
     }
     *node = DLIST_NODE_EMPTY;
 }

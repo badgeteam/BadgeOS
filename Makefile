@@ -5,7 +5,7 @@ IDF_PATH ?= $(shell pwd)/../esp-idf
 SHELL    := /usr/bin/env bash
 PORT     ?= $(shell ls /dev/ttyUSB0 2>/dev/null || echo /dev/ttyACM0)
 
-.PHONY: all clean-tools clean build flash monitor
+.PHONY: all clean-tools clean build flash monitor test
 
 all: build flash monitor
 
@@ -18,6 +18,12 @@ build:
 	@cmake --build build
 	@riscv32-unknown-elf-objdump -Sd build/main.elf > build/main.elf.disasm
 	@./packimage.py
+
+test:
+	@mkdir -p build && cmake -B build
+	@echo "Testing list.c…"
+	@cc -g -I include -o ./build/list-test test/list.c src/list.c
+	@./build/list-test
 
 clean:
 	rm -rf build
