@@ -247,7 +247,7 @@ isr_invoke:
     # Set mepc to the return address.
     csrw    mepc,    ra
 
-    # Since this code is only runnable from M-Mode, MPIE should also be set to 3.
+    # Since this code is only runnable from M-Mode, MPP should also be set to 3.
     li      t0,      (3<<RV32_MSTATUS_MPP_BASE_BIT)
     csrs    mstatus, t0
 

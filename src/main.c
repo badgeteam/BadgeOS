@@ -103,7 +103,9 @@ static void led_blink_loop(void *) {
 
         int64_t const now = time_us();
         while (time_us() < now + 500LL * TIME_US_PER_MS) {
+            logk(LOG_DEBUG, "<yield process=led>");
             sched_yield();
+            logk(LOG_DEBUG, "</yield process=led>");
         }
     }
 }
@@ -115,7 +117,9 @@ static void uart_print_loop(void *) {
 
 
         while (time_us() < now + 700LL * TIME_US_PER_MS) {
+            logk(LOG_DEBUG, "<yield process=uart>");
             sched_yield();
+            logk(LOG_DEBUG, "</yield process=uart>");
         }
         logk(LOG_INFO, "timer");
     }
