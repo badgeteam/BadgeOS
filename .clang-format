@@ -59,7 +59,7 @@ BraceWrapping:
 AllowShortFunctionsOnASingleLine: None # never collapse empty functions
 AllowShortBlocksOnASingleLine: Never # never make single-line blocks
 AllowShortIfStatementsOnASingleLine: Never # never make single-line ifs
-AllowShortLoopsOnASingleLine: false # never make single-line loops
+AllowShortLoopsOnASingleLine: true # allow single-line loops
 AllowShortEnumsOnASingleLine: true # allow enum { FOO = 10 };
 
 # configure general code:
