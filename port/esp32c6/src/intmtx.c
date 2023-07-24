@@ -54,6 +54,11 @@ void intmtx_set_prio(int channel, int prio) {
     WRITE_REG(PLIC_MX_INT_PRI_N_REG(channel), prio);
 }
 
+// Set interrupt channel `channel` priority to `prio`.
+int intmtx_get_prio(int channel) {
+    return READ_REG(PLIC_MX_INT_PRI_N_REG(channel));
+}
+
 // Set interrupt threshold value.
 void intmtx_set_thresh(int thresh) {
     WRITE_REG(PLIC_MX_INT_THRESH_REG, thresh);

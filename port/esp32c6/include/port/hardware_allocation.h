@@ -3,6 +3,10 @@
 
 #pragma once
 
+
+
+/* ==== Interrupts ==== */
+
 // Interrupt channel used for timer alarms.
 #define INT_CHANNEL_TIMER_ALARM    16
 // Interrupt channel used for watchdog alarms.
@@ -24,3 +28,16 @@
 #define INT_PRIO_I2C            13
 // Interrupt channel used for SPI interrupts.
 #define INT_PRIO_SPI            12
+
+
+
+/* ==== Timers ==== */
+
+// Number of usable hardware timers.
+#define TIMER_COUNT 2
+// Timer used for system timekeeping.
+#define TIMER_SYSTICK_NUM 0
+// Timer used for preempting.
+#define TIMER_PREEMPT_NUM 0
+// System tick rate in Hz.
+#define TIMER_SYSTICK_RATE 1000000

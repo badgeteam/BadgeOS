@@ -22,7 +22,7 @@
 #else
 
 #define STRUCT_BEGIN(structname) \
-	typedef struct {
+	typedef struct structname {
 #define STRUCT_FIELD_WORD(structname, name, offset) \
 	uint32_t name;
 #define STRUCT_FIELD_PTR(structname, type, name, offset) \

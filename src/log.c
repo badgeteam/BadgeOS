@@ -3,6 +3,7 @@
 
 #include "log.h"
 #include "badge_format_str.h"
+#include "badge_strings.h"
 #include "rawprint.h"
 
 #include <stdarg.h>
@@ -48,6 +49,7 @@ void logk(log_level_t level, char const *msg) {
 
 
 static bool putccb(char const *msg, size_t len, void *cookie) {
+    (void) cookie;
     for (size_t i = 0; i < len; i++) {
         rawputc(msg[i]);
     }

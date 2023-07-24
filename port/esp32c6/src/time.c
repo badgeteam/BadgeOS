@@ -3,9 +3,12 @@
 
 #include "time.h"
 
+#include "cpu/isr.h"
 #include "log.h"
+#include "port/hardware_allocation.h"
 #include "port/interrupt.h"
 #include "port/intmtx.h"
+#include "scheduler.h"
 
 #define LP_WDT_CONFIG0_REG       (LP_WDT_BASE + 0x0000)
 #define LP_WDT_CONFIG1_REG       (LP_WDT_BASE + 0x0004)
@@ -21,6 +24,7 @@
 #define LP_WDT_INT_ENA_REG       (LP_WDT_BASE + 0x002c)
 #define LP_WDT_INT_CLR_REG       (LP_WDT_BASE + 0x0030)
 #define LP_WDT_DATE_REG          (LP_WDT_BASE + 0x03fc)
+
 
 #define LD_WDT_WRPROTECT_MAGIC 0x50D83AA1
 
@@ -110,9 +114,7 @@
 
 
 // Get timer group base address based on timer index.
-static inline size_t timg_base(int timerno) {
-    return timerno ? TIMG1_BASE : TIMG0_BASE;
-}
+static inline size_t timg_base(int timerno) { return timerno ? TIMG1_BASE : TIMG0_BASE; }
 
 // Get timer clock source frequency based on timer index.
 #define timer_clk_freq(x) (40000000)
@@ -125,24 +127,24 @@ void time_init() {
     WRITE_REG(LP_WDT_WRPROTECT_REG, LD_WDT_WRPROTECT_MAGIC);
     WRITE_REG(LP_WDT_CONFIG0_REG, 0);
 
-    // Set up TIMG0 T0 as a 1MHz counter.
+    // Set TIMG0 T0 frequency to 1MHz.
     timer_stop(0);
     timer_set_freq(0, 1000000);
     timer_value_set(0, 0);
-    timer_start(0);
     
     // Set TIMG1 T0 frequency to 1MHz.
     timer_stop(1);
     timer_set_freq(1, 1000000);
     timer_value_set(1, 0);
+    
+    // Start systick timer.
+    timer_start(TIMER_SYSTICK_NUM);
 }
 
 // Get current time in microseconds.
-int64_t time_us() {
-    return timer_value_get(0);
-}
+int64_t time_us() { return timer_value_get(TIMER_SYSTICK_NUM); }
 
-
+void time_set_next_task_switch(timestamp_us_t timestamp) { timer_alarm_config(TIMER_SYSTICK_NUM, timestamp, false); }
 
 // Set the counting frequency of a hardware timer.
 void timer_set_freq(int timerno, int32_t frequency) {
@@ -233,26 +235,42 @@ void timer_stop(int timerno) {
     WRITE_REG(addr, READ_REG(addr) & ~0x80000000);
 }
 
+static bool volatile force_task_switch = false;
 
 
 // Callback to the timer driver for when a timer alarm fires.
 void timer_isr_timer_alarm() {
-    // Query TIMG0 T0 interrupt.
+    if (READ_REG(timg_base(TIMER_PREEMPT_NUM) + INT_ST_TIMERS_REG) & TIMG_T0_INT_ST_BIT) {
+        // Timer used for preempting had an interrupt, perform task switch.
+        force_task_switch = true;
+    }
+
+    // Check TIMG0 T0 interrupt.
     if (READ_REG(TIMG0_BASE + INT_ST_TIMERS_REG) & TIMG_T0_INT_ST_BIT) {
-        logk(LOG_DEBUG, "TIMG0 T0 interrupt");
+        // Acknowledge timer interrupt.
         WRITE_REG(TIMG0_BASE + INT_CLR_TIMERS_REG, TIMG_T0_INT_CLR_BIT);
         WRITE_REG(TIMG0_BASE + INT_CLR_TIMERS_REG, 0);
     }
 
-    // Query TIMG0 T1 interrupt.
+    // Check TIMG1 T0 interrupt.
     if (READ_REG(TIMG1_BASE + INT_ST_TIMERS_REG) & TIMG_T0_INT_ST_BIT) {
-        logk(LOG_DEBUG, "TIMG1 T0 interrupt");
+        // Acknowledge timer interrupt.
         WRITE_REG(TIMG1_BASE + INT_CLR_TIMERS_REG, TIMG_T0_INT_CLR_BIT);
         WRITE_REG(TIMG1_BASE + INT_CLR_TIMERS_REG, 0);
+    }
+
+    if (force_task_switch) {
+        sched_request_switch_from_isr(); // will rearm the timer with a new value
+        force_task_switch = false;
     }
 }
 
 // Callback to the timer driver for when a watchdog alarm fires.
-void timer_isr_watchdog_alarm() {
-    logk(LOG_DEBUG, "Watchdog alarm ISR");
+void timer_isr_watchdog_alarm() { logk(LOG_DEBUG, "Watchdog alarm ISR"); }
+
+void timer_trigger_isr(int timerno) {
+    if (timerno == TIMER_SYSTICK_NUM) {
+        force_task_switch = true;
+    }
+    isr_invoke(INT_CHANNEL_TIMER_ALARM);
 }

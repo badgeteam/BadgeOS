@@ -4,9 +4,7 @@
 import os
 
 # Use objcopy to extract the image from the ELF file.
-ec = os.system("riscv32-unknown-elf-objcopy -O binary build/main.elf build/main.bin")
-if ec != 0:
-    exit(ec)
+os.system("riscv32-unknown-elf-objcopy -O binary build/main.elf build/main.bin")
 
 # Open the generated file for appending a checksum.
 fd = open("build/main.bin", "+ab")

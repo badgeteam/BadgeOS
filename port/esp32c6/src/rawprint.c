@@ -68,9 +68,9 @@ void rawprinthex(uint64_t val, int digits) {
 void rawprintudec(uint64_t val, int digits) {
 	char buf[20];
 	size_t buf_digits = uint_to_cstr_packed(val, buf, sizeof(buf));
-	if (digits < buf_digits) digits = buf_digits;
-	else if (digits > sizeof(buf)) digits = sizeof(buf);
-	rawprint_substr(val, digits);
+	if (digits < (int) buf_digits) digits = buf_digits;
+	else if (digits > (int) sizeof(buf)) digits = sizeof(buf);
+	rawprint_substr(buf, digits);
 }
 
 // Bin 2 dec printer.

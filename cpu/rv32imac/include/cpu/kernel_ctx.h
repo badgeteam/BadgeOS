@@ -25,8 +25,8 @@
 #else
 
 #define STRUCT_BEGIN(structname) \
-	typedef struct _struct_ ## structname structname; \
-	struct _struct_ ## structname {
+	typedef struct structname structname; \
+	struct structname {
 #define STRUCT_FIELD_WORD(structname, name, offset) \
 	uint32_t name;
 #define STRUCT_FIELD_PTR(structname, type, name, offset) \
@@ -63,6 +63,12 @@ STRUCT_END(kernel_ctx_t)
 
 
 #ifndef __ASSEMBLER__
+
+// Stack alignment is defined to be 16 by the RISC-V calling convention
+enum {
+    STACK_ALIGNMENT = 16,
+};
+
 // Get the current kernel context.
 static inline kernel_ctx_t *kernel_ctx_get() {
 	kernel_ctx_t *kctx;
