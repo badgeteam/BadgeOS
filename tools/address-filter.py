@@ -3,7 +3,7 @@
 
 import sys, re, subprocess, io
 
-file_name = "build/main.elf"
+file_name = "build/badger-os.elf"
 
 if len(sys.argv) > 1:
     file_name = sys.argv[1]

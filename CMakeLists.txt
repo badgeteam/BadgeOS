@@ -4,8 +4,26 @@
 cmake_minimum_required(VERSION 3.10.0)
 
 # Set the C compiler.
-set(CMAKE_C_COMPILER riscv32-unknown-elf-gcc)
-set(CMAKE_C_COMPILER_FORCED true)
+if(NOT DEFINED CMAKE_C_COMPILER)
+    find_program(CMAKE_C_COMPILER riscv32-none-elf-gcc riscv32-unknown-elf-gcc)
+    message("auto-detected c compiler as '${CMAKE_C_COMPILER}'")
+else()
+    message("using compiler '${CMAKE_C_COMPILER}' from environment")
+endif()
+
+if(NOT DEFINED BADGER_OBJCOPY)
+    find_program(BADGER_OBJCOPY riscv32-none-elf-objcopy riscv32-unknown-elf-objcopy)
+    message("auto-detected objcopy as '${BADGER_OBJCOPY}'")
+else()
+    message("using objcopy '${BADGER_OBJCOPY}' from environment")
+endif()
+
+if(NOT DEFINED BADGER_OBJDUMP)
+    find_program(BADGER_OBJDUMP riscv32-none-elf-objdump riscv32-unknown-elf-objdump)
+    message("auto-detected objcopy as '${BADGER_OBJDUMP}'")
+else()
+    message("using objcopy '${BADGER_OBJDUMP}' from environment")
+endif()
 
 set(target_arch rv32imac_zifencei_zicsr)
 if(DEFINED TARGET_ARCH)
@@ -44,7 +62,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS true)
 project(badgeros C ASM)
 
 # Define executable file.
-set(target main.elf)
+set(target badger-os.elf)
 add_executable(${target}
     ${CMAKE_CURRENT_LIST_DIR}/src/assertions.c
     ${CMAKE_CURRENT_LIST_DIR}/src/badge_format_str.c
@@ -62,4 +80,25 @@ target_include_directories(${target} PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
 include(cpu/rv32imac/CMakeLists.txt)
 include(port/esp32c6/CMakeLists.txt)
 
+# Convert the raw binary file into a ESP32 image file
+add_custom_command(
+    OUTPUT badger-os.bin
+    COMMAND "${BADGER_OBJCOPY}" -O binary badger-os.elf badger-os.nochecksum.bin
+    COMMAND python3 "${CMAKE_CURRENT_LIST_DIR}/tools/pack-image.py" badger-os.nochecksum.bin badger-os.bin
+    DEPENDS badger-os.elf
+)
+# Proxy target to allow installation of the bin file
+add_custom_target(badger-os.bin.target ALL DEPENDS badger-os.bin)
+
+# Also build a dump file that is put into the 
+add_custom_target(
+    badger-os.elf.disasm
+    ALL
+    COMMAND "${BADGER_OBJDUMP}" -Sd badger-os.elf > badger-os.elf.disasm
+    DEPENDS badger-os.elf
+)
+
+# Declare which files are installed to the output directory:
+install(TARGETS badger-os.elf DESTINATION .)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/badger-os.bin" DESTINATION .)
 

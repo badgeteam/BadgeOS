@@ -38,7 +38,7 @@ jobs:
 
       - name: Build Statistics
         run: |
-          riscv32-unknown-elf-size -B build/main.elf
+          riscv32-unknown-elf-size -B build/badger-os.elf
 
       - name: Create firmware image
         run: ./packimage.py
@@ -48,5 +48,5 @@ jobs:
         with:
           name: Firmware
           path: |
-            build/main.elf
-            build/main.bin
+            build/badger-os.elf
+            build/badger-os.bin
