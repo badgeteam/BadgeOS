@@ -41,12 +41,12 @@ jobs:
           riscv32-unknown-elf-size -B build/badger-os.elf
 
       - name: Create firmware image
-        run: ./packimage.py
+        run: cmake --install build --prefix output
 
       - name: Upload
         uses: actions/upload-artifact@v3
         with:
           name: Firmware
           path: |
-            build/badger-os.elf
-            build/badger-os.bin
+            output/badger-os.elf
+            output/badger-os.bin
