@@ -30,6 +30,8 @@ jobs:
 
       - name: Install clang-tidy
         run: |
+          sudo apt-get update -y
+
           # see https://apt.llvm.org/
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
