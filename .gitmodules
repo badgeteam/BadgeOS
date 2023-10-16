@@ -1,0 +1,3 @@
+[submodule "esp-hal-3rdparty"]
+	path = esp-hal-3rdparty
+	url = https://github.com/espressif/esp-hal-3rdparty.git
