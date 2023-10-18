@@ -93,6 +93,7 @@ target_include_directories(${target} PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
 # Include port-specific.
 include(cpu/rv32imac/CMakeLists.txt)
 include(port/esp32c6/CMakeLists.txt)
+include(${CMAKE_CURRENT_LIST_DIR}/CmakeEspHal3rdParty.cmake)
 
 # Convert the raw binary file into a ESP32 image file
 add_custom_command(
