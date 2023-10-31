@@ -50,10 +50,12 @@ To build: `make build`
 
 To remove build files: `make clean`
 
-To flash to an ESP: `export IDF_PATH=<path to ESP-IDF>` (once) `make flash` (every time you flash)
+To flash to an ESP: `source <path to ESP-IDF>/export.sh` (once) `make flash` (every time you flash)
 
 To open picocom: `make monitor`
 
 To build, flash and open picocom: `make` or `make all`
+
+To check cody style: `make clang-format-check` (code formatting) and `make clang-tidy-check` (programming guidelines)
 
 Build artifacts will be put into the `firmware` folder once the project was successfully built.
