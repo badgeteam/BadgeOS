@@ -225,39 +225,57 @@
 
 
 
-    # Debugging: Manually trigger interrupt.
+    # Explicit context switch from M-mode.
+    # Interrupts must be disabled on entry and will be re-enabled on exit.
+    # If the context switch target is not set, this is a NOP.
     .text
-    .global isr_invoke
-    .type isr_invoke, %function
+    .global isr_context_switch
+    .type isr_context_switch, %function
     .align 2
-isr_invoke:
-    andi    a0,      a0, 0x1F # mask to lower 31 bits
-
-    # Disable interrupts by clearing MIE, copying the old value to MPIE.
-    li      t0,      (1<<RV32_MSTATUS_MIE_BIT) | (1<<RV32_MSTATUS_MPIE_BIT)
-    csrrc   t0,      mstatus, t0                                      # clear MIE and MPIE bit and fetch `mstatus`
-    andi    t0,      t0,   (1<<RV32_MSTATUS_MIE_BIT)                  # mask MIE bit
-    slli    t0,      t0, RV32_MSTATUS_MPIE_BIT - RV32_MSTATUS_MIE_BIT # transform MIE to MPIE bit
-    csrs    mstatus, t0                                               # if MPIE is set, enable it in the status register
-
-    # Set mepc to the return address.
-    csrw    mepc,    ra
-
-    # Since this code is only runnable from M-Mode, MPP should also be set to 3.
-    li      t0,      (3<<RV32_MSTATUS_MPP_BASE_BIT)
-    csrs    mstatus, t0
-
-    # Set mcause to 0x800000XX
-    li      t0,      0x80000000      # base cause
-    add     t0,      t0, a0          # a0 contains isr number
-    csrw    mcause,  t0
-
-    # Jump to mtvec + 4*(mcause & 31) AKA mtvec + 64
-    csrr    t0,      mtvec     # t0   = mtvec
-    slli    t1,      a0, 2     # isr *= 4;
-    add     t0,      t0, t1    # jump to `mtvec + 4 * isr`
-.isr_invoke_exit:
-    jr      t0
+isr_context_switch:
+    # Check for context switch required.
+    csrr t0, mscratch
+    lw t1, kernel_ctx_t_ctxswitch(t0)
+    bnez t1, .isr_context_switch_do_switch
+    
+    # Re-enable interrupts.
+    li t1, 1 << RV32_MSTATUS_MIE_BIT
+    csrs mstatus, t1
+    ret
+    
+.isr_context_switch_do_switch:
+    # Re-enable interrupts on exit.
+    li t1, (1 << RV32_MSTATUS_MPIE_BIT)
+    csrs mstatus, t1
+    
+    # Do the context switching things.
+    # Save SP/GP/TP and PC.
+    sw ra, kernel_ctx_t_regs+cpu_regs_t_pc(t0)
+    sw ra, kernel_ctx_t_regs+cpu_regs_t_ra(t0)
+    sw sp, kernel_ctx_t_regs+cpu_regs_t_sp(t0)
+    sw gp, kernel_ctx_t_regs+cpu_regs_t_gp(t0)
+    sw tp, kernel_ctx_t_regs+cpu_regs_t_tp(t0)
+    save_all_regs
+    
+    # Switch context and set new privilege.
+    lw t0, kernel_ctx_t_ctxswitch(t0)
+    lw t1, kernel_ctx_t_is_kernel_thread(t0)
+    li t1, (3 << RV32_MSTATUS_MPP_BASE_BIT)
+    bnez t1, .isr_context_switch_do_m
+    
+    # To U-mode.
+    csrc mstatus, t1
+    j .isr_context_switch_ret
+    
+.isr_context_switch_do_m:
+    # To M-mode.
+    csrs mstatus, t1
+    
+.isr_context_switch_ret:
+    # Return to new context.
+    restore_all_regs
+    isr_exit
+    mret
 
 
 
@@ -272,9 +290,8 @@ __trap_asm:
     # Separate system calls from other traps.
     csrr t1, mcause
     li   t3, 8
-    bltu t1, t3, .__trap_asm_save_regs
-    li   t3, 11
-    bleu t1, t3, .__trap_asm_syscall
+    beq t1, t3, .__trap_asm_syscall
+    j .__trap_asm_save_regs
     
 .__trap_asm_save_regs:
     # This is a non-syscall trap; saving all registers is mandatory.

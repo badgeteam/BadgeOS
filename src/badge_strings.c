@@ -46,9 +46,10 @@ ptrdiff_t cstr_index_from(char const *string, char value, size_t first_index) {
     char const *ptr = string + first_index;
 
     // Make sure string is long enough.
-    while (string++ < ptr)
-        if (!*string)
+    for (size_t i = 0; i < first_index; i++) {
+        if (!string[i])
             return -1;
+    }
 
     // Find first index.
     while (*ptr) {
@@ -121,7 +122,7 @@ bool cstr_prefix_equals_case(char const *a, char const *b, size_t length) {
 
 
 
-// Concatenate a NULL-terminated C-string from `src` onto C-string buffer `dest.
+// Concatenate a NULL-terminated C-string from `src` onto C-string buffer `dest`.
 // This may truncate characters, but not the NULL terminator, if `dest` does not fit `src` entirely.
 size_t cstr_concat(char *dest, size_t size, char const *src) {
     size_t dest_len = cstr_length(dest);
@@ -131,7 +132,7 @@ size_t cstr_concat(char *dest, size_t size, char const *src) {
     return dest_len;
 }
 
-// Concatenate a NULL-terminated C-string from `src` onto C-string buffer `dest.
+// Concatenate a NULL-terminated C-string from `src` onto C-string buffer `dest`.
 // This may truncate characters, but not the NULL terminator, if `dest` does not fit `src` entirely.
 size_t cstr_concat_packed(char *dest, size_t size, char const *src) {
     size_t dest_len = cstr_length_upto(dest, size);
@@ -141,7 +142,7 @@ size_t cstr_concat_packed(char *dest, size_t size, char const *src) {
     return dest_len;
 }
 
-// Copy a NULL-terminated C-string from `src` into buffer `dest.
+// Copy a NULL-terminated C-string from `src` into buffer `dest`.
 // This may truncate characters, but not the NULL terminator, if `dest` does not fit `src` entirely.
 size_t cstr_copy(char *dest, size_t size, char const *src) {
     char const *const orig = dest;
@@ -249,7 +250,7 @@ bool mem_equals(void const *a, void const *b, size_t size) {
 // Copy the contents of memory area `src` to memory area `dest`.
 // Correct copying is gauranteed even if `src` and `dest` are overlapping regions.
 void mem_copy(void *dest, void const *src, size_t size) {
-    size_t align_detector = (size_t)dest | (size_t)size;
+    size_t align_detector = (size_t)dest | (size_t)src | (size_t)size;
 
     // Optimise for alignment.
     if (align_detector & 1) {

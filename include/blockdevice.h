@@ -8,8 +8,10 @@
 
 #include <stddef.h>
 
-// Maximum age in microseconds of a cache entry.
-#define BLKDEV_CACHE_TIMEOUT 1000000
+// Maximum age in microseconds of a write cache entry.
+#define BLKDEV_WRITE_CACHE_TIMEOUT 1000000
+// Minimum age in microseconds of a read cache entry.
+#define BLKDEV_READ_CACHE_TIMEOUT  1000000
 
 // Size type used for block devices.
 typedef uint32_t blksize_t;
@@ -31,7 +33,9 @@ typedef uint16_t blkdev_i2c_eeprom_addr_t;
 
 // Flags and auxiliary data used for the cache.
 typedef struct {
-    // Timestamp of most recent sync to disk.
+    // Write/erase: Timestamp of most recent sync to disk.
+    // Read: Timestamp of most recent access.
+    // If a cached read happens on a dirty or erase entry, the timestamp is not changed.
     timestamp_us_t update_time;
     // Block index referred to.
     blksize_t      index;
@@ -99,6 +103,21 @@ void blkdev_write(badge_err_t *ec, blkdev_t *dev, blksize_t block, uint8_t const
 // Read a block.
 // This operation may be cached.
 void blkdev_read(badge_err_t *ec, blkdev_t *dev, blksize_t block, uint8_t *readbuf);
+// Partially write a block.
+// This is very likely to cause a read-modify-write operation.
+void blkdev_write_partial(
+    badge_err_t   *ec,
+    blkdev_t      *dev,
+    blksize_t      block,
+    size_t         subblock_offset,
+    uint8_t const *writebuf,
+    size_t         writebuf_len
+);
+// Partially read a block.
+// This may use read caching if the device doesn't support partial read.
+void blkdev_read_partial(
+    badge_err_t *ec, blkdev_t *dev, blksize_t block, size_t subblock_offset, uint8_t *readbuf, size_t readbuf_len
+);
 
 // Flush the write cache to the block device.
 void blkdev_flush(badge_err_t *ec, blkdev_t *dev);

@@ -273,7 +273,9 @@ void sched_exec(void) {
     // invocation to be set up correctly.
     next_isr_invocation_time = time_us();
 
-    syscall_thread_yield();
+    isr_global_disable();
+    sched_request_switch_from_isr();
+    isr_context_switch();
 
     // we can never reach this line, as the ISR will switch into the idle task
     __builtin_unreachable();
@@ -588,7 +590,9 @@ void sched_yield(void) {
     sched_thread_t *const current_thread = sched_get_current_thread();
     assert_always(current_thread != NULL);
 
-    syscall_thread_yield();
+    isr_global_disable();
+    sched_request_switch_from_isr();
+    isr_context_switch();
 }
 
 void sched_exit(uint32_t const exit_code) {

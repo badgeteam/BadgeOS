@@ -29,3 +29,6 @@
 
 // Declares that a symbol will be aligned to `alignment`
 #define ALIGNED_TO(alignment) __attribute__((aligned(alignment)))
+
+// Packed struct (don't add padding to align fields).
+#define PACKED __attribute__((packed))

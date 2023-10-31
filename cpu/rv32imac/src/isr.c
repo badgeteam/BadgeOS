@@ -46,7 +46,8 @@ void __trap_handler() {
     }
     double_trap = true;
 
-    uint32_t mcause, mtval, mepc;
+    uint32_t mcause, mstatus, mtval, mepc;
+    asm volatile("csrr %0, mstatus" : "=r"(mstatus));
     asm volatile("csrr %0, mcause" : "=r"(mcause));
 
     // Print trap name.

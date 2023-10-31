@@ -3,11 +3,11 @@
 
 IDF_PATH ?= $(shell pwd)/../esp-idf
 SHELL    := /usr/bin/env bash
-PORT     ?= $(shell ls /dev/ttyUSB0 2>/dev/null || echo /dev/ttyACM0)
+PORT     ?= $(shell find /dev/ -name ttyUSB* -or -name ttyACM* | head -1)
 OUTPUT   ?= "$(shell pwd)/firmware"
 BUILDDIR ?= "build"
 
-.PHONY: all clean-tools clean build flash monitor test clang-format-check clang-tidy-check
+.PHONY: all clean-tools clean build flash monitor test clang-format-check clang-tidy-check openocd gdb
 
 all: build flash monitor
 
@@ -39,11 +39,17 @@ clang-tidy-check:
 	@echo "analysis results:"
 	@clang-tidy -p build $(shell jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$') --warnings-as-errors="*"
 
+openocd:
+	openocd -c 'set ESP_RTOS "none"' -f board/esp32c6-builtin.cfg
+
+gdb:
+	riscv32-unknown-elf-gdb -x port/esp32c6/gdbinit build/badger-os.elf
+
 clean:
 	rm -rf "$(BUILDDIR)"
 
 flash: build
-	esptool.py -b 921600 \
+	esptool.py -b 921600 --port "$(PORT)" \
 		write_flash --flash_mode dio --flash_freq 80m --flash_size 2MB \
 		0x0 bin/bootloader.bin \
 		0x10000 "$(OUTPUT)/badger-os.bin" \
@@ -51,4 +57,4 @@ flash: build
 
 monitor:
 	@echo -e "\033[1mType ^A^X to exit.\033[0m"
-	@picocom -q -b 115200 $(PORT) | ./tools/address-filter.py "$(OUTPUT)/badger-os.elf"
+	@picocom -q -b 115200 $(PORT) | ./tools/address-filter.py "$(OUTPUT)/badger-os.elf"; echo -e '\033[0m'

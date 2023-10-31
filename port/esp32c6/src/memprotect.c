@@ -72,7 +72,7 @@ void memprotect_init() {
     // TODO: These permissions will be NONE later, but are ALL for now.
     riscv_pmpaddr_write(PMP_ENTRY_USER_GLOBAL_NAPOT, RISCV_PMPADDR_NAPOT_GLOBAL);
     riscv_pmpcfg_set(
-        PMP_ENTRY_FLASH_WP_NAPOT,
+        PMP_ENTRY_USER_GLOBAL_NAPOT,
         ((riscv_pmpcfg_t){
             .read            = true,
             .write           = true,

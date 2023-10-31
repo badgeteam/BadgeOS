@@ -14,7 +14,7 @@
 #define RV32_MSTATUS_UBE_BIT       6
 #define RV32_MSTATUS_MPIE_BIT      7
 #define RV32_MSTATUS_SPP_BIT       8
-#define RV32_MSTATUS_VS_BASE_BIT   9, // ,10
+#define RV32_MSTATUS_VS_BASE_BIT   9  // ,10
 #define RV32_MSTATUS_MPP_BASE_BIT  11 // ,12
 #define RV32_MSTATUS_FS_BASE_BIT   13 // ,14
 #define RV32_MSTATUS_XS_BASE_BIT   15 // ,16

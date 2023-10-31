@@ -125,4 +125,5 @@ void logk_hexdump_vaddr(log_level_t level, char const *msg, void const *data, si
         rawputc('\r');
         rawputc('\n');
     }
+    rawprint("\033[0m");
 }

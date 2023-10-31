@@ -52,7 +52,9 @@ static inline bool isr_global_disable() {
 static inline void isr_global_enable() {
     asm volatile("csrs mstatus, %0" ::"r"((1U << RV32_MSTATUS_MIE_BIT)));
 }
-// Invokes the interrupt routine `isr`. `isr` must be between 0 and 31.
-extern void isr_invoke(uint32_t isr);
+// Explicit context switch from M-mode.
+// Interrupts must be disabled on entry and will be re-enabled on exit.
+// If the context switch target is not set, this is a NOP.
+extern void isr_context_switch();
 
 #endif

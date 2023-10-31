@@ -1,0 +1,16 @@
+target extended-remote :3333
+set remote hardware-watchpoint-limit 2
+
+mem 0x40000000 0x40050000 ro
+mem 0x40800000 0x40880000 rw
+mem 0x42000000 0x43000000 ro
+mem 0x50000000 0x50004000 rw
+
+define reset
+    mon reset halt
+    maintenance flush register-cache
+    thb main
+    c
+end
+
+reset
