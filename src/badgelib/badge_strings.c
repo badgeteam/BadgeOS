@@ -135,6 +135,7 @@ size_t cstr_concat(char *dest, size_t size, char const *src) {
 }
 
 // Concatenate a NULL-terminated C-string from `src` onto C-string buffer `dest`.
+// WARNING: This may leave strings without NULL terminators if `dest` does not fit `src` entirely.
 // This may truncate characters, but not the NULL terminator, if `dest` does not fit `src` entirely.
 size_t cstr_concat_packed(char *dest, size_t size, char const *src) {
     size_t dest_len = cstr_length_upto(dest, size);
@@ -327,27 +328,66 @@ void mem_set(void *dest, uint8_t value, size_t size) {
 
 
 
-// Function call emitted by the compiler.
+/* ==== STDLIB ALIASES ==== */
 void *memset(void *dst, int byte, size_t len) {
     mem_set(dst, (uint8_t)byte, len);
     return dst;
 }
 
-// Function call emitted by the compiler.
 void *memcpy(void *dst, void const *src, size_t len) {
     mem_copy(dst, src, len);
     return dst;
 }
 
-// Function call emitted by the compiler.
 void *memmove(void *dst, void const *src, size_t len) {
     mem_copy(dst, src, len);
     return dst;
 }
 
-// Function call emitted by the compiler.
 int memcmp(void const *a, void const *b, size_t len) {
     // This is not strictly correct according to the `memcmp` spec,
     // but it will work for equality tests.
     return !mem_equals(a, b, len);
+}
+
+char *strcat(char *__restrict dst, char const *__restrict src) {
+    cstr_concat(dst, SIZE_MAX, src);
+    return dst;
+}
+
+char *strchr(char const *s, int c) {
+    ptrdiff_t i = cstr_index(s, c);
+    return i >= 0 ? (char *)s + i : NULL;
+}
+
+int strcmp(char const *a, char const *b) {
+    return !cstr_equals(a, b);
+}
+
+char *strcpy(char *__restrict dst, char const *__restrict src) {
+    cstr_copy(dst, SIZE_MAX, src);
+    return dst;
+}
+
+size_t strlen(char const *s) {
+    return cstr_length(s);
+}
+
+char *strncat(char *__restrict dst, char const *__restrict src, size_t max) {
+    cstr_concat(dst, max, src);
+    return dst;
+}
+
+int strncmp(char const *a, char const *b, size_t max) {
+    return !cstr_prefix_equals(a, b, max);
+}
+
+char *strncpy(char *__restrict dst, char const *__restrict src, size_t max) {
+    cstr_copy(dst, max, src);
+    return dst;
+}
+
+char *strrchr(char const *s, int c) {
+    ptrdiff_t i = cstr_index(s, c);
+    return i >= 0 ? (char *)s + i : NULL;
 }

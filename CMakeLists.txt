@@ -35,6 +35,8 @@ set(common_compiler_flags
     -march=${target_arch}              # Selects the target CPU.
     -mabi=${target_abi}                # Selects target ABI 
     -nodefaultlibs                     # Do not link any default libraries like libgcc or libc.
+    -nostdinc                          # Don't include the standard include path
+    -isystem "${CMAKE_CURRENT_LIST_DIR}/include/badgelib/stdlib"
     -fno-tree-loop-distribute-patterns
     -O1                                # Optimize the code.
     -ggdb                              # Generate debug information in default extended format.
