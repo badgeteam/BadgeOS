@@ -14,10 +14,15 @@
 #include "scheduler.h"
 #include "time.h"
 
+#include "hal/spi_ll.h"
+
 #include <stdint.h>
 
 // Temporary kernel context until threading is implemented.
 static kernel_ctx_t kctx;
+
+
+pcr_dev_t PCR;
 
 void debug_func(void *);
 #define stack_size 8192
@@ -62,6 +67,10 @@ void main() {
     assert_always(badge_err_is_ok(&err));
     sched_resume_thread(&err, debug_thread_0);
     assert_always(badge_err_is_ok(&err));
+
+    //Add temporarily to see whether all SPI dependencies are added
+    spi_dev_t hw;
+    spi_ll_master_init(&hw);
 
     // Enter the scheduler
     sched_exec();
