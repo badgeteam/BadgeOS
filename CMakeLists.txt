@@ -7,31 +7,17 @@ set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY")
 
 # Set the C compiler.
 if(NOT DEFINED CMAKE_C_COMPILER)
-    find_program(CMAKE_C_COMPILER NAMES riscv32-none-elf-gcc riscv32-unknown-elf-gcc riscv64-linux-gnu-gcc REQUIRED)
-    message("auto-detected c compiler as '${CMAKE_C_COMPILER}'")
+    find_program(CMAKE_C_COMPILER NAMES riscv32-unknown-linux-gnu-gcc riscv32-linux-gnu-gcc riscv64-unknown-linux-gnu-gcc riscv64-linux-gnu-gcc REQUIRED)
+    message("Detected RISC-V C compiler as '${CMAKE_C_COMPILER}'")
 else()
-    message("using compiler '${CMAKE_C_COMPILER}' from environment")
+    message("Using compiler '${CMAKE_C_COMPILER}' from environment")
 endif()
 
 # determine the compiler prefix
 get_filename_component(compiler_name "${CMAKE_C_COMPILER}" NAME)
 string(REGEX MATCH "^([A-Za-z0-9_]+\-)*" BADGER_COMPILER_PREFIX "${compiler_name}") 
-
-if(NOT DEFINED BADGER_OBJCOPY)
-    # Determine objcopy from the environment, preferring the one with the compiler prefix when possible.
-    find_program(BADGER_OBJCOPY NAMES "${BADGER_COMPILER_PREFIX}objcopy" riscv32-none-elf-objcopy riscv32-unknown-elf-objcopy riscv64-linux-gnu-objcopy REQUIRED)
-    message("auto-detected objcopy as '${BADGER_OBJCOPY}'")
-else()
-    message("using objcopy '${BADGER_OBJCOPY}' from environment")
-endif()
-
-if(NOT DEFINED BADGER_OBJDUMP)
-    # Determine objdump from the environment, preferring the one with the compiler prefix when possible.
-    find_program(BADGER_OBJDUMP NAMES "${BADGER_COMPILER_PREFIX}objdump" riscv32-none-elf-objdump riscv32-unknown-elf-objdump riscv64-linux-gnu-objdump REQUIRED)
-    message("auto-detected objcopy as '${BADGER_OBJDUMP}'")
-else()
-    message("using objcopy '${BADGER_OBJDUMP}' from environment")
-endif()
+find_program(BADGER_OBJCOPY NAMES "${BADGER_COMPILER_PREFIX}objcopy" REQUIRED)  
+find_program(BADGER_OBJDUMP NAMES "${BADGER_COMPILER_PREFIX}objdump" REQUIRED)
 
 set(target_arch rv32imac_zifencei_zicsr)
 if(DEFINED TARGET_ARCH)
@@ -74,34 +60,46 @@ project(badgeros C ASM)
 # Define executable file.
 set(target badger-os.elf)
 add_executable(${target}
+    ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/arrays.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/assertions.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/badge_format_str.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/badge_strings.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/log.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/mutex.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/num_to_str.c
     ${CMAKE_CURRENT_LIST_DIR}/src/blockdevice/blkdev_ram.c
     ${CMAKE_CURRENT_LIST_DIR}/src/blockdevice/blockdevice.c
     ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/filesystem.c
     # ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/vfs_fat.c
     ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/vfs_ramfs.c
     ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/vfs_internal.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/assertions.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/badge_format_str.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/badge_strings.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/loading/kbelfx.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/loading/rom.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/process/process.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/process/syscall_impl.c
     ${CMAKE_CURRENT_LIST_DIR}/src/list.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/log.c
     ${CMAKE_CURRENT_LIST_DIR}/src/main.c
     ${CMAKE_CURRENT_LIST_DIR}/src/malloc/malloc.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/mutex.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/num_to_str.c
     ${CMAKE_CURRENT_LIST_DIR}/src/scheduler.c
     ${CMAKE_CURRENT_LIST_DIR}/src/syscall.c
 )
-target_include_directories(${target} PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
+target_include_directories(${target} PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include ${CMAKE_CURRENT_LIST_DIR}/include/badgelib)
 
 # Include port-specific.
 include(cpu/rv32imac/CMakeLists.txt)
 include(port/esp32c6/CMakeLists.txt)
 include(${CMAKE_CURRENT_LIST_DIR}/CmakeEspHal3rdParty.cmake)
 
+# Add libraries.
+add_compile_options(-I${CMAKE_CURRENT_LIST_DIR}/include -I${CMAKE_CURRENT_LIST_DIR}/include/badgelib -include ${CMAKE_CURRENT_LIST_DIR}/include/loading/kbelf_pre.h)
+add_subdirectory(lib/kbelf)
+target_link_libraries(${target} PUBLIC kbelf)
+
+
 # Convert the raw binary file into a ESP32 image file
 add_custom_command(
     OUTPUT badger-os.bin
+    COMMAND cp badger-os.elf badger-os.elf.patch
     COMMAND "${BADGER_OBJCOPY}" -O binary badger-os.elf badger-os.nochecksum.bin
     COMMAND python3 "${CMAKE_CURRENT_LIST_DIR}/tools/pack-image.py" badger-os.nochecksum.bin badger-os.bin
     DEPENDS badger-os.elf

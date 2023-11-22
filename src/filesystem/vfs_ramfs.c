@@ -493,6 +493,7 @@ void vfs_ramfs_file_open(
     file->inode      = iptr->inode;
     file->vfs        = vfs;
     file->refcount   = 1;
+    file->size       = iptr->len;
 
     mutex_release(NULL, &vfs->ramfs.mtx);
     badge_err_set_ok(ec);

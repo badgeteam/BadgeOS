@@ -132,7 +132,8 @@ static void dir_reopen(badge_err_t *ec, vfs_file_handle_t *dir, dirent_t const *
 // If the file exists, reads the directory entry into `ent`.
 // If the file does not exist, sets `inode` to 0.
 //
-// Returns the index in the path buffer of the filename after symlinks if the parent directory exists, or -1 otherwise.
+// Returns the index in the path buffer of the filename after symlinks if the parent directory exists,
+// -2 if the directory is definitely the root directory, or -1 otherwise.
 static ptrdiff_t walk(badge_err_t *ec, vfs_file_handle_t *dir, char path[FILESYSTEM_PATH_MAX + 1], dirent_t *ent) {
     assert_dev_drop(dir != NULL);
     badge_err_t ec0;
@@ -165,6 +166,9 @@ static ptrdiff_t walk(badge_err_t *ec, vfs_file_handle_t *dir, char path[FILESYS
             ent->inode = 0;
             return -1;
         }
+    }
+    if (path[0] == '/' && len == 1) {
+        return -2;
     }
 
     // Locate the relative file on disk.
@@ -635,7 +639,9 @@ file_t fs_open(badge_err_t *ec, char const *path, oflags_t oflags) {
     }
     // Get the filename from canonical path.
     char *filename;
-    if (slash == -1) {
+    if (slash == -2) {
+        filename = ".";
+    } else if (slash == -1) {
         filename = canon_path;
     } else {
         filename = canon_path + slash;
@@ -771,6 +777,7 @@ fileoff_t fs_read(badge_err_t *ec, file_t file, void *readbuf, fileoff_t readlen
             readlen = ptr->shared->size - ptr->offset;
         }
         vfs_file_read(ec, ptr->shared, ptr->offset, readbuf, readlen);
+        ptr->offset += readlen;
     }
     mutex_release(NULL, &ptr->mutex);
 

@@ -57,8 +57,13 @@ void rawprint(char const *msg) {
 
 // Simple printer.
 void rawputc(char msg) {
-    while (!(READ_REG(USB_JTAG_BASE + 4) & 2))
-        ;
+    static bool    discon   = false;
+    timestamp_us_t timeout  = time_us() + 5000;
+    discon                 &= !(READ_REG(USB_JTAG_BASE + 4) & 2);
+    while (!discon && !(READ_REG(USB_JTAG_BASE + 4) & 2)) {
+        if (time_us() > timeout)
+            discon = true;
+    }
     WRITE_REG(USB_JTAG_BASE, msg);
     WRITE_REG(UART0_BASE, msg);
 }

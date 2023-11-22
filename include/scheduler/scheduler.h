@@ -12,6 +12,9 @@
 
 typedef struct process_t process_t;
 
+// Globally unique thread ID.
+typedef int tid_t;
+
 typedef struct sched_thread_t sched_thread_t;
 
 typedef void (*sched_entry_point_t)(void *arg);
@@ -23,7 +26,7 @@ typedef enum {
     SCHED_PRIO_NORMAL = 10,
     // will be scheduled with bigger time slices than normal
     SCHED_PRIO_HIGH   = 20,
-} sched_thread_priority_t;
+} sched_prio_t;
 
 // Initializes the scheduler and setups up the system to be ready to
 // create threads and execute them.
@@ -50,7 +53,13 @@ void sched_exec(void) NORETURN;
 // Potential errors:
 // - `ECAUSE_NOMEM` is issued when the thread could not be allocated.
 sched_thread_t *sched_create_userland_thread(
-    badge_err_t *ec, process_t *process, sched_entry_point_t entry_point, void *arg, sched_thread_priority_t priority
+    badge_err_t        *ec,
+    process_t          *process,
+    sched_entry_point_t entry_point,
+    void               *arg,
+    void               *stack_bottom,
+    size_t              stack_size,
+    sched_prio_t        priority
 );
 
 // Creates a new suspended kernel thread.
@@ -72,12 +81,12 @@ sched_thread_t *sched_create_userland_thread(
 // Potential errors:
 // - `ECAUSE_NOMEM` is issued when the thread could not be allocated.
 sched_thread_t *sched_create_kernel_thread(
-    badge_err_t            *ec,
-    sched_entry_point_t     entry_point,
-    void                   *arg,
-    void                   *stack_bottom,
-    size_t                  stack_size,
-    sched_thread_priority_t priority
+    badge_err_t        *ec,
+    sched_entry_point_t entry_point,
+    void               *arg,
+    void               *stack_bottom,
+    size_t              stack_size,
+    sched_prio_t        priority
 );
 
 // Kills the given thread and releases all scheduler resources allocated by the
@@ -126,6 +135,9 @@ void sched_resume_thread(badge_err_t *ec, sched_thread_t *thread);
 // - `ECAUSE_ILLEGAL` is issued when the thread has finished.
 void sched_resume_thread_next(badge_err_t *ec, sched_thread_t *thread);
 
+// Returns whether a thread is running; it is neither suspended nor has it exited.
+bool sched_thread_is_running(badge_err_t *ec, sched_thread_t *thread);
+
 // Returns the currently active thread or NULL if the scheduler isn't running.
 sched_thread_t *sched_get_current_thread(void);
 
@@ -147,28 +159,8 @@ void sched_yield(void);
 void sched_exit(uint32_t exit_code) NORETURN;
 
 
+// Debug: Set thread name shown in logs.
 void sched_set_name(badge_err_t *ec, sched_thread_t *thread, char const *name);
 
+// Debug: Get thread name shown in logs.
 char const *sched_get_name(sched_thread_t *thread);
-
-// ISR interface:
-
-// Requests the scheduler to prepare a switch from inside an interrupt
-// routine.
-void sched_request_switch_from_isr(void);
-
-// forward-declared from "kernel_ctx.h"
-typedef struct kernel_ctx_t kernel_ctx_t;
-
-
-// Prepares a kernel `ctx` to be invoked as a kernel thread.
-//
-// NOTE: This function must be implemented in the `cpu` package!
-void sched_prepare_kernel_entry(
-    kernel_ctx_t *ctx, uintptr_t initial_stack_pointer, sched_entry_point_t entry_point, void *arg
-);
-
-// Prepares a kernel `ctx` to be invoked as a user thread.
-//
-// NOTE: This function must be implemented in the `cpu` package!
-void sched_prepare_user_entry(kernel_ctx_t *ctx, sched_entry_point_t entry_point, void *arg);

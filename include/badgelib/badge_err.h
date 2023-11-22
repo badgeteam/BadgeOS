@@ -46,6 +46,8 @@ typedef enum {
     ELOC_FILESYSTEM,
     // Block device driver
     ELOC_BLKDEV,
+    // Process API
+    ELOC_PROCESS,
 } badge_eloc_t;
 
 typedef enum {
@@ -133,4 +135,4 @@ typedef enum {
 
 // Returns a non-zero value if `ec` is `NULL` or `ec` contains a non-error value.
 // `ec` must be a variable name.
-#define badge_err_is_ok(ec) (((ec) == NULL) || (((ec)->cause == 0) && ((ec)->location == 0)))
+#define badge_err_is_ok(ec) (((ec) == NULL) || ((ec)->cause == 0))

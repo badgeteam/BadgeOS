@@ -8,7 +8,8 @@
 #include "port/hardware_allocation.h"
 #include "port/interrupt.h"
 #include "port/intmtx.h"
-#include "scheduler.h"
+#include "scheduler/isr.h"
+#include "scheduler/scheduler.h"
 
 #define LP_WDT_CONFIG0_REG       (LP_WDT_BASE + 0x0000)
 #define LP_WDT_CONFIG1_REG       (LP_WDT_BASE + 0x0004)

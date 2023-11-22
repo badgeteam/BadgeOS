@@ -1,3 +1,6 @@
+
+// SPDX-License-Identifier: MIT
+
 #include "list.h"
 
 #include "assertions.h"

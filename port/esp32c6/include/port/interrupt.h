@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "cpu/kernel_ctx.h"
+#include "cpu/isr_ctx.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -16,7 +16,7 @@
 
 // Install interrupt and trap handlers.
 // Requires a preallocated context and regs struct.
-void interrupt_init(kernel_ctx_t *ctx);
+void interrupt_init(isr_ctx_t *ctx);
 
 // Get the priority of an interrupt channel.
 int  interrupt_channel_get_prio(int channel);

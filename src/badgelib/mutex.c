@@ -4,7 +4,7 @@
 #include "mutex.h"
 
 #include "assertions.h"
-#include "scheduler.h"
+#include "scheduler/scheduler.h"
 #include "time.h"
 
 // Magic value for exclusive locking.

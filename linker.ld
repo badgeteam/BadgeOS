@@ -106,6 +106,7 @@ SECTIONS
 	.rodata : AT(LOADADDR(.init_array) + SIZEOF(.init_array)) {
 		*(.rodata) *(.rodata*)
 		*(.srodata) *(.srodata*)
+		*(.eh_frame) *(.eh_frame_hdr*)
 		. = ALIGN(__section_alignment);
 	} :rodataseg
 	__stop_rodata = .;

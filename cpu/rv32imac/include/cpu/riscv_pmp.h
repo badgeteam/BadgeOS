@@ -3,11 +3,11 @@
 
 #pragma once
 
-// This file expects RISCV_PMP_REGION_COUNT to be defined by <port/memprotect.h>.
+// This file expects RISCV_PMP_REGION_COUNT to be defined by "port/hardware.h".
 
 #include "assertions.h"
 #include "meta.h"
-#include "port/memprotect.h"
+#include "port/hardware.h"
 
 #include <stddef.h>
 #include <stdint.h>

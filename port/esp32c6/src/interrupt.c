@@ -10,7 +10,7 @@
 #include "time.h"
 
 // Install interrupt and trap handlers.
-void interrupt_init(kernel_ctx_t *ctx) {
+void interrupt_init(isr_ctx_t *ctx) {
     // Disable interrupts.
     bool mie = interrupt_disable();
 

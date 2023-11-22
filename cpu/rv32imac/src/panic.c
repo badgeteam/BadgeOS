@@ -1,7 +1,7 @@
 
 #include "cpu/panic.h"
 
-#include "kernel_ctx.h"
+#include "isr_ctx.h"
 #include "log.h"
 #include "rawprint.h"
 

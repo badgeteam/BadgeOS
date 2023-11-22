@@ -1,6 +1,5 @@
 
-#include "cpu/kernel_ctx.h"
-
+#include "cpu/isr_ctx.h"
 #include "rawprint.h"
 
 // Number of columns in register dump.
@@ -30,7 +29,7 @@ void kernel_reg_dump_arr(uint32_t const *arr) {
     }
 }
 
-// Print a register dump given kernel_ctx_t.
-void kernel_ctx_dump(kernel_ctx_t const *ctx) {
+// Print a register dump given isr_ctx_t.
+void isr_ctx_dump(isr_ctx_t const *ctx) {
     kernel_reg_dump_arr((uint32_t const *)&ctx->regs);
 }

@@ -4,10 +4,12 @@
 
 #include "cpu/isr.h"
 
-#include "cpu/kernel_ctx.h"
+#include "cpu/isr_ctx.h"
 #include "cpu/panic.h"
 #include "log.h"
 #include "rawprint.h"
+#include "scheduler/cpu.h"
+#include "scheduler/types.h"
 
 
 
@@ -35,20 +37,18 @@ enum { TRAPNAMES_LEN = sizeof(trapnames) / sizeof(trapnames[0]) };
 // Bitmask of traps that have associated memory addresses.
 #define MEM_ADDR_TRAPS 0x00050f0
 
-static bool double_trap = false;
-
 // Called from ASM on non-system call trap.
 // TODO: Subject to be moved to scheduler when scheduler is implemented.
 void __trap_handler() {
-    if (double_trap) {
-        rawprint("Double trap!\n");
-        panic_poweroff();
-    }
-    double_trap = true;
-
     uint32_t mcause, mstatus, mtval, mepc;
     asm volatile("csrr %0, mstatus" : "=r"(mstatus));
     asm volatile("csrr %0, mcause" : "=r"(mcause));
+
+    if (mcause == RV_TRAP_U_ECALL) {
+        // ECALL from U-mode goes to system call handler instead of trap handler.
+        sched_raise_from_isr(true, __syscall_handler);
+        return;
+    }
 
     // Print trap name.
     if (mcause < TRAPNAMES_LEN && trapnames[mcause]) {
@@ -73,10 +73,29 @@ void __trap_handler() {
     rawputc('\r');
     rawputc('\n');
 
-    kernel_ctx_t *kctx;
+    // Print privilige mode.
+    if (mstatus & (3 << RV32_MSTATUS_MPP_BASE_BIT)) {
+        rawprint("Running in kernel mode\n");
+    } else {
+        rawprint("Running in user mode\n");
+    }
+
+    isr_ctx_t *kctx;
     asm volatile("csrr %0, mscratch" : "=r"(kctx));
-    kernel_ctx_dump(kctx);
+    isr_ctx_dump(kctx);
 
     // When the kernel traps it's a bad time.
     panic_poweroff();
+}
+
+// Return a value from the syscall handler.
+void __syscall_return(long long value) {
+    isr_global_disable();
+    isr_ctx_t *usr  = &isr_ctx_get()->thread->user_isr_ctx;
+    usr->regs.a0    = value;
+    usr->regs.a1    = value >> 32;
+    usr->regs.pc   += 4;
+    sched_lower_from_isr();
+    isr_context_switch();
+    __builtin_unreachable();
 }

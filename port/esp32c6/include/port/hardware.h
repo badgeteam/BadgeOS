@@ -6,6 +6,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
+
+
+/* ==== CPU INFO ==== */
+
+// Number of PMP regions supported by the CPU.
+#define RISCV_PMP_REGION_COUNT 16
+
+
+/* ==== PERIPHERAL MAP ==== */
+
 // Base address of peripherals.
 #define PERI_BASE   0x60000000
 // Base address of CPU sub-system.
@@ -126,6 +136,8 @@
 
 // Base address of PLIC.
 #define PLIC_MX_BASE (CPUSYS_BASE + 0x1000)
+
+
 
 #define WRITE_REG(addr, val)                                                                                           \
     do {                                                                                                               \

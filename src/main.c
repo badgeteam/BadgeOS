@@ -1,6 +1,7 @@
 
 // SPDX-License-Identifier: MIT
 
+#include "arrays.h"
 #include "assertions.h"
 #include "filesystem.h"
 #include "filesystem/vfs_internal.h"
@@ -10,16 +11,22 @@
 #include "malloc.h"
 #include "memprotect.h"
 #include "port/interrupt.h"
+#include "process/process.h"
 #include "rawprint.h"
-#include "scheduler.h"
+#include "scheduler/scheduler.h"
 #include "time.h"
 
 #include "hal/spi_ll.h"
 
 #include <stdint.h>
 
+#include <kbelf.h>
+
+extern uint8_t const elf_rom[];
+extern size_t const  elf_rom_len;
+
 // Temporary kernel context until threading is implemented.
-static kernel_ctx_t kctx;
+static isr_ctx_t kctx;
 
 
 pcr_dev_t PCR;
@@ -86,56 +93,17 @@ void debug_func(void *arg) {
     fs_mount(&ec, FS_TYPE_RAMFS, NULL, "/", 0);
     check_ec(&ec);
 
-    // Create a directory.
-    logk(LOG_DEBUG, "Creating a directory at /foo");
-    file_t dirfd = fs_dir_open(&ec, "/foo", OFLAGS_CREATE);
+    // Put the ROM in the RAMFS.
+    file_t fd = fs_open(&ec, "/a.out", OFLAGS_CREATE | OFLAGS_WRITEONLY);
+    check_ec(&ec);
+    fs_write(&ec, fd, elf_rom, elf_rom_len);
+    check_ec(&ec);
+    fs_close(&ec, fd);
     check_ec(&ec);
 
-    // Create a subdirectory.
-    logk(LOG_DEBUG, "Creating a directory at /foo/bar");
-    fs_dir_create(&ec, "/foo/bar");
+    // Start a process.
+    process_t *proc = proc_create(&ec);
     check_ec(&ec);
-
-    // Create a file.
-    logk(LOG_DEBUG, "Opening a file at /foo/a.txt");
-    /* Walk didn't do it's job and opened '/' instead of '/foo' to create 'a.txt' in. */
-    file_t fd = fs_open(&ec, "/foo/a.txt", OFLAGS_CREATE | OFLAGS_READWRITE);
+    proc_start(&ec, proc, "/a.out");
     check_ec(&ec);
-
-    // Write some data to it.
-    logk(LOG_DEBUG, "Writing data to file");
-    fs_write(&ec, fd, "Hi.", 3);
-    check_ec(&ec);
-
-    // Seek to start.
-    logk(LOG_DEBUG, "Seeking to 0");
-    fs_seek(&ec, fd, 0, SEEK_ABS);
-    check_ec(&ec);
-
-    // Read some data from it.
-    logk(LOG_DEBUG, "Reading data from file");
-    char      readbuf[4];
-    fileoff_t len = fs_read(&ec, fd, readbuf, 3);
-    check_ec(&ec);
-    logk_hexdump_vaddr(LOG_DEBUG, "Read data:", readbuf, 3, 0);
-
-    // List the directory.
-    dirent_t ent;
-    while (fs_dir_read(&ec, &ent, dirfd)) {
-        logkf(LOG_DEBUG, "Inode: %{d}, Is dir: %{d}, Name: %{cs}", ent.inode, ent.is_dir, ent.name);
-    }
-
-
-
-    // (void)arg;
-    // io_mode(NULL, 19, IO_MODE_OUTPUT);
-    // timestamp_us_t t;
-    // while (1) {
-    //     io_write(NULL, 19, true);
-    //     t = time_us() + 500000;
-    //     while (time_us() < t) sched_yield();
-    //     io_write(NULL, 19, false);
-    //     t = time_us() + 500000;
-    //     while (time_us() < t) sched_yield();
-    // }
 }

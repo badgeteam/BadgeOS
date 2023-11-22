@@ -160,7 +160,7 @@ bool fs_stat(badge_err_t *ec, stat_t *stat_out, char const *path);
 // If the path ends in a symlink, show it's status instead of that of the target file.
 bool fs_lstat(badge_err_t *ec, stat_t *stat_out, char const *path);
 // Get file status given file handle.
-bool fs_fstat(badge_err_t *ec, file_t file);
+bool fs_fstat(badge_err_t *ec, stat_t *stat_out, file_t file);
 
 // Create a new directory.
 // Returns whether the target exists and is a directory.

@@ -80,3 +80,10 @@
 #define PMP_ENTRY_USER_FLASH_BASE    8
 // TOR PMP entry for SRAM assigned to userland.
 #define PMP_ENTRY_USER_FLASH_TOR     9
+
+// Maximum number of mapped regions per process.
+#define PROC_MEMMAP_MAX_REGIONS 8
+// Lowest numbered PMP to use for process memory maps, must be a multiple of 4.
+#define PROC_RISCV_PMP_START    0
+// Number of PMPs to use for process memory maps, must be a multiple of 4.
+#define PROC_RISCV_PMP_COUNT    8

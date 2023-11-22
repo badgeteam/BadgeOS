@@ -33,9 +33,28 @@ def addr2line(x):
 
     addr_string = "0x{:0>8x}".format(addr)
 
-    result = runAndCapture(
-        ["riscv32-unknown-elf-addr2line", "-e", file_name, addr_string]
-    )
+    try:
+        result = runAndCapture(
+            ["riscv32-unknown-linux-gnu-addr2line", "-e", file_name, addr_string]
+        )
+    except:
+        try:
+            result = runAndCapture(
+                ["riscv32-linux-gnu-addr2line", "-e", file_name, addr_string]
+            )
+        except:
+            try:
+                result = runAndCapture(
+                    ["riscv64-unknown-linux-gnu-addr2line", "-e", file_name, addr_string]
+                )
+            except:
+                pass
+                try:
+                    result = runAndCapture(
+                        ["riscv64-linux-gnu-addr2line", "-e", file_name, addr_string]
+                    )
+                except:
+                    result = None
 
     if result != None:
         return f"{addr_string} ({result})"

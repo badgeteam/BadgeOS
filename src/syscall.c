@@ -4,15 +4,17 @@
 #include "syscall.h"
 
 #include "cpu/isr.h"
+#include "cpu/isr_ctx.h"
 #include "cpu/panic.h"
 #include "rawprint.h"
-#include "scheduler.h"
+#include "scheduler/cpu.h"
+#include "scheduler/scheduler.h"
 
 
 
 // Called on invalid system call.
-static long long invalid_syscall(long sysno) {
-    kernel_ctx_t *ctx = kernel_ctx_get();
+static void invalid_syscall(long sysno) {
+    isr_ctx_t *ctx = isr_ctx_get();
 
     // Report error.
     rawprint("Invalid syscall ");
@@ -20,28 +22,27 @@ static long long invalid_syscall(long sysno) {
     rawprint(" at PC 0x");
     rawprinthex(ctx->regs.pc, sizeof(ctx->regs.pc) * 2);
     rawprint("\n");
-    kernel_ctx_dump(ctx);
+    isr_ctx_dump(ctx);
 
     // TODO: Terminate thread.
     panic_poweroff();
-
-    return 0;
-}
-
-
-
-// Temporary thread yield system call.
-static long long syscall_impl_thread_yield() {
-    sched_request_switch_from_isr();
-    return 0;
 }
 
 // System call handler jump table thing.
 __SYSCALL_HANDLER_SIGNATURE {
     __SYSCALL_HANDLER_IGNORE_UNUSED;
 
+    long long retval = 0;
     switch (sysnum) {
-        case SYSNUM_THREAD_YIELD: return syscall_impl_thread_yield();
-        default: return invalid_syscall(sysnum);
+        case SYSCALL_TEMP_WRITE: rawprint_substr((char const *)a0, (size_t)a1); break;
+        case SYSCALL_THREAD_YIELD: sched_yield(); break;
+        case SYSCALL_THREAD_CREATE: /* TODO */ break;
+        case SYSCALL_THREAD_SUSPEND: /* TODO */ break;
+        case SYSCALL_THREAD_RESUME: /* TODO */ break;
+        case SYSCALL_THREAD_DETACH: /* TODO */ break;
+        case SYSCALL_THREAD_DESTROY: /* TODO */ break;
+        case SYSCALL_THREAD_EXIT: /* TODO */ break;
+        default: invalid_syscall(sysnum); break;
     }
+    __syscall_return(retval);
 }
