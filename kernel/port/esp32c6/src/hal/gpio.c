@@ -28,22 +28,13 @@ void io_mode(badge_err_t *ec, int pin, io_mode_t mode) {
     switch (mode) {
         default: badge_err_set(ec, ELOC_GPIO, ECAUSE_PARAM); break;
         case IO_MODE_HIGH_Z: {
-            io_mux_gpio_t tmp = IO_MUX.gpio[pin];
-            tmp.mcu_ie        = 0;
-            tmp.mcu_oe        = 0;
-            IO_MUX.gpio[pin]  = tmp;
+            GPIO.enable.val &= ~(1 << pin);
         } break;
         case IO_MODE_OUTPUT: {
-            io_mux_gpio_t tmp = IO_MUX.gpio[pin];
-            tmp.mcu_ie        = 0;
-            tmp.mcu_oe        = 1;
-            IO_MUX.gpio[pin]  = tmp;
+            GPIO.enable.val |= 1 << pin;
         } break;
         case IO_MODE_INPUT: {
-            io_mux_gpio_t tmp = IO_MUX.gpio[pin];
-            tmp.mcu_ie        = 1;
-            tmp.mcu_oe        = 0;
-            IO_MUX.gpio[pin]  = tmp;
+            GPIO.enable.val &= ~(1 << pin);
         } break;
     }
 }
