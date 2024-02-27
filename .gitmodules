@@ -1,3 +1,6 @@
 [submodule "lib/kbelf"]
 	path = lib/kbelf
 	url = https://github.com/robotman2412/KiloElfLoader
+[submodule "kernel/port/esp_common/esp-hal-3rdparty"]
+	path = kernel/port/esp_common/esp-hal-3rdparty
+	url = https://github.com/espressif/esp-hal-3rdparty

@@ -13,6 +13,9 @@ SECTIONS
 {
 	/DISCARD/ : { *(.note.gnu.build-id) }
 
+	/* Import hardware addresses. */
+INCLUDE esp32c6.peripherals.ld
+
 	/* Physical memory. */
 	__start_xip    = 0x42000000;
 	__stop_xip     = 0x43000000;
