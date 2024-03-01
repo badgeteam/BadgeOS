@@ -13,18 +13,17 @@ _(1) MCH2025 is a preliminary name, MCH2025 is an event that will be organised b
 
 
 
+# [Documentation](./docs/README.md)
+
+
+
 # Contributing
-
 We are an open-source project, so we can always use more hands!
-If you're looking for things to help with, look for the [issues with the PoC (Proof of Concept) milestone](https://github.com/badgeteam/BadgerOS/issues/33).
-**We are currently using the ESP32-C6 for development.**
-
-Make sure to check out the [style guide](docs/styleguide.md) so your code can fit right in.
-If you're unsure where to put your code, look into the [project structure](docs/project-structure.md).
-
-If you're not sure what to do but want to help, message us:
+If you're new to this project and want to help, message us:
 - [robotman2412](https://t.me/robotman2412) on telegram
 - [Badge.team](https://t.me/+StQpEWyhnb96Y88p) telegram group
+
+If you want to develop BadgerOS, check out [Project structure](./docs/project_structure.md)
 
 
 
