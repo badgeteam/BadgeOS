@@ -5,6 +5,7 @@
 #include "filesystem.h"
 #include "gpio.h"
 #include "housekeeping.h"
+#include "i2c.h"
 #include "log.h"
 #include "malloc.h"
 #include "memprotect.h"
@@ -138,6 +139,21 @@ static void kernel_init() {
 
 
 
+#define SDA_PIN 6
+#define SCL_PIN 7
+#define CH_ADDR 0x42
+void deboug() {
+    badge_err_t ec = {0};
+    i2c_master_init(&ec, 0, SDA_PIN, SCL_PIN, 100000);
+    badge_err_assert_always(&ec);
+    i2c_master_write_to(&ec, 0, CH_ADDR, "\x00", 1);
+    badge_err_assert_always(&ec);
+    uint8_t rdata;
+    i2c_master_read_from(&ec, 0, CH_ADDR, &rdata, 1);
+    badge_err_assert_always(&ec);
+    // logkf(LOG_DEBUG, "I2C rdata: 0x%{u8;x}", rdata);
+}
+
 // After kernel initialization, the booting CPU core continues here.
 // This starts up the `init` process while other CPU cores wait for processes to be scheduled for them.
 // When finished, this function returns and the thread should wait for a shutdown event.
@@ -151,6 +167,8 @@ static void userland_init() {
     assert_dev_drop(pid == 1);
     proc_start(&ec, pid, "/sbin/init");
     badge_err_assert_always(&ec);
+
+    deboug();
 }
 
 

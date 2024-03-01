@@ -50,13 +50,15 @@ static void i2c_master_load_comd(i2c_comd_val_t *comd, size_t count) {
 
 // Add an I2C address to the TX queue.
 // Returns true for 10-bit addresses, false for 7-bit addresses.
-static bool i2c_master_queue_addr(uint16_t slave_id, bool read_bit) {
+static bool i2c_master_queue_addr(int slave_id, bool read_bit) {
     assert_dev_drop(slave_id >= 0 && slave_id <= 1023);
     if (slave_id > 127) {
+        logkf(LOG_DEBUG, "10-bit address");
         I2C0.data.val = 0b11110000 | ((slave_id >> 7) & 0b0110) | read_bit;
         I2C0.data.val = slave_id;
         return true;
     } else {
+        logkf(LOG_DEBUG, "7-bit address");
         I2C0.data.val = (slave_id << 1) | read_bit;
         return false;
     }
@@ -93,7 +95,6 @@ void i2c_master_init(badge_err_t *ec, int i2c_num, int sda_pin, int scl_pin, int
     }
 
     // Clock configuration.
-    clkconfig_i2c0(bitrate * 10, true, true);
     clkconfig_i2c0(bitrate * 10, true, false);
 
     // Clear FIFOs.
@@ -112,9 +113,23 @@ void i2c_master_init(badge_err_t *ec, int i2c_num, int sda_pin, int scl_pin, int
     };
 
     // I2C master configuration.
-    I2C0.ctr.ms_mode                     = true;
-    I2C0.scl_low_period.scl_low_period   = 5;
-    I2C0.scl_high_period.scl_high_period = 5;
+    I2C0.ctr = (i2c_ctr_reg_t){
+        .ms_mode = true,
+    };
+
+    I2C0.sda_hold.sda_hold_time     = 3;
+    I2C0.sda_sample.sda_sample_time = 3;
+
+    I2C0.scl_low_period.scl_low_period          = 5;
+    I2C0.scl_high_period.scl_high_period        = 5;
+    I2C0.scl_rstart_setup.scl_rstart_setup_time = 10;
+    I2C0.scl_start_hold.scl_start_hold_time     = 10;
+    I2C0.scl_stop_setup.scl_stop_setup_time     = 10;
+    I2C0.scl_stop_hold.scl_stop_hold_time       = 10;
+
+    I2C0.ctr.conf_upgate = true;
+
+    logkf(LOG_DEBUG, "ctr:      %{u32;x}", I2C0.ctr.val);
 
     // GPIO matrix configuration.
     GPIO.func_out_sel_cfg[sda_pin].out_sel          = I2CEXT0_SDA_OUT_IDX;
@@ -137,12 +152,12 @@ size_t i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, uint8_t 
     // Bounds check.
     if (i2c_num != 0 || len > 255 || slave_id < 0 || slave_id > 1023) {
         badge_err_set(ec, ELOC_I2C, ECAUSE_RANGE);
-        return;
+        return 0;
     }
 
     // Put address in the FIFO.
     i2c_clear_fifo(true, true);
-    bool addr_10bit = i2c_master_queue_addr(slave_id, false);
+    bool addr_10bit = i2c_master_queue_addr(slave_id, true);
 
     // Set commands.
     i2c_comd_val_t cmd[] = {
@@ -156,7 +171,7 @@ size_t i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, uint8_t 
             .ack_check_en = true,
             .ack_exp      = I2C_ACK,
             .ack_value    = I2C_ACK,
-            .byte_num     = addr_10bit,
+            .byte_num     = 1 + addr_10bit,
         },
         // Read.
         {
@@ -177,7 +192,17 @@ size_t i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, uint8_t 
     i2c_master_load_comd(cmd, sizeof(cmd) / sizeof(i2c_comd_val_t));
 
     // Start the transaction.
+    I2C0.ctr.conf_upgate = true;
     I2C0.ctr.trans_start = true;
+
+    uint32_t       fifo_st_0 = I2C0.fifo_st.val;
+    uint32_t       sr_0      = I2C0.sr.val;
+    timestamp_us_t time      = time_us() + 1000;
+    while (time_us() < time);
+    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", fifo_st_0);
+    logkf(LOG_DEBUG, "sr:      %{u32;x}", sr_0);
+    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", I2C0.fifo_st.val);
+    logkf(LOG_DEBUG, "sr:      %{u32;x}", I2C0.sr.val);
 
     // Poll for read data.
     for (size_t i = 0; i < len; i++) {
@@ -190,6 +215,13 @@ size_t i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, uint8_t 
         // Read the byte into the output buffer.
         buf[i] = I2C0.data.fifo_rdata;
     }
+    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", I2C0.fifo_st.val);
+    logkf(LOG_DEBUG, "sr:      %{u32;x}", I2C0.sr.val);
+
+    // Wait for transaction to finish.
+    while (I2C0.sr.bus_busy);
+    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", I2C0.fifo_st.val);
+    logkf(LOG_DEBUG, "sr:      %{u32;x}", I2C0.sr.val);
 
     return 0;
 }
@@ -200,7 +232,76 @@ size_t i2c_master_write_to(badge_err_t *ec, int i2c_num, int slave_id, uint8_t c
     // Bounds check.
     if (i2c_num != 0 || len > 255) {
         badge_err_set(ec, ELOC_I2C, ECAUSE_RANGE);
-        return;
+        return 0;
     }
+
+    // Put address in the FIFO.
+    i2c_clear_fifo(true, true);
+    bool addr_10bit = i2c_master_queue_addr(slave_id, false);
+
+    // Set commands.
+    i2c_comd_val_t cmd[] = {
+        // Start condition.
+        {
+            .op_code = I2C_OPC_RSTART,
+        },
+        // Address.
+        {
+            .op_code      = I2C_OPC_WRITE,
+            .ack_check_en = true,
+            .ack_exp      = I2C_ACK,
+            .ack_value    = I2C_ACK,
+            .byte_num     = 1 + addr_10bit,
+        },
+        // Write.
+        {
+            .op_code      = I2C_OPC_WRITE,
+            .ack_check_en = false,
+            .ack_value    = I2C_ACK,
+            .byte_num     = len,
+        },
+        // Stop condition.
+        {
+            .op_code = I2C_OPC_STOP,
+        },
+        // End.
+        {
+            .op_code = I2C_OPC_END,
+        },
+    };
+    i2c_master_load_comd(cmd, sizeof(cmd) / sizeof(i2c_comd_val_t));
+
+    // Start the transaction.
+    I2C0.ctr.conf_upgate = true;
+    I2C0.ctr.trans_start = true;
+
+    uint32_t       fifo_st_0 = I2C0.fifo_st.val;
+    uint32_t       sr_0      = I2C0.sr.val;
+    timestamp_us_t time      = time_us() + 1000;
+    while (time_us() < time);
+    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", fifo_st_0);
+    logkf(LOG_DEBUG, "sr:      %{u32;x}", sr_0);
+    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", I2C0.fifo_st.val);
+    logkf(LOG_DEBUG, "sr:      %{u32;x}", I2C0.sr.val);
+
+    // Put all write data.
+    for (size_t i = 0; i < len; i++) {
+        // Wait for FIFO space to become available.
+        i2c_fifo_st_reg_t fifo_st;
+        do {
+            fifo_st = I2C0.fifo_st;
+        } while (fifo_st.txfifo_raddr == (fifo_st.txfifo_waddr + 1) % 31);
+
+        // Write the byte into to FIFO.
+        I2C0.data.fifo_rdata = buf[i];
+    }
+    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", I2C0.fifo_st.val);
+    logkf(LOG_DEBUG, "sr:      %{u32;x}", I2C0.sr.val);
+
+    // Wait for transaction to finish.
+    while (I2C0.sr.bus_busy);
+    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", I2C0.fifo_st.val);
+    logkf(LOG_DEBUG, "sr:      %{u32;x}", I2C0.sr.val);
+
     return 0;
 }
