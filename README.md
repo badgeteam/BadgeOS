@@ -20,10 +20,10 @@ _(1) MCH2025 is a preliminary name, MCH2025 is an event that will be organised b
 # Contributing
 We are an open-source project, so we can always use more hands!
 If you're new to this project and want to help, message us:
-- [robotman2412](https://t.me/robotman2412) on telegram
+- [RobotMan2412](https://t.me/robotman2412) on telegram
 - [Badge.team](https://t.me/+StQpEWyhnb96Y88p) telegram group
 
-If you want to develop BadgerOS, check out [Project structure](./docs/project_structure.md)
+After that, see [Project structure](./docs/project_structure.md) for reference about how this project works.
 
 
 
