@@ -51,7 +51,28 @@ The block device part of the filesystems component uses the HAL to abstract the 
 
 
 # Data types
+TODO.
 
 
 # API
+Because of the multiple abstractions present in the filesystems, the API is split into 5 parts:
+- High-level filesystem API: `fs_*`
+- Filesystem abstraction layer: `vfs_*`
+- Filesystem implementations: `vfs_fat_*`, `vfs_ramfs_*`, etc.
+- Block device abstraction layer: `blkdev_*`
+- Block device implementations: `blkdev_ram_*`, etc.
 
+## High-level filesystem API
+The high-level filesystem API translates traditional file operations into calls to the filesystem abstraction layer that more directly represent operations on the filesystem.
+
+The high-level filesystem API also converts multiple file handles per logical file into one single handle so individual filesystem implementations only need to manage one handle per file / directory.
+
+## Filesystem abstraction layer
+The filesystem abstraction layer defines which functions each filesystem needs to implement and forwards every function call directly to the implementation.
+
+The filesystem abstraction layer and the filesystem implementation only manage one handle per file, so they only need to synchronize accesses between different files not symbolic or hard linked.
+
+## Block device abstraction layer
+The block device abstraction layer implements caches and some common utilities for accessing block devices. It calls the block device implementations for read, write and erase commands, which handle the uncached accesses.
+
+The block device API does synchronize multiple accesses to the same partition, which is the taks of the filesystem implementation.

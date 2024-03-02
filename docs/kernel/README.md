@@ -25,7 +25,7 @@ Components in the rows use APIs from components in the columns.
 | HAL   |       |       |       |       |       |       |
 | Sched |       |       |       |       |       |   x   |
 | Proc  |       |   x   |       |   x   |   x   |       |
-| Mem   |       |       |   x   |       |       |       |
+| Mem   |       |       |       |       |       |       |
 | FS    |   x   |       |       |       |       |       |
 | Trap  |       |   x   |       |       |       |       |
 
