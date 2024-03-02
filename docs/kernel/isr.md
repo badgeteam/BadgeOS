@@ -7,6 +7,8 @@ Currently responsible: Julian (RobotMan2412).
 - [Scope](#scope)
 - [Dependents](#dependents)
 - [Dependencies](#dependencies)
+- [Data types](#data-types)
+- [API](#api)
 
 
 # Scope
@@ -16,6 +18,7 @@ The interrupt service routine, or ISR for short, handles these CPU events and co
 # Dependents
 ## [Scheduler](./scheduler.md)
 The scheduler calls `isr_ctx_switch_set` to inform the ISR which context to run next. This context can be kernel side (either kernel thread or kernel side of user thread) or user side (user side of user thread).
+
 
 # Dependencies
 ## [Scheduler](./scheduler.md)
@@ -27,7 +30,7 @@ When a system call happens, the ISR calls `sched_raise_from_isr` to "raise" the 
 ## isr_ctx_t
 The ISR context is a CPU-specific data structure that stores the execution context for a side of a thread; kernel threads have one ISR contexts while user threads have one each for their kernel and user sides.
 
-Aside from the CPU-specific fields, which should not be accessed by code that is not CPU-specific, there are a two general fields:
+Aside from the CPU-specific fields, which should not be accessed by code that is not CPU-specific, there are two general fields:
 
 ### Field: `sched_thread_t *thread`
 Pointer to owning `sched_thread_t`.
