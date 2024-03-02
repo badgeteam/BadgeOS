@@ -33,9 +33,6 @@ jobs:
           tar -xf riscv32-glibc-ubuntu-22.04-nightly.tar.gz
           echo "${PWD}/riscv/bin" >> $GITHUB_PATH
 
-      - name: Build
-        run: CMAKE_BUILD_TYPE=Debug make clean build
-
       - name: Run clang-format
         run: |
           echo "scan the following files:"
@@ -69,9 +66,6 @@ jobs:
           curl -Lo riscv32-glibc-ubuntu-22.04-nightly.tar.gz 'https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2023.06.09/riscv32-glibc-ubuntu-22.04-nightly-2023.06.09-nightly.tar.gz'
           tar -xf riscv32-glibc-ubuntu-22.04-nightly.tar.gz
           echo "${PWD}/riscv/bin" >> $GITHUB_PATH
-
-      - name: Build
-        run: CMAKE_BUILD_TYPE=Debug make clean build
 
       - name: Run clang-tidy
         run: |
