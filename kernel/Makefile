@@ -16,7 +16,7 @@ all: build flash monitor
 configure:
 	mkdir -p '$(BUILDDIR)'
 	touch '$(BUILDDIR)/fs_root.c'
-	cmake -B '$(BUILDDIR)' '-DCMAKE_BUILD_TYPE=$${CMAKE_BUILD_TYPE:-Debug}'
+	cmake -B '$(BUILDDIR)' "-DCMAKE_BUILD_TYPE=$${CMAKE_BUILD_TYPE:-Debug}"
 
 build: configure
 	../tools/ramfs-gen.py '$(BADGER_RAMFS_ROOT)' '$(BUILDDIR)/fs_root.c' init_ramfs
