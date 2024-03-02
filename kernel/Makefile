@@ -15,12 +15,13 @@ all: build flash monitor
 
 configure:
 	mkdir -p "$(BUILDDIR)"
-	../tools/ramfs-gen.py '$(BADGER_RAMFS_ROOT)' build/fs_root.c init_ramfs
-	cmake -B "$(BUILDDIR)" "-DCMAKE_BUILD_TYPE=$${CMAKE_BUILD_TYPE:-Debug}"
+	touch '$(BUILDDIR)/fs_root.c'
+	cmake -B '$(BUILDDIR)' '-DCMAKE_BUILD_TYPE=$${CMAKE_BUILD_TYPE:-Debug}'
 
 build: configure
-	cmake --build "$(BUILDDIR)"
-	cmake --install "$(BUILDDIR)" --prefix "$(OUTPUT)"
+	../tools/ramfs-gen.py '$(BADGER_RAMFS_ROOT)' '$(BUILDDIR)/fs_root.c' init_ramfs
+	cmake --build '$(BUILDDIR)'
+	cmake --install '$(BUILDDIR)' --prefix '$(OUTPUT)'
 
 clang-format-check: configure
 	echo "clang-format check the following files:"
@@ -53,4 +54,4 @@ flash: build
 
 monitor:
 	echo -e "\033[1mType ^A^X to exit.\033[0m"
-	picocom -q -b 115200 $(PORT) | ../tools/address-filter.py "$(OUTPUT)/badger-os.elf"; echo -e '\033[0m'
+	picocom -q -b 115200 $(PORT) | ../tools/address-filter.py '$(OUTPUT)/badger-os.elf'; echo -e '\033[0m'
