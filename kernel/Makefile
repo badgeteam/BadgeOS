@@ -9,24 +9,26 @@ OUTPUT            ?= "$(shell pwd)/firmware"
 BUILDDIR          ?= "build"
 BADGER_RAMFS_ROOT ?= ../files/root
 
-.PHONY: all clean-tools clean build flash monitor test clang-format-check clang-tidy-check openocd gdb
+.PHONY: all clean-tools clean configure build flash monitor test clang-format-check clang-tidy-check openocd gdb
 
 all: build flash monitor
 
-build:
+configure:
 	mkdir -p "$(BUILDDIR)"
 	../tools/ramfs-gen.py '$(BADGER_RAMFS_ROOT)' build/fs_root.c init_ramfs
 	cmake -B "$(BUILDDIR)" "-DCMAKE_BUILD_TYPE=$${CMAKE_BUILD_TYPE:-Debug}"
+
+build: configure
 	cmake --build "$(BUILDDIR)"
 	cmake --install "$(BUILDDIR)" --prefix "$(OUTPUT)"
 
-clang-format-check: build
+clang-format-check: configure
 	echo "clang-format check the following files:"
 	jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$'
 	echo "analysis results:"
 	clang-format --dry-run $(shell jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$')
 
-clang-tidy-check: build
+clang-tidy-check: configure
 	echo "clang-tidy check the following files:"
 	jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$'
 	echo "analysis results:"
