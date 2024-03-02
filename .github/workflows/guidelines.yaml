@@ -35,10 +35,7 @@ jobs:
 
       - name: Run clang-format
         run: |
-          echo "scan the following files:"
-          jq -r '.[].file' kernel/build/compile_commands.json | grep '\.[ch]$'
-          echo "analysis results:"
-          clang-format-18 --dry-run $(jq -r '.[].file' kernel/build/compile_commands.json | grep '\.[ch]$')
+          make clang-format-check
 
 
   static-analysis:
@@ -69,7 +66,4 @@ jobs:
 
       - name: Run clang-tidy
         run: |
-          echo "scan the following files:"
-          jq -r '.[].file' kernel/build/compile_commands.json | grep '\.[ch]$'
-          echo "analysis results:"
-          cd kernel; clang-tidy-18 -p build $(jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$') --warnings-as-errors="*"
+          make clang-tidy-check
