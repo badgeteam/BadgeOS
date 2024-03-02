@@ -27,13 +27,13 @@ clang-format-check: configure
 	echo "clang-format check the following files:"
 	jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$'
 	echo "analysis results:"
-	clang-format --dry-run '$(shell jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$')'
+	clang-format-18 --dry-run $(shell jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$')
 
 clang-tidy-check: configure
 	echo "clang-tidy check the following files:"
 	jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$'
 	echo "analysis results:"
-	clang-tidy -p build '$(shell jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$')' --warnings-as-errors="*"
+	clang-tidy-18 -p build $(shell jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$') --warnings-as-errors="*"
 
 openocd:
 	openocd -c 'set ESP_RTOS "none"' -f board/esp32c6-builtin.cfg
