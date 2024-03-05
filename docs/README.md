@@ -14,4 +14,7 @@ For information about the internal structure and API of the BadgerOS kernel, see
 <!--
 ## For BadgerOS application developers
 For information about the APIs available to application developers, see [BadgerOS API](./api/README.md).
+
+## For all BadgerOS developers
 -->
+For project plan and requirements, see [Project requirements](./project_requirements.md).
