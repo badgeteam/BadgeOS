@@ -24,6 +24,16 @@ This document expands on all of these requirements as a part of forming a projec
     - [High-level drivers](#high-level-drivers)
     - [Kernel infrastructure](#kernel-infrastructure)
     - [Application binary interface](#application-binary-interface)
+- [System application requirements](#system-application-requirements)
+    - [Application list](#application-list)
+    - [Settings](#settings)
+    - [App store](#app-store)
+    - [Name tag](#name-tag)
+    - [Text editor](#text-editor)
+    - [File browser](#file-browser)
+    - [Simple application IDE](#simple-application-ide)
+    - [Event schedule / calendar](#event-schedule--calendar)
+    - [Image viewer](#image-viewer)
 
 
 
