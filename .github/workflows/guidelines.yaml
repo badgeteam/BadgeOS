@@ -14,7 +14,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Fetch submodules
-        run: git submodule update --init --recursive
+        run: git submodule update --init
 
       - name: Install clang-format
         run: |
