@@ -8,6 +8,8 @@
 #include "soc/gpio_sig_map.h"
 #include "soc/gpio_struct.h"
 #include "soc/i2c_struct.h"
+#include "soc/io_mux_struct.h"
+#include "soc/pmu_struct.h"
 
 // I2C command register value.
 typedef union {
@@ -30,10 +32,163 @@ typedef union {
 #define I2C_OPC_STOP   2
 #define I2C_OPC_READ   3
 #define I2C_OPC_END    4
-#define I2C_OPC_RSTART 5
+#define I2C_OPC_RSTART 6
 
 #define I2C_ACK  0
 #define I2C_NACK 1
+
+i2c_dev_t tmp = {
+    .scl_low_period =
+        {
+            {
+                .scl_low_period = 0x31,
+            },
+        },
+    .ctr =
+        {
+            {
+                .sda_force_out          = 0x1,
+                .scl_force_out          = 0x1,
+                .sample_scl_level       = 0x0,
+                .rx_full_ack_level      = 0x0,
+                .ms_mode                = 0x1,
+                .trans_start            = 0x0,
+                .tx_lsb_first           = 0x0,
+                .rx_lsb_first           = 0x0,
+                .clk_en                 = 0x0,
+                .arbitration_en         = 0x0,
+                .fsm_rst                = 0x0,
+                .conf_upgate            = 0x0,
+                .slv_tx_auto_start_en   = 0x0,
+                .addr_10bit_rw_check_en = 0x0,
+                .addr_broadcasting_en   = 0x0,
+            },
+        },
+    .to =
+        {
+            {
+                .time_out_value = 0xa,
+                .time_out_en    = 0x1,
+            },
+        },
+    .fifo_conf =
+        {
+            {
+                .rxfifo_wm_thrhd  = 0xb,
+                .txfifo_wm_thrhd  = 0x4,
+                .nonfifo_en       = 0x0,
+                .fifo_addr_cfg_en = 0x0,
+                .rx_fifo_rst      = 0x0,
+                .tx_fifo_rst      = 0x0,
+                .fifo_prt_en      = 0x1,
+            },
+        },
+    .sda_hold =
+        {
+            {
+                .sda_hold_time = 0xb,
+            },
+        },
+    .sda_sample =
+        {
+            {
+                .sda_sample_time = 0x18,
+            },
+        },
+    .scl_high_period =
+        {
+            {
+                .scl_high_period      = 0x1b,
+                .scl_wait_high_period = 0x17,
+            },
+        },
+    .scl_start_hold =
+        {
+            {
+                .scl_start_hold_time = 0x31,
+            },
+        },
+    .scl_rstart_setup =
+        {
+            {
+                .scl_rstart_setup_time = 0x31,
+            },
+        },
+    .scl_stop_hold =
+        {
+            {
+                .scl_stop_hold_time = 0x31,
+            },
+        },
+    .scl_stop_setup =
+        {
+            {
+                .scl_stop_setup_time = 0x31,
+            },
+        },
+    .filter_cfg =
+        {
+            {
+                .scl_filter_thres = 0x7,
+                .sda_filter_thres = 0x7,
+                .scl_filter_en    = 0x1,
+                .sda_filter_en    = 0x1,
+            },
+        },
+    .clk_conf =
+        {
+            {
+                .sclk_div_num = 0x0,
+                .sclk_div_a   = 0x0,
+                .sclk_div_b   = 0x0,
+                .sclk_sel     = 0x0,
+                .sclk_active  = 0x1,
+            },
+        },
+    .scl_st_time_out =
+        {
+            {
+                .scl_st_to_i2c = 0x10,
+            },
+        },
+    .scl_main_st_time_out =
+        {
+            {
+                .scl_main_st_to_i2c = 0x10,
+            },
+        },
+    .scl_sp_conf =
+        {
+            {
+                .scl_rst_slv_en  = 0x0,
+                .scl_rst_slv_num = 0x0,
+                .scl_pd_en       = 0x0,
+                .sda_pd_en       = 0x0,
+            },
+        },
+    .scl_stretch_conf =
+        {
+            {
+                .stretch_protect_num   = 0x0,
+                .slave_scl_stretch_en  = 0x0,
+                .slave_scl_stretch_clr = 0x0,
+                .slave_byte_ack_ctl_en = 0x0,
+                .slave_byte_ack_lvl    = 0x0,
+            },
+        },
+    .txfifo_start_addr =
+        {
+            {
+                .txfifo_start_addr = 0x0,
+            },
+        },
+    .rxfifo_start_addr =
+        {
+            {
+                .rxfifo_start_addr = 0x0,
+            },
+        },
+};
 
 
 
@@ -97,6 +252,13 @@ void i2c_master_init(badge_err_t *ec, int i2c_num, int sda_pin, int scl_pin, int
     // Clock configuration.
     clkconfig_i2c0(bitrate * 10, true, false);
 
+    // I2C master configuration.
+    I2C0.ctr = (i2c_ctr_reg_t){
+        .sda_force_out = true,
+        .scl_force_out = true,
+        .ms_mode       = true,
+    };
+
     // Clear FIFOs.
     I2C0.fifo_conf = (i2c_fifo_conf_reg_t){
         .tx_fifo_rst = true,
@@ -109,35 +271,68 @@ void i2c_master_init(badge_err_t *ec, int i2c_num, int sda_pin, int scl_pin, int
         .fifo_addr_cfg_en = false,
         .tx_fifo_rst      = false,
         .rx_fifo_rst      = false,
-        .fifo_prt_en      = false,
+        .fifo_prt_en      = true,
     };
 
-    // I2C master configuration.
-    I2C0.ctr = (i2c_ctr_reg_t){
-        .ms_mode = true,
+    // Timeout configuration.
+    I2C0.to = (i2c_to_reg_t){
+        .time_out_value = 16,
+        .time_out_en    = true,
     };
+    I2C0.scl_st_time_out.val      = 0x10;
+    I2C0.scl_main_st_time_out.val = 0x10;
 
-    I2C0.sda_hold.sda_hold_time     = 3;
-    I2C0.sda_sample.sda_sample_time = 3;
+    I2C0.sda_hold.sda_hold_time     = 30;
+    I2C0.sda_sample.sda_sample_time = 30;
 
-    I2C0.scl_low_period.scl_low_period          = 5;
-    I2C0.scl_high_period.scl_high_period        = 5;
-    I2C0.scl_rstart_setup.scl_rstart_setup_time = 10;
-    I2C0.scl_start_hold.scl_start_hold_time     = 10;
-    I2C0.scl_stop_setup.scl_stop_setup_time     = 10;
-    I2C0.scl_stop_hold.scl_stop_hold_time       = 10;
+    I2C0.scl_low_period.scl_low_period          = 50;
+    I2C0.scl_high_period.scl_high_period        = 25;
+    I2C0.scl_high_period.scl_wait_high_period   = 25;
+    I2C0.scl_rstart_setup.scl_rstart_setup_time = 100;
+    I2C0.scl_start_hold.scl_start_hold_time     = 100;
+    I2C0.scl_stop_setup.scl_stop_setup_time     = 100;
+    I2C0.scl_stop_hold.scl_stop_hold_time       = 100;
 
     I2C0.ctr.conf_upgate = true;
 
     logkf(LOG_DEBUG, "ctr:      %{u32;x}", I2C0.ctr.val);
 
+    // Make GPIO open-drain.
+    GPIO.pin[sda_pin]    = (gpio_pin_reg_t){.pad_driver = true};
+    GPIO.pin[scl_pin]    = (gpio_pin_reg_t){.pad_driver = true};
+    IO_MUX.gpio[sda_pin] = (io_mux_gpio_t){.mcu_sel = 1, .fun_ie = true, .mcu_ie = true};
+    IO_MUX.gpio[scl_pin] = (io_mux_gpio_t){.mcu_sel = 1, .fun_ie = true, .mcu_ie = true};
+
     // GPIO matrix configuration.
-    GPIO.func_out_sel_cfg[sda_pin].out_sel          = I2CEXT0_SDA_OUT_IDX;
-    GPIO.func_out_sel_cfg[sda_pin].oen_sel          = 0;
-    GPIO.func_out_sel_cfg[scl_pin].out_sel          = I2CEXT0_SCL_OUT_IDX;
-    GPIO.func_out_sel_cfg[scl_pin].oen_sel          = 0;
-    GPIO.func_in_sel_cfg[I2CEXT0_SDA_IN_IDX].in_sel = sda_pin;
-    GPIO.func_in_sel_cfg[I2CEXT0_SCL_IN_IDX].in_sel = scl_pin;
+    GPIO.func_out_sel_cfg[sda_pin] = (gpio_func_out_sel_cfg_reg_t){
+        .oen_inv_sel = false,
+        .oen_sel     = false,
+        .out_inv_sel = false,
+        .out_sel     = I2CEXT0_SDA_OUT_IDX,
+    };
+    GPIO.func_out_sel_cfg[scl_pin] = (gpio_func_out_sel_cfg_reg_t){
+        .oen_inv_sel = false,
+        .oen_sel     = false,
+        .out_inv_sel = false,
+        .out_sel     = I2CEXT0_SCL_OUT_IDX,
+    };
+    GPIO.func_in_sel_cfg[I2CEXT0_SDA_IN_IDX] = (gpio_func_in_sel_cfg_reg_t){
+        .in_sel     = sda_pin,
+        .in_inv_sel = false,
+        .sig_in_sel = true,
+    };
+    GPIO.func_in_sel_cfg[I2CEXT0_SCL_IN_IDX] = (gpio_func_in_sel_cfg_reg_t){
+        .in_sel     = scl_pin,
+        .in_inv_sel = false,
+        .sig_in_sel = true,
+    };
+
+    logkf(LOG_DEBUG, "XTAL:     %{u32;x}", PMU.hp_sys[0].xtal.val);
+    logkf(LOG_DEBUG, "XTAL:     %{u32;x}", PMU.hp_sys[1].xtal.val);
+    logkf(LOG_DEBUG, "XTAL:     %{u32;x}", PMU.hp_sys[2].xtal.val);
+    logkf(LOG_DEBUG, "PWRS:     %{u32;x}", PMU.pwr_state.val);
+    timestamp_us_t time = time_us() + 1000000;
+    while (time_us() < time);
 }
 
 // De-initialises I²C peripheral i2c_num in master mode.
@@ -194,34 +389,36 @@ size_t i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, uint8_t 
     // Start the transaction.
     I2C0.ctr.conf_upgate = true;
     I2C0.ctr.trans_start = true;
-
-    uint32_t       fifo_st_0 = I2C0.fifo_st.val;
-    uint32_t       sr_0      = I2C0.sr.val;
-    timestamp_us_t time      = time_us() + 1000;
-    while (time_us() < time);
+    asm("" ::: "memory");
+    uint32_t fifo_st_0 = I2C0.fifo_st.val;
+    uint32_t sr_0      = I2C0.sr.val;
+    asm("" ::: "memory");
     logkf(LOG_DEBUG, "fifo_st: %{u32;x}", fifo_st_0);
     logkf(LOG_DEBUG, "sr:      %{u32;x}", sr_0);
-    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", I2C0.fifo_st.val);
-    logkf(LOG_DEBUG, "sr:      %{u32;x}", I2C0.sr.val);
 
-    // Poll for read data.
-    for (size_t i = 0; i < len; i++) {
-        // Wait for a byte to become available.
-        i2c_fifo_st_reg_t fifo_st;
-        do {
-            fifo_st = I2C0.fifo_st;
-        } while (fifo_st.rxfifo_raddr == fifo_st.rxfifo_waddr);
+    // // Poll for read data.
+    // for (size_t i = 0; i < len; i++) {
+    //     // Wait for a byte to become available.
+    //     i2c_fifo_st_reg_t fifo_st;
+    //     do {
+    //         fifo_st = I2C0.fifo_st;
+    //     } while (fifo_st.rxfifo_raddr == fifo_st.rxfifo_waddr);
 
-        // Read the byte into the output buffer.
-        buf[i] = I2C0.data.fifo_rdata;
-    }
-    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", I2C0.fifo_st.val);
-    logkf(LOG_DEBUG, "sr:      %{u32;x}", I2C0.sr.val);
+    //     // Read the byte into the output buffer.
+    //     buf[i] = I2C0.data.fifo_rdata;
+    // }
+    // logkf(LOG_DEBUG, "fifo_st: %{u32;x}", I2C0.fifo_st.val);
+    // logkf(LOG_DEBUG, "sr:      %{u32;x}", I2C0.sr.val);
 
     // Wait for transaction to finish.
-    while (I2C0.sr.bus_busy);
+    timestamp_us_t to = time_us() + 10000;
+    while (I2C0.sr.bus_busy && time_us() < to);
     logkf(LOG_DEBUG, "fifo_st: %{u32;x}", I2C0.fifo_st.val);
     logkf(LOG_DEBUG, "sr:      %{u32;x}", I2C0.sr.val);
+
+    for (size_t i = 0; i < len; i++) {
+        buf[i] = I2C0.data.fifo_rdata;
+    }
 
     return 0;
 }
@@ -271,19 +468,6 @@ size_t i2c_master_write_to(badge_err_t *ec, int i2c_num, int slave_id, uint8_t c
     };
     i2c_master_load_comd(cmd, sizeof(cmd) / sizeof(i2c_comd_val_t));
 
-    // Start the transaction.
-    I2C0.ctr.conf_upgate = true;
-    I2C0.ctr.trans_start = true;
-
-    uint32_t       fifo_st_0 = I2C0.fifo_st.val;
-    uint32_t       sr_0      = I2C0.sr.val;
-    timestamp_us_t time      = time_us() + 1000;
-    while (time_us() < time);
-    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", fifo_st_0);
-    logkf(LOG_DEBUG, "sr:      %{u32;x}", sr_0);
-    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", I2C0.fifo_st.val);
-    logkf(LOG_DEBUG, "sr:      %{u32;x}", I2C0.sr.val);
-
     // Put all write data.
     for (size_t i = 0; i < len; i++) {
         // Wait for FIFO space to become available.
@@ -295,8 +479,16 @@ size_t i2c_master_write_to(badge_err_t *ec, int i2c_num, int slave_id, uint8_t c
         // Write the byte into to FIFO.
         I2C0.data.fifo_rdata = buf[i];
     }
-    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", I2C0.fifo_st.val);
-    logkf(LOG_DEBUG, "sr:      %{u32;x}", I2C0.sr.val);
+
+    // Start the transaction.
+    I2C0.ctr.conf_upgate = true;
+    I2C0.ctr.trans_start = true;
+    asm("" ::: "memory");
+    uint32_t fifo_st_0 = I2C0.fifo_st.val;
+    uint32_t sr_0      = I2C0.sr.val;
+    asm("" ::: "memory");
+    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", fifo_st_0);
+    logkf(LOG_DEBUG, "sr:      %{u32;x}", sr_0);
 
     // Wait for transaction to finish.
     while (I2C0.sr.bus_busy);

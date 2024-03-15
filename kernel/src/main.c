@@ -146,12 +146,17 @@ void deboug() {
     badge_err_t ec = {0};
     i2c_master_init(&ec, 0, SDA_PIN, SCL_PIN, 100000);
     badge_err_assert_always(&ec);
-    i2c_master_write_to(&ec, 0, CH_ADDR, "\x00", 1);
+
+    // Set a fancy pattern on HH24 badge LEDs.
+    struct __attribute__((packed)) {
+        uint8_t  reg;
+        uint32_t led;
+    } wdata = {
+        .reg = 4,
+        .led = 0b11110110011001101111,
+    };
+    i2c_master_write_to(&ec, 0, CH_ADDR, &wdata, 4);
     badge_err_assert_always(&ec);
-    uint8_t rdata;
-    i2c_master_read_from(&ec, 0, CH_ADDR, &rdata, 1);
-    badge_err_assert_always(&ec);
-    // logkf(LOG_DEBUG, "I2C rdata: 0x%{u8;x}", rdata);
 }
 
 // After kernel initialization, the booting CPU core continues here.
