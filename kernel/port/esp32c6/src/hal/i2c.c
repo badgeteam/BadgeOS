@@ -37,159 +37,6 @@ typedef union {
 #define I2C_ACK  0
 #define I2C_NACK 1
 
-i2c_dev_t tmp = {
-    .scl_low_period =
-        {
-            {
-                .scl_low_period = 0x31,
-            },
-        },
-    .ctr =
-        {
-            {
-                .sda_force_out          = 0x1,
-                .scl_force_out          = 0x1,
-                .sample_scl_level       = 0x0,
-                .rx_full_ack_level      = 0x0,
-                .ms_mode                = 0x1,
-                .trans_start            = 0x0,
-                .tx_lsb_first           = 0x0,
-                .rx_lsb_first           = 0x0,
-                .clk_en                 = 0x0,
-                .arbitration_en         = 0x0,
-                .fsm_rst                = 0x0,
-                .conf_upgate            = 0x0,
-                .slv_tx_auto_start_en   = 0x0,
-                .addr_10bit_rw_check_en = 0x0,
-                .addr_broadcasting_en   = 0x0,
-            },
-        },
-    .to =
-        {
-            {
-                .time_out_value = 0xa,
-                .time_out_en    = 0x1,
-            },
-        },
-    .fifo_conf =
-        {
-            {
-                .rxfifo_wm_thrhd  = 0xb,
-                .txfifo_wm_thrhd  = 0x4,
-                .nonfifo_en       = 0x0,
-                .fifo_addr_cfg_en = 0x0,
-                .rx_fifo_rst      = 0x0,
-                .tx_fifo_rst      = 0x0,
-                .fifo_prt_en      = 0x1,
-            },
-        },
-    .sda_hold =
-        {
-            {
-                .sda_hold_time = 0xb,
-            },
-        },
-    .sda_sample =
-        {
-            {
-                .sda_sample_time = 0x18,
-            },
-        },
-    .scl_high_period =
-        {
-            {
-                .scl_high_period      = 0x1b,
-                .scl_wait_high_period = 0x17,
-            },
-        },
-    .scl_start_hold =
-        {
-            {
-                .scl_start_hold_time = 0x31,
-            },
-        },
-    .scl_rstart_setup =
-        {
-            {
-                .scl_rstart_setup_time = 0x31,
-            },
-        },
-    .scl_stop_hold =
-        {
-            {
-                .scl_stop_hold_time = 0x31,
-            },
-        },
-    .scl_stop_setup =
-        {
-            {
-                .scl_stop_setup_time = 0x31,
-            },
-        },
-    .filter_cfg =
-        {
-            {
-                .scl_filter_thres = 0x7,
-                .sda_filter_thres = 0x7,
-                .scl_filter_en    = 0x1,
-                .sda_filter_en    = 0x1,
-            },
-        },
-    .clk_conf =
-        {
-            {
-                .sclk_div_num = 0x0,
-                .sclk_div_a   = 0x0,
-                .sclk_div_b   = 0x0,
-                .sclk_sel     = 0x0,
-                .sclk_active  = 0x1,
-            },
-        },
-    .scl_st_time_out =
-        {
-            {
-                .scl_st_to_i2c = 0x10,
-            },
-        },
-    .scl_main_st_time_out =
-        {
-            {
-                .scl_main_st_to_i2c = 0x10,
-            },
-        },
-    .scl_sp_conf =
-        {
-            {
-                .scl_rst_slv_en  = 0x0,
-                .scl_rst_slv_num = 0x0,
-                .scl_pd_en       = 0x0,
-                .sda_pd_en       = 0x0,
-            },
-        },
-    .scl_stretch_conf =
-        {
-            {
-                .stretch_protect_num   = 0x0,
-                .slave_scl_stretch_en  = 0x0,
-                .slave_scl_stretch_clr = 0x0,
-                .slave_byte_ack_ctl_en = 0x0,
-                .slave_byte_ack_lvl    = 0x0,
-            },
-        },
-    .txfifo_start_addr =
-        {
-            {
-                .txfifo_start_addr = 0x0,
-            },
-        },
-    .rxfifo_start_addr =
-        {
-            {
-                .rxfifo_start_addr = 0x0,
-            },
-        },
-};
-
 
 
 // Load commands into the command buffer.
@@ -208,12 +55,10 @@ static void i2c_master_load_comd(i2c_comd_val_t *comd, size_t count) {
 static bool i2c_master_queue_addr(int slave_id, bool read_bit) {
     assert_dev_drop(slave_id >= 0 && slave_id <= 1023);
     if (slave_id > 127) {
-        logkf(LOG_DEBUG, "10-bit address");
         I2C0.data.val = 0b11110000 | ((slave_id >> 7) & 0b0110) | read_bit;
         I2C0.data.val = slave_id;
         return true;
     } else {
-        logkf(LOG_DEBUG, "7-bit address");
         I2C0.data.val = (slave_id << 1) | read_bit;
         return false;
     }
@@ -343,7 +188,9 @@ void i2c_master_deinit(badge_err_t *ec, int i2c_num) {
 
 // Reads len bytes into buffer buf from I²C slave with ID slave_id.
 // This function blocks until the entire transaction is completed and returns the number of acknowledged read bytes.
-size_t i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, uint8_t *buf, size_t len) {
+size_t i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, void *raw_ptr, size_t len) {
+    uint8_t *buf = (uint8_t *)raw_ptr;
+
     // Bounds check.
     if (i2c_num != 0 || len > 255 || slave_id < 0 || slave_id > 1023) {
         badge_err_set(ec, ELOC_I2C, ECAUSE_RANGE);
@@ -389,32 +236,10 @@ size_t i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, uint8_t 
     // Start the transaction.
     I2C0.ctr.conf_upgate = true;
     I2C0.ctr.trans_start = true;
-    asm("" ::: "memory");
-    uint32_t fifo_st_0 = I2C0.fifo_st.val;
-    uint32_t sr_0      = I2C0.sr.val;
-    asm("" ::: "memory");
-    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", fifo_st_0);
-    logkf(LOG_DEBUG, "sr:      %{u32;x}", sr_0);
-
-    // // Poll for read data.
-    // for (size_t i = 0; i < len; i++) {
-    //     // Wait for a byte to become available.
-    //     i2c_fifo_st_reg_t fifo_st;
-    //     do {
-    //         fifo_st = I2C0.fifo_st;
-    //     } while (fifo_st.rxfifo_raddr == fifo_st.rxfifo_waddr);
-
-    //     // Read the byte into the output buffer.
-    //     buf[i] = I2C0.data.fifo_rdata;
-    // }
-    // logkf(LOG_DEBUG, "fifo_st: %{u32;x}", I2C0.fifo_st.val);
-    // logkf(LOG_DEBUG, "sr:      %{u32;x}", I2C0.sr.val);
 
     // Wait for transaction to finish.
     timestamp_us_t to = time_us() + 10000;
     while (I2C0.sr.bus_busy && time_us() < to);
-    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", I2C0.fifo_st.val);
-    logkf(LOG_DEBUG, "sr:      %{u32;x}", I2C0.sr.val);
 
     for (size_t i = 0; i < len; i++) {
         buf[i] = I2C0.data.fifo_rdata;
@@ -425,7 +250,9 @@ size_t i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, uint8_t 
 
 // Writes len bytes from buffer buf to I²C slave with ID slave_id.
 // This function blocks until the entire transaction is completed and returns the number of acknowledged written bytes.
-size_t i2c_master_write_to(badge_err_t *ec, int i2c_num, int slave_id, uint8_t const *buf, size_t len) {
+size_t i2c_master_write_to(badge_err_t *ec, int i2c_num, int slave_id, void const *raw_ptr, size_t len) {
+    uint8_t const *buf = (uint8_t const *)raw_ptr;
+
     // Bounds check.
     if (i2c_num != 0 || len > 255) {
         badge_err_set(ec, ELOC_I2C, ECAUSE_RANGE);
@@ -483,17 +310,9 @@ size_t i2c_master_write_to(badge_err_t *ec, int i2c_num, int slave_id, uint8_t c
     // Start the transaction.
     I2C0.ctr.conf_upgate = true;
     I2C0.ctr.trans_start = true;
-    asm("" ::: "memory");
-    uint32_t fifo_st_0 = I2C0.fifo_st.val;
-    uint32_t sr_0      = I2C0.sr.val;
-    asm("" ::: "memory");
-    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", fifo_st_0);
-    logkf(LOG_DEBUG, "sr:      %{u32;x}", sr_0);
 
     // Wait for transaction to finish.
     while (I2C0.sr.bus_busy);
-    logkf(LOG_DEBUG, "fifo_st: %{u32;x}", I2C0.fifo_st.val);
-    logkf(LOG_DEBUG, "sr:      %{u32;x}", I2C0.sr.val);
 
     return 0;
 }
