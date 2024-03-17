@@ -85,4 +85,4 @@ typedef enum {
     EXT_IRQ_INT_STATUS_1            = 78,
     EXT_IRQ_INT_STATUS_2            = 79,
     EXT_IRQ_CLOCK_GATE              = 80,
-};
+} ext_irq_t;

@@ -171,7 +171,6 @@ static void userland_init() {
     assert_dev_drop(pid == 1);
     proc_start(&ec, pid, "/sbin/init");
     badge_err_assert_always(&ec);
-    while (1) continue;
 
     deboug();
 }

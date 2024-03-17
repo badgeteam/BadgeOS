@@ -17,8 +17,10 @@ typedef struct {
     uint32_t status[3];
 } intmtx_t;
 
-extern intmtx_t  INTMTX;
-static isr_ctx_t tmp_ctx;
+extern intmtx_t INTMTX;
+
+// Temporary interrupt context before scheduler.
+static isr_ctx_t tmp_ctx = {.is_kernel_thread = true};
 
 // Interrupt service routine table.
 static isr_t isr_table[32];
@@ -93,7 +95,6 @@ void riscv_interrupt_handler() {
     int mcause;
     asm("csrr %0, mcause" : "=r"(mcause));
     mcause &= 31;
-    asm("ebreak");
 
     // Jump to ISR.
     if (isr_table[mcause]) {
