@@ -4,11 +4,10 @@
 #include "time.h"
 
 #include "cpu/isr.h"
+#include "interrupt.h"
 #include "log.h"
 #include "port/hardware.h"
 #include "port/hardware_allocation.h"
-#include "port/interrupt.h"
-#include "port/intmtx.h"
 #include "scheduler/isr.h"
 #include "scheduler/scheduler.h"
 
@@ -174,16 +173,18 @@ void timer_set_freq(int timerno, int32_t frequency) {
 // Configure timer interrupt settings.
 void timer_int_config(int timerno, bool enable, int channel) {
     // Disable interrupts before changing interrupt settings.
-    bool mie = interrupt_disable();
+    bool mie = irq_enable(false);
 
     size_t base = timg_base(timerno);
     if (enable) {
         // Route interrupt.
         if (timerno) {
-            intmtx_route(INTMTX_CORE0_TG1_T0_INTR_MAP_REG, channel);
+            irq_ch_route(EXT_IRQ_TG1_T0_INTR, channel);
         } else {
-            intmtx_route(INTMTX_CORE0_TG0_T0_INTR_MAP_REG, channel);
+            irq_ch_route(EXT_IRQ_TG0_T0_INTR, channel);
         }
+        irq_ch_set_isr(channel, timer_isr_timer_alarm);
+        irq_ch_enable(channel, true);
 
         // Enable timer interrupt output.
         WRITE_REG(base + INT_ENA_TIMERS_REG, READ_REG(base + INT_ENA_TIMERS_REG) | TIMG_T0_INT_EN_BIT);
@@ -194,9 +195,7 @@ void timer_int_config(int timerno, bool enable, int channel) {
 
     // Re-enable interrupts.
     asm volatile("fence");
-    if (mie) {
-        interrupt_enable();
-    }
+    irq_enable(mie);
 }
 
 // Configure timer alarm.

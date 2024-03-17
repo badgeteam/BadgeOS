@@ -48,14 +48,14 @@ static void kill_proc_on_trap() {
 }
 
 // Called from ASM on non-system call trap.
-void __trap_handler() {
+void riscv_trap_handler() {
     uint32_t mcause, mstatus, mtval, mepc;
     asm volatile("csrr %0, mstatus" : "=r"(mstatus));
     asm volatile("csrr %0, mcause" : "=r"(mcause));
 
-    if (mcause == RV_TRAP_U_ECALL) {
+    if (mcause == RISCV_TRAP_U_ECALL) {
         // ECALL from U-mode goes to system call handler instead of trap handler.
-        sched_raise_from_isr(true, __syscall_handler);
+        sched_raise_from_isr(true, syscall_handler);
         return;
     }
 
@@ -83,7 +83,7 @@ void __trap_handler() {
     rawputc('\n');
 
     // Print privilige mode.
-    if (mstatus & (3 << RV32_MSTATUS_MPP_BASE_BIT)) {
+    if (mstatus & (3 << RISCV_STATUS_MPP_BASE_BIT)) {
         rawprint("Running in kernel mode");
     } else {
         rawprint("Running in user mode");
@@ -93,7 +93,7 @@ void __trap_handler() {
     asm volatile("csrr %0, mscratch" : "=r"(kctx));
 
     // Print current process.
-    if (!(kctx->thread->flags & THREAD_KERNEL)) {
+    if (kctx->thread && !(kctx->thread->flags & THREAD_KERNEL)) {
         rawprint(" in process ");
         rawprintdec(kctx->thread->process->pid, 1);
     }
@@ -101,7 +101,7 @@ void __trap_handler() {
 
     isr_ctx_dump(kctx);
 
-    if (mstatus & (3 << RV32_MSTATUS_MPP_BASE_BIT)) {
+    if (mstatus & (3 << RISCV_STATUS_MPP_BASE_BIT)) {
         // When the kernel traps it's a bad time.
         panic_poweroff();
     } else {
@@ -111,7 +111,7 @@ void __trap_handler() {
 }
 
 // Return a value from the syscall handler.
-void __syscall_return(long long value) {
+void syscall_return(long long value) {
     isr_global_disable();
     isr_ctx_t *usr  = &isr_ctx_get()->thread->user_isr_ctx;
     usr->regs.a0    = value;

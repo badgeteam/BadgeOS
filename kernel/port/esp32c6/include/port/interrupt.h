@@ -4,5 +4,6 @@
 #pragma once
 
 #include "cpu/interrupt.h"
+#include "soc/ext_irq.h"
 
-#define IRQ_EXT_COUNT 77
+#define EXT_IRQ_COUNT 77

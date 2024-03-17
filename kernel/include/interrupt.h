@@ -5,25 +5,31 @@
 
 #include "port/interrupt.h"
 
+// Interrupt service routine functions.
+typedef void (*isr_t)();
+
 // Initialise interrupt drivers for this CPU.
 void irq_init();
 
-// Enable/disable an external interrupt.
-// Returns whether the interrupt was enabled.
-bool irq_ext_enable(int ext_irq, bool enable);
-// Query whether an external interrupt is enabled.
-bool irq_ext_enabled(int ext_irq);
-// Route an external interrupt to an internal interrupt.
-void irq_route(int ext_irq, int int_irq);
+// Route an external interrupt to an internal interrupt on this CPU.
+void irq_ch_route(int ext_irq, int int_irq);
+// Set the priority of an internal interrupt on this CPU, if possible.
+// 0 is least priority, 255 is most priority on this CPU.
+void irq_ch_prio(int int_irq, int prio);
+// Acknowledge an interrupt on this CPU.
+void irq_ch_ack(int int_irq);
 
-// Enable/disable an internal interrupt.
-// Returns whether the interrupt was enabled.
-static inline bool irq_enable(int int_irq, bool enable);
-// Query whether an internal interrupt is enabled.
-static inline bool irq_enabled(int int_irq);
+// Enable/disable an internal interrupt on this CPU.
+// Returns whether the interrupt was enabled on this CPU.
+static inline bool irq_ch_enable(int int_irq, bool enable);
+// Query whether an internal interrupt is enabled on this CPU.
+static inline bool irq_ch_enabled(int int_irq);
 
-// Globally enable/disable interrupts in this CPU.
+// Set the interrupt service routine for an interrupt on this CPU.
+void irq_ch_set_isr(int int_irq, isr_t isr);
+
+// Globally enable/disable interrupts on this CPU.
 // Returns whether interrupts were enabled.
-static inline bool irq_global_enable(bool enable);
-// Query whether interrupts are enabled in this CPU.
-static inline bool irq_global_enabled();
+static inline bool irq_enable(bool enable);
+// Query whether interrupts are enabled on this CPU.
+static inline bool irq_enabled();

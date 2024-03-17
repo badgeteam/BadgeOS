@@ -52,11 +52,12 @@ void logk_prefix(log_level_t level) {
 
 // Print an unformatted message.
 void logk(log_level_t level, char const *msg) {
-    mutex_acquire(NULL, &log_mtx, TIMESTAMP_US_MAX);
+    bool acq = mutex_acquire(NULL, &log_mtx, 10000);
     logk_prefix(level);
     rawprint(msg);
     rawprint(term);
-    mutex_release(NULL, &log_mtx);
+    if (acq)
+        mutex_release(NULL, &log_mtx);
 }
 
 static bool putccb(char const *msg, size_t len, void *cookie) {
@@ -69,14 +70,15 @@ static bool putccb(char const *msg, size_t len, void *cookie) {
 
 // Print a formatted message.
 void logkf(log_level_t level, char const *msg, ...) {
-    mutex_acquire(NULL, &log_mtx, TIMESTAMP_US_MAX);
+    bool acq = mutex_acquire(NULL, &log_mtx, 10000);
     logk_prefix(level);
     va_list vararg;
     va_start(vararg, msg);
     format_str_va(msg, cstr_length(msg), putccb, NULL, vararg);
     va_end(vararg);
     rawprint(term);
-    mutex_release(NULL, &log_mtx);
+    if (acq)
+        mutex_release(NULL, &log_mtx);
 }
 
 
@@ -90,7 +92,7 @@ void logk_hexdump(log_level_t level, char const *msg, void const *data, size_t s
 #define LOGK_HEXDUMP_GROUPS 4
 // Print a hexdump, override the address shown (usually for debug purposes).
 void logk_hexdump_vaddr(log_level_t level, char const *msg, void const *data, size_t size, size_t vaddr) {
-    mutex_acquire(NULL, &log_mtx, TIMESTAMP_US_MAX);
+    bool acq = mutex_acquire(NULL, &log_mtx, 10000);
     logk_prefix(level);
     rawprint(msg);
     rawputc('\r');
@@ -130,5 +132,6 @@ void logk_hexdump_vaddr(log_level_t level, char const *msg, void const *data, si
         rawputc('\n');
     }
     rawprint("\033[0m");
-    mutex_release(NULL, &log_mtx);
+    if (acq)
+        mutex_release(NULL, &log_mtx);
 }

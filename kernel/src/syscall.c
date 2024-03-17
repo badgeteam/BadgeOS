@@ -39,8 +39,8 @@ static void invalid_syscall(long sysno) {
 extern void syscall_sys_shutdown(bool is_reboot);
 
 // System call handler jump table thing.
-__SYSCALL_HANDLER_SIGNATURE {
-    __SYSCALL_HANDLER_IGNORE_UNUSED;
+SYSCALL_HANDLER_SIGNATURE {
+    SYSCALL_HANDLER_IGNORE_UNUSED;
 
     long long retval = 0;
     switch (sysnum) {
@@ -59,5 +59,5 @@ __SYSCALL_HANDLER_SIGNATURE {
         case SYSCALL_FS_GETDENTS: retval = syscall_fs_getdents(a0, (void *)a1, a2); break;
         default: invalid_syscall(sysnum); break;
     }
-    __syscall_return(retval);
+    syscall_return(retval);
 }

@@ -6,10 +6,10 @@
 #include "gpio.h"
 #include "housekeeping.h"
 #include "i2c.h"
+#include "interrupt.h"
 #include "log.h"
 #include "malloc.h"
 #include "memprotect.h"
-#include "port/interrupt.h"
 #include "port/port.h"
 #include "process/process.h"
 #include "scheduler/scheduler.h"
@@ -81,10 +81,9 @@ void syscall_sys_shutdown(bool is_reboot) {
 // When finished, the booting CPU will perform kernel initialization.
 void basic_runtime_init() {
     badge_err_t ec = {0};
-    isr_ctx_t   tmp_ctx;
 
     // ISR initialization.
-    interrupt_init(&tmp_ctx);
+    irq_init();
     // Early platform initialization.
     port_early_init();
 
@@ -115,9 +114,6 @@ void basic_runtime_init() {
     sched_resume_thread(&ec, thread);
     badge_err_assert_always(&ec);
 
-    // Full hardware initialization.
-    port_init();
-
     // Start the scheduler and enter the next phase in the kernel's lifetime.
     sched_exec();
 }
@@ -130,6 +126,9 @@ void basic_runtime_init() {
 static void kernel_init() {
     badge_err_t ec = {0};
     logk(LOG_INFO, "BadgerOS starting...");
+
+    // Full hardware initialization.
+    port_init();
 
     // Temporary filesystem image.
     fs_mount(&ec, FS_TYPE_RAMFS, NULL, "/", 0);
@@ -172,6 +171,7 @@ static void userland_init() {
     assert_dev_drop(pid == 1);
     proc_start(&ec, pid, "/sbin/init");
     badge_err_assert_always(&ec);
+    while (1) continue;
 
     deboug();
 }

@@ -15,6 +15,7 @@ SECTIONS
 
 	/* Import hardware addresses. */
 INCLUDE esp32c6.peripherals.ld
+PROVIDE(INTPRI = 0x600C5000);
 
 	/* Physical memory. */
 	__start_xip    = 0x42000000;

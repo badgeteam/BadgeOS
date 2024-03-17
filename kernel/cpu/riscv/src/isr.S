@@ -157,13 +157,13 @@ isr_context_switch:
     bnez t1, .isr_context_switch_do_switch
     
     # Re-enable interrupts.
-    li t1, 1 << RV32_MSTATUS_MIE_BIT
+    li t1, 1 << RISCV_STATUS_MIE_BIT
     csrs mstatus, t1
     ret
     
 .isr_context_switch_do_switch:
     # Re-enable interrupts on exit.
-    li t1, (1 << RV32_MSTATUS_MPIE_BIT)
+    li t1, (1 << RISCV_STATUS_MPIE_BIT)
     csrs mstatus, t1
     
     # Do the context switching things.
@@ -178,7 +178,7 @@ isr_context_switch:
     # Switch context and set new privilege.
     lw t0, isr_ctx_t_ctxswitch(t0)
     lw t1, isr_ctx_t_is_kernel_thread(t0)
-    li t2, (3 << RV32_MSTATUS_MPP_BASE_BIT)
+    li t2, (3 << RISCV_STATUS_MPP_BASE_BIT)
     bnez t1, .isr_context_switch_do_m
     
     # To U-mode.
@@ -208,7 +208,7 @@ __trap_asm:
     save_all_regs
     
     # Most of the trap handler is implemented in C.
-    jal __trap_handler
+    jal riscv_trap_handler
     csrr t0, mscratch
     
     # Check for outstanding context switch.
@@ -219,7 +219,7 @@ __trap_asm:
     mv   t0, t1
     # Set privilege level.
     lw   t2, isr_ctx_t_is_kernel_thread(t0)
-    li   t3, 3 << RV32_MSTATUS_MPP_BASE_BIT
+    li   t3, 3 << RISCV_STATUS_MPP_BASE_BIT
     bnez t2, .__trap_asm_priv_m
     # Zero; user thread; clear MPP.
     csrc mstatus, t3
@@ -246,7 +246,7 @@ __isr_asm:
     isr_entry
     save_all_regs
     # Most of the interrupt handler is implemented in C.
-    jal __interrupt_handler
+    jal riscv_interrupt_handler
     csrr t0, mscratch
     
     # Check for outstanding context switch.
@@ -280,7 +280,7 @@ __interrupt_stack_hi:
     # Interrupt vector table for the CPU.
     # This must be aligned to a 256-byte boundary, so it is in a special section.
     .section ".interrupt_vector_table"
-__interrupt_vector_table:
+riscv_interrupt_vector_table:
     .option push
     .option norvc
     j __trap_asm
