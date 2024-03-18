@@ -79,6 +79,7 @@ add_executable(${target}
     ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/badge_format_str.c
     ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/badge_strings.c
     ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/int_routines.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/list.c
     ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/log.c
     ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/mutex.c
     ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/num_to_str.c
@@ -93,7 +94,6 @@ add_executable(${target}
     ${CMAKE_CURRENT_LIST_DIR}/src/process/process.c
     ${CMAKE_CURRENT_LIST_DIR}/src/process/syscall_impl.c
     ${CMAKE_CURRENT_LIST_DIR}/src/housekeeping.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/list.c
     ${CMAKE_CURRENT_LIST_DIR}/src/main.c
     ${CMAKE_CURRENT_LIST_DIR}/src/malloc/malloc.c
     ${CMAKE_CURRENT_LIST_DIR}/src/scheduler.c

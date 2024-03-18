@@ -1,9 +1,9 @@
 
 // SPDX-License-Identifier: MIT
 
-#include "i2c.h"
+#include "hal/i2c.h"
 
-#include "gpio.h"
+#include "hal/gpio.h"
 #include "port/clkconfig.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/gpio_struct.h"
@@ -230,7 +230,8 @@ size_t i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, void *ra
 
     // Wait for transaction to finish.
     timestamp_us_t to = time_us() + 10000;
-    while (I2C0.sr.bus_busy && time_us() < to);
+    while (I2C0.sr.bus_busy && time_us() < to)
+        ;
 
     for (size_t i = 0; i < len; i++) {
         buf[i] = I2C0.data.fifo_rdata;
@@ -303,7 +304,8 @@ size_t i2c_master_write_to(badge_err_t *ec, int i2c_num, int slave_id, void cons
     I2C0.ctr.trans_start = true;
 
     // Wait for transaction to finish.
-    while (I2C0.sr.bus_busy);
+    while (I2C0.sr.bus_busy)
+        ;
 
     return 0;
 }

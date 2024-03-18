@@ -3,9 +3,9 @@
 
 #include "badge_err.h"
 #include "filesystem.h"
-#include "gpio.h"
+#include "hal/gpio.h"
+#include "hal/i2c.h"
 #include "housekeeping.h"
-#include "i2c.h"
 #include "interrupt.h"
 #include "log.h"
 #include "malloc.h"

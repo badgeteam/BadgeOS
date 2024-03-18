@@ -1,7 +1,7 @@
 
 // SPDX-License-Identifier: MIT
 
-#include "gpio.h"
+#include "hal/gpio.h"
 
 #include "soc/gpio_ext_struct.h"
 #include "soc/gpio_struct.h"
