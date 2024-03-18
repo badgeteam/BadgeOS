@@ -12,7 +12,6 @@
 typedef struct dlist_node_t {
     // Pointer to the next item in the linked list.
     struct dlist_node_t *next;
-
     // Pointer to the previous item in the linked list.
     struct dlist_node_t *previous;
 } dlist_node_t;
@@ -21,9 +20,9 @@ typedef struct dlist_node_t {
 typedef struct dlist_t {
     // Current number of elements in the list.
     size_t               len;
-    // Pointer to the first node in the list or `NULL` if the list is empty.
+    // Pointer to the first node in the list or NULL if the list is empty.
     struct dlist_node_t *head;
-    // Pointer to the last node in the list or `NULL` if the list is empty.
+    // Pointer to the last node in the list or NULL if the list is empty.
     struct dlist_node_t *tail;
 } dlist_t;
 
@@ -34,37 +33,32 @@ typedef struct dlist_t {
 // Initializer value for a list node. Convenience macro for zero-initialization.
 #define DLIST_NODE_EMPTY ((dlist_node_t){.next = NULL, .previous = NULL})
 
+// Concatenates the elements from dlist `back` on dlist `front`, clearing `back` in the process.
+// Both lists must be non-NULL.
+void dlist_concat(dlist_t *front, dlist_t *back);
+
 // Appends `node` after the `tail` of the `list`.
 // `node` must not be in `list` already.
-//
-// Both `list` and `node` must be non-`NULL`.
+// Both `list` and `node` must be non-NULL.
 void dlist_append(dlist_t *list, dlist_node_t *node);
 
 // Prepends `node` before the `head` of the `list`.
 // `node` must not be in `list` already.
-//
-// Both `list` and `node` must be non-`NULL`.
+// Both `list` and `node` must be non-NULL.
 void dlist_prepend(dlist_t *list, dlist_node_t *node);
 
-// Removes the `head` of the given `list`. Will return `NULL`
-// if the list was empty.
-//
-// `list` must be non-`NULL`.
+// Removes the `head` of the given `list`. Will return NULL if the list was empty.
+// `list` must be non-NULL.
 dlist_node_t *dlist_pop_front(dlist_t *list);
 
-// Removes the `tail` of the given `list`. Will return `NULL`
-// if the list was empty.
-//
-// `list` must be non-`NULL`.
+// Removes the `tail` of the given `list`. Will return NULL if the list was empty.
+// `list` must be non-NULL.
 dlist_node_t *dlist_pop_back(dlist_t *list);
 
 // Checks if `list` contains the given `node`.
-//
-// Both `list` and `node` must be non-`NULL`.
+// Both `list` and `node` must be non-NULL.
 bool dlist_contains(dlist_t const *list, dlist_node_t const *node);
 
-// Removes `node` from `list`. `node` must be either an empty (non-inserted)
-// node or must be contained in `list`.
-//
-// Both `list` and `node` must be non-`NULL`.
+// Removes `node` from `list`. `node` must be either an empty (non-inserted) node or must be contained in `list`.
+// Both `list` and `node` must be non-NULL.
 void dlist_remove(dlist_t *list, dlist_node_t *node);
