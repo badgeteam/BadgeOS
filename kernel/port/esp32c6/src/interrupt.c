@@ -100,7 +100,7 @@ void riscv_interrupt_handler() {
     if (isr_table[mcause]) {
         isr_table[mcause]();
     } else {
-        logkf(LOG_FATAL, "Unhandled interrupt %{d}", mcause);
+        logkf_from_isr(LOG_FATAL, "Unhandled interrupt %{d}", mcause);
         panic_abort();
     }
 

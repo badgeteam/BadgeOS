@@ -50,16 +50,6 @@ void logk_prefix(log_level_t level) {
         rawprint("      ");
 }
 
-// Print an unformatted message.
-void logk(log_level_t level, char const *msg) {
-    bool acq = mutex_acquire(NULL, &log_mtx, 10000);
-    logk_prefix(level);
-    rawprint(msg);
-    rawprint(term);
-    if (acq)
-        mutex_release(NULL, &log_mtx);
-}
-
 static bool putccb(char const *msg, size_t len, void *cookie) {
     (void)cookie;
     for (size_t i = 0; i < len; i++) {
@@ -68,7 +58,17 @@ static bool putccb(char const *msg, size_t len, void *cookie) {
     return true;
 }
 
-// Print a formatted message.
+
+
+// Print an unformatted message.
+void logk(log_level_t level, char const *msg) {
+    bool acq = mutex_acquire(NULL, &log_mtx, 10000);
+    logk_from_isr(level, msg);
+    if (acq)
+        mutex_release(NULL, &log_mtx);
+}
+
+// Print a formatted message according to format_str.
 void logkf(log_level_t level, char const *msg, ...) {
     bool acq = mutex_acquire(NULL, &log_mtx, 10000);
     logk_prefix(level);
@@ -81,18 +81,49 @@ void logkf(log_level_t level, char const *msg, ...) {
         mutex_release(NULL, &log_mtx);
 }
 
+// Print a hexdump (usually for debug purposes).
+void logk_hexdump(log_level_t level, char const *msg, void const *data, size_t size) {
+    logk_hexdump_vaddr(level, msg, data, size, (size_t)data);
+}
+
+// Print a hexdump, override the address shown (usually for debug purposes).
+void logk_hexdump_vaddr(log_level_t level, char const *msg, void const *data, size_t size, size_t vaddr) {
+    bool acq = mutex_acquire(NULL, &log_mtx, 10000);
+    logk_hexdump_vaddr_from_isr(level, msg, data, size, vaddr);
+    if (acq)
+        mutex_release(NULL, &log_mtx);
+}
+
+
+
+// Print an unformatted message.
+void logk_from_isr(log_level_t level, char const *msg) {
+    logk_prefix(level);
+    rawprint(msg);
+    rawprint(term);
+}
+
+// Print a formatted message.
+void logkf_from_isr(log_level_t level, char const *msg, ...) {
+    logk_prefix(level);
+    va_list vararg;
+    va_start(vararg, msg);
+    format_str_va(msg, cstr_length(msg), putccb, NULL, vararg);
+    va_end(vararg);
+    rawprint(term);
+}
+
 
 
 // Print a hexdump (usually for debug purposes).
-void logk_hexdump(log_level_t level, char const *msg, void const *data, size_t size) {
+void logk_hexdump_from_isr(log_level_t level, char const *msg, void const *data, size_t size) {
     logk_hexdump_vaddr(level, msg, data, size, (size_t)data);
 }
 
 #define LOGK_HEXDUMP_COLS   16
 #define LOGK_HEXDUMP_GROUPS 4
 // Print a hexdump, override the address shown (usually for debug purposes).
-void logk_hexdump_vaddr(log_level_t level, char const *msg, void const *data, size_t size, size_t vaddr) {
-    bool acq = mutex_acquire(NULL, &log_mtx, 10000);
+void logk_hexdump_vaddr_from_isr(log_level_t level, char const *msg, void const *data, size_t size, size_t vaddr) {
     logk_prefix(level);
     rawprint(msg);
     rawputc('\r');
@@ -132,6 +163,4 @@ void logk_hexdump_vaddr(log_level_t level, char const *msg, void const *data, si
         rawputc('\n');
     }
     rawprint("\033[0m");
-    if (acq)
-        mutex_release(NULL, &log_mtx);
 }
