@@ -17,6 +17,7 @@ typedef struct {
     uint32_t status[3];
 } intmtx_t;
 
+// NOLINTNEXTLINE
 extern intmtx_t INTMTX;
 
 // Temporary interrupt context before scheduler.
