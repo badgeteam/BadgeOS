@@ -4,7 +4,9 @@
 #include "hal/i2c.h"
 
 #include "hal/gpio.h"
+#include "interrupt.h"
 #include "port/clkconfig.h"
+#include "soc/ext_irq.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/gpio_struct.h"
 #include "soc/i2c_struct.h"
@@ -36,6 +38,48 @@ typedef union {
 
 #define I2C_ACK  0
 #define I2C_NACK 1
+
+// Pending transaction entry.
+typedef struct {
+    dlist_node_t node;
+    i2c_trans_t  trans;
+} pending_t;
+
+// Pending transaction mutex.
+static mutex_t      i2c_mtx     = MUTEX_T_INIT;
+// Pending asynchronous I²C transactions.
+static dlist_t      i2c_pending = DLIST_EMPTY;
+// Current I²C transaction.
+static i2c_trans_t *i2c_cur;
+// I²C ISR is busy.
+static atomic_int   i2c_busy;
+
+
+// Try to start an I²C transaction.
+static bool try_run(i2c_trans_t *trans) {
+}
+
+// The I²C ISR.
+static void port_i2c_isr() {
+}
+
+// Install the I²C ISR.
+void port_i2c_install_isr(int channel) {
+    irq_ch_set_isr(channel, port_i2c_isr);
+    irq_ch_route(EXT_IRQ_I2C_EXT0_INTR, channel);
+    irq_ch_enable(channel, true);
+}
+
+// Asynchrounous I²C management callback.
+void port_i2c_async_cb(int taskno, void *arg) {
+    mutex_acquire(NULL, &i2c_mtx, TIMESTAMP_US_MAX);
+    pending_t *head = (pending_t *)i2c_pending.head;
+    if (head && try_run(head)) {
+        dlist_pop_front(&i2c_pending);
+        free(head);
+    }
+    mutex_release(NULL, &i2c_mtx);
+}
 
 
 
@@ -308,4 +352,9 @@ size_t i2c_master_write_to(badge_err_t *ec, int i2c_num, int slave_id, void cons
         ;
 
     return 0;
+}
+
+// Perform a preconstructed transaction and clean it up afterward.
+// Returns how many non-address bytes were exchanged successfully.
+size_t i2c_master_run(badge_err_t *ec, int i2c_num, i2c_trans_t *trans) {
 }

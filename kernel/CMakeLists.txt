@@ -90,6 +90,7 @@ add_executable(${target}
     # ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/vfs_fat.c
     ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/vfs_ramfs.c
     ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/vfs_internal.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/hal/i2c.c
     ${CMAKE_CURRENT_LIST_DIR}/src/loading/kbelfx.c
     ${CMAKE_CURRENT_LIST_DIR}/src/process/process.c
     ${CMAKE_CURRENT_LIST_DIR}/src/process/syscall_impl.c
