@@ -7,8 +7,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Threshold for "small writes" to be optimised into a single write command.
-#define I2C_SMALL_WRITE_SIZE 8
+// Threshold for "small writes" to be stored without an allocation.
+#define I2C_SMALL_WRITE_SIZE 4
+// Threshold for "large writes" to be split into multiple chunks.
+#define I2C_LARGE_WRITE_SIZE 256
 
 // Returns the amount of I²C peripherals present.
 // Cannot produce an error.

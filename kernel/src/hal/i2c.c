@@ -13,8 +13,9 @@ static inline bool append(badge_err_t *ec, i2c_trans_t *trans, i2c_cmd_t cmd) {
         badge_err_set(ec, ELOC_I2C, ECAUSE_NOMEM);
         return false;
     }
+    cmd.index = 0;
     mem_copy(mem, &cmd, sizeof(cmd));
-    dlist_append(trans, mem);
+    dlist_append(&trans->list, mem);
     badge_err_set_ok(ec);
     return true;
 }
@@ -22,19 +23,19 @@ static inline bool append(badge_err_t *ec, i2c_trans_t *trans, i2c_cmd_t cmd) {
 
 
 // Create an I²C transaction.
-i2c_trans_t i2c_trans_create(badge_err_t *ec, int i2c_num) {
-    if (i2c_num < 0 || i2c_num >= i2c_count()) {
-        badge_err_set(ec, ELOC_I2C, ECAUSE_NOTFOUND);
-    } else {
-        badge_err_set_ok(ec);
-    }
-    return DLIST_EMPTY;
+i2c_trans_t i2c_trans_create(badge_err_t *ec) {
+    badge_err_set_ok(ec);
+    return (i2c_trans_t){
+        .list     = DLIST_EMPTY,
+        .callback = NULL,
+        .cookie   = NULL,
+    };
 }
 
 // Clean up an I²C transaction.
 void i2c_trans_destroy(badge_err_t *ec, i2c_trans_t *trans) {
-    while (trans->len) {
-        i2c_cmd_t *cmd = (i2c_cmd_t *)dlist_pop_front(trans);
+    while (trans->list.len) {
+        i2c_cmd_t *cmd = (i2c_cmd_t *)dlist_pop_front(&trans->list);
         if (cmd->type == I2C_CMD_WRITE && cmd->length > I2C_SMALL_WRITE_SIZE) {
             free(cmd->data);
         }
@@ -67,20 +68,25 @@ void i2c_trans_stop(badge_err_t *ec, i2c_trans_t *trans) {
 
 // Append an I²C address.
 void i2c_trans_addr(badge_err_t *ec, i2c_trans_t *trans, int slave_id, bool read_bit) {
+    if (slave_id < 0 || slave_id > 1023) {
+        badge_err_set(ec, ELOC_I2C, ECAUSE_PARAM);
+        return;
+    }
     append(
         ec,
         trans,
         (i2c_cmd_t){
-            .type     = I2C_CMD_ADDR,
-            .addr     = slave_id,
-            .read_bit = read_bit,
+            .type       = I2C_CMD_ADDR,
+            .addr       = slave_id,
+            .addr_10bit = slave_id > 127,
+            .read_bit   = read_bit,
         }
     );
 }
 
 // Append a write.
 // The write data is copied into the transaction context.
-void i2c_trans_write(badge_err_t *ec, i2c_trans_t *trans, void const *buf, size_t len) {
+static bool i2c_trans_write0(badge_err_t *ec, i2c_trans_t *trans, void const *buf, size_t len) {
     if (len > I2C_SMALL_WRITE_SIZE) {
         i2c_cmd_t cmd = {
             .type   = I2C_CMD_WRITE,
@@ -89,12 +95,14 @@ void i2c_trans_write(badge_err_t *ec, i2c_trans_t *trans, void const *buf, size_
         };
         if (!cmd.data) {
             badge_err_set(ec, ELOC_I2C, ECAUSE_NOMEM);
-            return;
+            return false;
         }
         mem_copy(cmd.data, buf, len);
         if (!append(ec, trans, cmd)) {
             free(cmd.data);
+            return false;
         }
+        return true;
     } else {
         i2c_cmd_t cmd = {
             .type   = I2C_CMD_WRITE,
@@ -102,7 +110,27 @@ void i2c_trans_write(badge_err_t *ec, i2c_trans_t *trans, void const *buf, size_
             .data   = malloc(len),
         };
         mem_copy(cmd.small_data, buf, len);
-        append(ec, trans, cmd);
+        return append(ec, trans, cmd);
+    }
+}
+
+// Append a write.
+// The write data is copied into the transaction context.
+void i2c_trans_write(badge_err_t *ec, i2c_trans_t *trans, void const *buf, size_t len) {
+    uint8_t const *ptr = buf;
+    for (size_t i = 0; len; i++) {
+        size_t max = I2C_LARGE_WRITE_SIZE < len ? I2C_LARGE_WRITE_SIZE : len;
+        if (!i2c_trans_write0(ec, trans, ptr, max)) {
+            // If appending one of the partial writes fails, discard the others.
+            while (i--) {
+                i2c_cmd_t *cmd = (i2c_cmd_t *)dlist_pop_back(&trans->list);
+                if (cmd->type == I2C_CMD_WRITE && cmd->length > I2C_SMALL_WRITE_SIZE) {
+                    free(cmd->data);
+                }
+                free(cmd);
+            }
+        }
+        ptr += max;
     }
 }
 

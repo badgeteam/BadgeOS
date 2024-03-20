@@ -5,6 +5,7 @@
 
 #include "hal/gpio.h"
 #include "interrupt.h"
+#include "malloc.h"
 #include "port/clkconfig.h"
 #include "soc/ext_irq.h"
 #include "soc/gpio_sig_map.h"
@@ -45,40 +46,226 @@ typedef struct {
     i2c_trans_t  trans;
 } pending_t;
 
-// Pending transaction mutex.
-static mutex_t      i2c_mtx     = MUTEX_T_INIT;
-// Pending asynchronous I²C transactions.
-static dlist_t      i2c_pending = DLIST_EMPTY;
-// Current I²C transaction.
-static i2c_trans_t *i2c_cur;
-// I²C ISR is busy.
-static atomic_int   i2c_busy;
+// I²C driver state.
+typedef struct {
+    // I²C peripheral.
+    int        i2c_num;
+    // I²C device.
+    i2c_dev_t *dev;
+    // FIFO size.
+    size_t     fifo_size;
+
+    // Pending transaction mutex.
+    mutex_t mtx;
+    // Pending asynchronous I²C transactions.
+    dlist_t pending;
+
+    // Current I²C transaction.
+    i2c_trans_t *trans;
+    // Next I²C command to run.
+    i2c_cmd_t   *next_cmd;
+    // Next I²C command to process data for.
+    i2c_cmd_t   *next_data;
+
+    // I²C is busy.
+    atomic_flag busy;
+    // I²C ISR busy.
+    atomic_flag isr;
+    // I²C is being driven by async handler.
+    bool        is_async;
+} i2c_driver_t;
+
+// I²C driver state.
+static i2c_driver_t drivers[i2c_count()] = {{
+    0,
+    &I2C0,
+    31,
+    MUTEX_T_INIT,
+    DLIST_EMPTY,
+    NULL,
+    NULL,
+    NULL,
+    ATOMIC_FLAG_INIT,
+    ATOMIC_FLAG_INIT,
+    false,
+}};
+
+
+
+// Queue as much of the commands as possible.
+// Returns whether there was anything to queue.
+static bool i2c_driver_cmd(i2c_driver_t *driver) {
+    int txq = driver->fifo_size;
+    int rxq = driver->fifo_size;
+    int i;
+
+    i2c_comd_val_t comd[8];
+
+    for (i = 0; i < 8 && driver->next_cmd; i++) {
+        // Translate abstract commands into hardware commands.
+        switch (driver->next_cmd->type) {
+            default: __builtin_unreachable();
+            case I2C_CMD_START:
+                comd[i] = (i2c_comd_val_t){
+                    .op_code = I2C_OPC_RSTART,
+                };
+                break;
+            case I2C_CMD_STOP:
+                comd[i] = (i2c_comd_val_t){
+                    .op_code = I2C_OPC_STOP,
+                };
+                break;
+            case I2C_CMD_ADDR:
+                comd[i] = (i2c_comd_val_t){
+                    .op_code      = I2C_OPC_WRITE,
+                    .ack_check_en = true,
+                    .ack_exp      = I2C_ACK,
+                    .byte_num     = 1 + driver->next_cmd->addr_10bit,
+                };
+                break;
+            case I2C_CMD_WRITE:
+                comd[i] = (i2c_comd_val_t){
+                    .op_code      = I2C_OPC_WRITE,
+                    .ack_check_en = true,
+                    .ack_exp      = I2C_ACK,
+                    .byte_num     = driver->next_cmd->length,
+                };
+                break;
+            case I2C_CMD_READ:
+                comd[i] = (i2c_comd_val_t){
+                    .op_code      = I2C_OPC_READ,
+                    .ack_check_en = false,
+                    .ack_value    = I2C_ACK,
+                    .byte_num     = driver->next_cmd->length,
+                };
+                break;
+        }
+        driver->next_cmd = (i2c_cmd_t *)driver->next_cmd->node.next;
+    }
+
+    // Load the commands into the peripheral.
+    for (size_t x = 0; x < i; x++) {
+        I2C0.command[x] = (i2c_comd_reg_t){
+            .command_done = false,
+            .command      = comd[x].value,
+        };
+    }
+
+    return i;
+}
+
+// Queue as much TX data as possible.
+static void i2c_driver_txdata(i2c_driver_t *driver) {
+}
+
+// Receive as much RX data as possible.
+static void i2c_driver_rxdata(i2c_driver_t *driver) {
+}
 
 
 // Try to start an I²C transaction.
-static bool try_run(i2c_trans_t *trans) {
+static bool i2c_driver_begin(i2c_driver_t *driver, i2c_trans_t *trans) {
+    // Try to claim the I²C.
+    if (atomic_flag_test_and_set(&driver->busy)) {
+        return false;
+    }
+    // Set the ISR busy flag.
+    atomic_flag_test_and_set(&driver->isr);
+
+    // Start the transaction.
+    driver->trans = trans;
+    if (i2c_driver_cmd(driver)) {
+        // Commands queued, begin the transaction.
+        I2C0.ctr.conf_upgate = true;
+        I2C0.ctr.trans_start = true;
+    }
+
+    return true;
 }
 
 // The I²C ISR.
-static void port_i2c_isr() {
+static void i2c_driver_isr(i2c_driver_t *driver) {
+    i2c_int_status_reg_t irq = driver->dev->int_status;
+    i2c_dev_t           *dev = driver->dev;
+
+    // RXFIFO full IRQ.
+    if (irq.rxfifo_wm_int_st) {
+        // Read RXFIFO.
+        while (dev->sr.rxfifo_cnt) {
+        }
+        // Clear interrupt flag.
+        dev->int_clr.rxfifo_wm_int_clr = true;
+        dev->int_clr.val               = 0;
+    }
+
+    // Transmission finished IRQ.
+    if (irq.trans_complete_int_st) {
+        // Clear interrupt flag.
+        dev->int_clr.trans_complete_int_clr = true;
+        dev->int_clr.val                    = 0;
+        // Try to queue more I²C transaction.
+        if (i2c_driver_cmd(&drivers[0])) {
+            // Commands queued, resume the transaction.
+            dev->ctr.conf_upgate = true;
+            dev->ctr.trans_start = true;
+        } else {
+            // Read remaining RXFIFO.
+            while (dev->sr.rxfifo_cnt) {
+            }
+            // Nothing more to queue, send finished trigger.
+            atomic_flag_clear(&drivers[0].isr);
+        }
+    }
+}
+
+// Asynchrounous I²C management callback.
+static void i2c_driver_async(i2c_driver_t *driver) {
+    // Check for I²C busy.
+    // The order of evaluation is critical here; the test/set must not happen is is_async == false.
+    if (driver->is_async && !atomic_flag_test_and_set(&driver->isr)) {
+        // Release I²C.
+        i2c_trans_t *trans = driver->trans;
+        driver->is_async   = false;
+        atomic_flag_clear(&driver->busy);
+        // Clean up transaction.
+        if (driver->trans->callback) {
+            driver->trans->callback((badge_err_t){}, 0, driver->trans->cookie);
+        }
+        i2c_trans_destroy(NULL, trans);
+    }
+
+    // Check for pending async.
+    mutex_acquire(NULL, &driver->mtx, TIMESTAMP_US_MAX);
+    pending_t *head = (pending_t *)driver->pending.head;
+    if (head && i2c_driver_begin(driver, &head->trans)) {
+        // I²C successfully started; remove from the queue.
+        driver->is_async = true;
+        dlist_pop_front(&driver->pending);
+        free(head);
+    }
+    mutex_release(NULL, &driver->mtx);
+}
+
+
+// The I²C ISR.
+static void i2c_isr_wrapper() {
+    if (I2C0.int_status.val) {
+        i2c_driver_isr(&drivers[0]);
+    }
 }
 
 // Install the I²C ISR.
 void port_i2c_install_isr(int channel) {
-    irq_ch_set_isr(channel, port_i2c_isr);
+    irq_ch_set_isr(channel, i2c_isr_wrapper);
     irq_ch_route(EXT_IRQ_I2C_EXT0_INTR, channel);
     irq_ch_enable(channel, true);
 }
 
 // Asynchrounous I²C management callback.
 void port_i2c_async_cb(int taskno, void *arg) {
-    mutex_acquire(NULL, &i2c_mtx, TIMESTAMP_US_MAX);
-    pending_t *head = (pending_t *)i2c_pending.head;
-    if (head && try_run(head)) {
-        dlist_pop_front(&i2c_pending);
-        free(head);
+    for (int i = 0; i < i2c_count(); i++) {
+        i2c_driver_async(&drivers[i]);
     }
-    mutex_release(NULL, &i2c_mtx);
 }
 
 
@@ -274,8 +461,7 @@ size_t i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, void *ra
 
     // Wait for transaction to finish.
     timestamp_us_t to = time_us() + 10000;
-    while (I2C0.sr.bus_busy && time_us() < to)
-        ;
+    while (I2C0.sr.bus_busy && time_us() < to);
 
     for (size_t i = 0; i < len; i++) {
         buf[i] = I2C0.data.fifo_rdata;
@@ -348,8 +534,7 @@ size_t i2c_master_write_to(badge_err_t *ec, int i2c_num, int slave_id, void cons
     I2C0.ctr.trans_start = true;
 
     // Wait for transaction to finish.
-    while (I2C0.sr.bus_busy)
-        ;
+    while (I2C0.sr.bus_busy);
 
     return 0;
 }
@@ -357,4 +542,5 @@ size_t i2c_master_write_to(badge_err_t *ec, int i2c_num, int slave_id, void cons
 // Perform a preconstructed transaction and clean it up afterward.
 // Returns how many non-address bytes were exchanged successfully.
 size_t i2c_master_run(badge_err_t *ec, int i2c_num, i2c_trans_t *trans) {
+    return 0;
 }

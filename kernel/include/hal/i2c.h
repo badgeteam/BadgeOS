@@ -33,23 +33,27 @@ typedef struct {
     i2c_cmd_type_t type;
     // Read / write length.
     size_t         length;
+    // Read / write index for the I²C ISR.
+    size_t         index;
     union {
         struct {
             // Slave address.
             uint16_t addr;
+            // Slave address is 10-bit.
+            bool     addr_10bit;
             // Read bit.
             bool     read_bit;
         };
-        struct {
-            // Read / write index.
-            size_t index;
-            // Read / write pointer.
-            void  *data;
-        };
+        // Read / write pointer.
+        void   *data;
         // Small write data.
         uint8_t small_data[I2C_SMALL_WRITE_SIZE];
     };
 } i2c_cmd_t;
+
+// I²C transaction finished callback.
+// `byte_count` is the number of successfully exchanged bytes.
+typedef void (*i2c_trans_cb_t)(badge_err_t status, size_t byte_count, void *cookie);
 
 // I²C master transaction context.
 typedef struct {
@@ -57,10 +61,6 @@ typedef struct {
     i2c_trans_cb_t callback;
     void          *cookie;
 } i2c_trans_t;
-
-// I²C transaction finished callback.
-// `byte_count` is the number of successfully exchanged bytes.
-typedef void (*i2c_trans_cb_t)(badge_err_t status, size_t byte_count, void *cookie);
 
 
 /*
@@ -105,7 +105,7 @@ size_t i2c_master_run(badge_err_t *ec, int i2c_num, i2c_trans_t *trans);
 
 
 // Create an I²C transaction.
-i2c_trans_t i2c_trans_create(badge_err_t *ec, int i2c_num);
+i2c_trans_t i2c_trans_create(badge_err_t *ec);
 // Clean up an I²C transaction.
 void        i2c_trans_destroy(badge_err_t *ec, i2c_trans_t *trans);
 // Append a start condition.
@@ -124,6 +124,7 @@ void        i2c_trans_read(badge_err_t *ec, i2c_trans_t *trans, void *buf, size_
 // Set the on finished callback.
 static inline void i2c_trans_set_cb(i2c_trans_t *trans, i2c_trans_cb_t callback, void *cookie) {
     trans->callback = callback;
+    trans->cookie   = cookie;
 }
 
 // Append a single-byte write.
