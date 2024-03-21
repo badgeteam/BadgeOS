@@ -36,8 +36,7 @@ clang-tidy-check: configure
 	clang-tidy-18 -p build $(shell jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$') --warnings-as-errors="*"
 
 openocd:
-	openocd -c 'set ESP_RTOS "none"' -f port/esp32c6/openocd.cfg
-	# openocd -c 'set ESP_RTOS "none"' -f board/esp32c6-builtin.cfg
+	openocd -c 'set ESP_RTOS "none"' -f board/esp32c6-builtin.cfg
 
 gdb:
 	riscv32-unknown-elf-gdb -x port/esp32c6/gdbinit build/badger-os.elf
