@@ -164,6 +164,8 @@ void deboug() {
     badge_err_assert_always(&ec);
     i2c_trans_addr(&ec, trans, CH_ADDR, false);
     badge_err_assert_always(&ec);
+    i2c_trans_write1(&ec, trans, 0x04);
+    badge_err_assert_always(&ec);
     i2c_trans_write1(&ec, trans, 0xff);
     badge_err_assert_always(&ec);
     i2c_trans_stop(&ec, trans);

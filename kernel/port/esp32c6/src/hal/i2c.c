@@ -13,7 +13,21 @@
 #include "soc/gpio_struct.h"
 #include "soc/i2c_struct.h"
 #include "soc/io_mux_struct.h"
+#include "soc/pcr_struct.h"
 #include "soc/pmu_struct.h"
+
+long get_mie() SECTION(".text");
+long get_mie() {
+    long x;
+    asm("csrr %0, mie" : "=r"(x));
+    return x;
+}
+long get_mip() SECTION(".text");
+long get_mip() {
+    long x;
+    asm("csrr %0, mip" : "=r"(x));
+    return x;
+}
 
 // I2C command register value.
 typedef union {
@@ -460,12 +474,6 @@ void i2c_master_init(badge_err_t *ec, int i2c_num, int sda_pin, int scl_pin, int
 
     I2C0.ctr.conf_upgate = true;
 
-    // Make GPIO open-drain.
-    GPIO.pin[sda_pin]    = (gpio_pin_reg_t){.pad_driver = true};
-    GPIO.pin[scl_pin]    = (gpio_pin_reg_t){.pad_driver = true};
-    IO_MUX.gpio[sda_pin] = (io_mux_gpio_t){.mcu_sel = 1, .fun_ie = true, .mcu_ie = true};
-    IO_MUX.gpio[scl_pin] = (io_mux_gpio_t){.mcu_sel = 1, .fun_ie = true, .mcu_ie = true};
-
     // GPIO matrix configuration.
     GPIO.func_out_sel_cfg[sda_pin] = (gpio_func_out_sel_cfg_reg_t){
         .oen_inv_sel = false,
@@ -489,6 +497,12 @@ void i2c_master_init(badge_err_t *ec, int i2c_num, int sda_pin, int scl_pin, int
         .in_inv_sel = false,
         .sig_in_sel = true,
     };
+
+    // Make GPIO open-drain.
+    GPIO.pin[sda_pin]    = (gpio_pin_reg_t){.pad_driver = true};
+    GPIO.pin[scl_pin]    = (gpio_pin_reg_t){.pad_driver = true};
+    IO_MUX.gpio[sda_pin] = (io_mux_gpio_t){.mcu_sel = 1, .fun_ie = true, .mcu_ie = true};
+    IO_MUX.gpio[scl_pin] = (io_mux_gpio_t){.mcu_sel = 1, .fun_ie = true, .mcu_ie = true};
 
     // ISR configuration.
     bool mie     = irq_enable(false);
@@ -561,8 +575,7 @@ size_t i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, void *ra
 
     // Wait for transaction to finish.
     timestamp_us_t to = time_us() + 10000;
-    while (I2C0.sr.bus_busy && time_us() < to)
-        ;
+    while (I2C0.sr.bus_busy && time_us() < to);
 
     for (size_t i = 0; i < len; i++) {
         buf[i] = I2C0.data.fifo_rdata;
