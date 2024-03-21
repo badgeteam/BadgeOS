@@ -23,17 +23,23 @@ static inline bool append(badge_err_t *ec, i2c_trans_t *trans, i2c_cmd_t cmd) {
 
 
 // Create an I²C transaction.
-i2c_trans_t i2c_trans_create(badge_err_t *ec) {
+i2c_trans_t *i2c_trans_create(badge_err_t *ec) {
+    i2c_trans_t *mem = malloc(sizeof(i2c_trans_t));
+    if (!mem) {
+        badge_err_set(ec, ELOC_I2C, ECAUSE_NOMEM);
+        return NULL;
+    }
     badge_err_set_ok(ec);
-    return (i2c_trans_t){
+    *mem = (i2c_trans_t){
         .list     = DLIST_EMPTY,
         .callback = NULL,
         .cookie   = NULL,
     };
+    return mem;
 }
 
 // Clean up an I²C transaction.
-void i2c_trans_destroy(badge_err_t *ec, i2c_trans_t *trans) {
+void i2c_trans_destroy(i2c_trans_t *trans) {
     while (trans->list.len) {
         i2c_cmd_t *cmd = (i2c_cmd_t *)dlist_pop_front(&trans->list);
         if (cmd->type == I2C_CMD_WRITE && cmd->length > I2C_SMALL_WRITE_SIZE) {
@@ -41,7 +47,7 @@ void i2c_trans_destroy(badge_err_t *ec, i2c_trans_t *trans) {
         }
         free(cmd);
     }
-    badge_err_set_ok(ec);
+    free(trans);
 }
 
 // Append a start condition.
@@ -131,6 +137,7 @@ void i2c_trans_write(badge_err_t *ec, i2c_trans_t *trans, void const *buf, size_
             }
         }
         ptr += max;
+        len -= max;
     }
 }
 

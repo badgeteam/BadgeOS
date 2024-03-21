@@ -236,6 +236,4 @@ void clkconfig_i2c0(uint32_t freq_hz, bool enable, bool reset) {
     // I2C0 is configured on XTAL_CLK.
     WRITE_REG(PCR_I2C_CONF_REG, PCR_CONF_ENABLE_BIT + reset * PCR_CONF_RESET_BIT);
     WRITE_REG(PCR_I2C_SCLK_CONF_REG, enable * PCR_CONF_SCLK_ENABLE_BIT + clk_compute_div(FREQ_XTAL_CLK, freq_hz));
-    logkf(LOG_DEBUG, "PCR_I2C_CONF_REG:      %{u32;x}", READ_REG(PCR_I2C_CONF_REG));
-    logkf(LOG_DEBUG, "PCR_I2C_SCLK_CONF_REG: %{u32;x}", READ_REG(PCR_I2C_SCLK_CONF_REG));
 }

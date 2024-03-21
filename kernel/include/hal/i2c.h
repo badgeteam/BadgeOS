@@ -45,9 +45,9 @@ typedef struct {
             bool     read_bit;
         };
         // Read / write pointer.
-        void   *data;
+        uint8_t *data;
         // Small write data.
-        uint8_t small_data[I2C_SMALL_WRITE_SIZE];
+        uint8_t  small_data[I2C_SMALL_WRITE_SIZE];
     };
 } i2c_cmd_t;
 
@@ -105,21 +105,21 @@ size_t i2c_master_run(badge_err_t *ec, int i2c_num, i2c_trans_t *trans);
 
 
 // Create an I²C transaction.
-i2c_trans_t i2c_trans_create(badge_err_t *ec);
+i2c_trans_t *i2c_trans_create(badge_err_t *ec);
 // Clean up an I²C transaction.
-void        i2c_trans_destroy(badge_err_t *ec, i2c_trans_t *trans);
+void         i2c_trans_destroy(i2c_trans_t *trans);
 // Append a start condition.
-void        i2c_trans_start(badge_err_t *ec, i2c_trans_t *trans);
+void         i2c_trans_start(badge_err_t *ec, i2c_trans_t *trans);
 // Append a stop condition.
-void        i2c_trans_stop(badge_err_t *ec, i2c_trans_t *trans);
+void         i2c_trans_stop(badge_err_t *ec, i2c_trans_t *trans);
 // Append an I²C address.
-void        i2c_trans_addr(badge_err_t *ec, i2c_trans_t *trans, int slave_id, bool read_bit);
+void         i2c_trans_addr(badge_err_t *ec, i2c_trans_t *trans, int slave_id, bool read_bit);
 // Append a write.
 // The write data is copied into the transaction context.
-void        i2c_trans_write(badge_err_t *ec, i2c_trans_t *trans, void const *buf, size_t len);
+void         i2c_trans_write(badge_err_t *ec, i2c_trans_t *trans, void const *buf, size_t len);
 // Append a read.
 // The read pointer must remain valid until the transaction is complete.
-void        i2c_trans_read(badge_err_t *ec, i2c_trans_t *trans, void *buf, size_t len);
+void         i2c_trans_read(badge_err_t *ec, i2c_trans_t *trans, void *buf, size_t len);
 
 // Set the on finished callback.
 static inline void i2c_trans_set_cb(i2c_trans_t *trans, i2c_trans_cb_t callback, void *cookie) {
