@@ -253,12 +253,18 @@ static spi_clock_reg_t spi_clk_compute_div(uint32_t source_hz, uint32_t target_h
 
     spi_clock_reg_t spi_clock_reg;
 
-    // scale down to 1 MHz
-    spi_clock_reg.clkcnt_n = 15;
-    spi_clock_reg.clkdiv_pre = 4;
+    // scale 80MHz down to 250 kHz
 
-    spi_clock_reg.clkcnt_l = 7;
-    spi_clock_reg.clkcnt_h = 7;
+    int n = 64;
+    int pre = 5;
+    int h = n/2;
+
+    spi_clock_reg.clkcnt_n = n - 1;
+    spi_clock_reg.clkdiv_pre = pre - 1;
+
+    spi_clock_reg.clkcnt_l = n;
+    spi_clock_reg.clkcnt_h = h - 1;
+    spi_clock_reg.clk_equ_sysclk = 0;
 
     return spi_clock_reg;
 }
@@ -276,9 +282,10 @@ void clkconfig_spi2(uint32_t freq_hz, bool enable, bool reset) {
     // SPI2 is configured on PLL_F80M_CLK.
     WRITE_REG(PCR_SPI2_CONF_REG, PCR_CONF_ENABLE_BIT + reset * PCR_CONF_RESET_BIT);
     WRITE_REG(PCR_SPI2_CLKM_CONF_REG, enable * PCR_CONF_CLKM_ENABLE_BIT + (PCR_CONF_CLKM_SEL_PLL_F80M_CLK << PCR_CONF_CLKM_SEL_POS));
+    // WRITE_REG(PCR_SPI2_CLKM_CONF_REG, enable * PCR_CONF_CLKM_ENABLE_BIT + (PCR_CONF_CLKM_SEL_XTAL_CLK << PCR_CONF_CLKM_SEL_POS));
     GPSPI2.clock = spi_clk_compute_div(FREQ_PLL_F80M_CLK, freq_hz);
-    GPSPI2.clk_gate.mst_clk_active = true;
-    GPSPI2.clk_gate.mst_clk_sel = 1;
+    // GPSPI2.clk_gate.mst_clk_active = true;
+    // GPSPI2.clk_gate.mst_clk_sel = 1;
     logkf(LOG_DEBUG, "PCR_SPI2_CONF_REG:      %{u32;x}", READ_REG(PCR_SPI2_CONF_REG));
     logkf(LOG_DEBUG, "PCR_SPI2_CLKM_CONF_REG: %{u32;x}", READ_REG(PCR_SPI2_CLKM_CONF_REG));
 }

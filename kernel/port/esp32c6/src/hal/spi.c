@@ -33,12 +33,13 @@ static void spi_config_apply(void) {
     while(GPSPI2.cmd.update);
 }
 
-void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, int miso_pin) {
+void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, int miso_pin, int ss_pin) {
     // Bounds check.
     if (spi_num != 0
     || sclk_pin < 0 || sclk_pin >= io_count()
     || mosi_pin < 0 || mosi_pin >= io_count()
     || miso_pin < 0 || miso_pin >= io_count()
+    || ss_pin < 0 || ss_pin >= io_count()
     ) {
         badge_err_set(ec, ELOC_I2C, ECAUSE_RANGE);
         return;
@@ -53,6 +54,9 @@ void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, i
         return;
     } else if (io_is_peripheral(ec, miso_pin)) {
         logkf(LOG_ERROR, "MISO pin (%{d}) already in use", miso_pin);
+        return;
+    } else if (io_is_peripheral(ec, ss_pin)) {
+        logkf(LOG_ERROR, "SS pin (%{d}) already in use", ss_pin);
         return;
     }
 
@@ -73,6 +77,10 @@ void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, i
     // Clock configuration.
     clkconfig_spi2(1000*1000, true, false);
 
+    // GPSPI2.clk_gate.clk_en = 1;
+    // GPSPI2.clk_gate.mst_clk_active = 1;
+    // GPSPI2.clk_gate.mst_clk_sel = 1;
+
     // TODO: determine function (copied from spi_ll.h)
     GPSPI2.dma_conf.val = 0;
     GPSPI2.dma_conf.slv_tx_seg_trans_clr_en = 1;
@@ -86,8 +94,8 @@ void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, i
 
     //Enable the write-data phase
     GPSPI2.user.usr_mosi = 1;
-    //Enable the read-data phase
-    GPSPI2.user.usr_miso = 1;
+    // //Enable the read-data phase
+    // GPSPI2.user.usr_miso = 1;
 
     spi_config_apply();
 
@@ -95,6 +103,7 @@ void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, i
     IO_MUX.gpio[sclk_pin] = (io_mux_gpio_t){.mcu_sel = 1, .fun_ie = true, .mcu_ie = true};
     IO_MUX.gpio[miso_pin] = (io_mux_gpio_t){.mcu_sel = 1, .fun_ie = true, .mcu_ie = true};
     IO_MUX.gpio[mosi_pin] = (io_mux_gpio_t){.mcu_sel = 1, .fun_ie = true, .mcu_ie = true};
+    IO_MUX.gpio[ss_pin] = (io_mux_gpio_t){.mcu_sel = 1, .fun_ie = true, .mcu_ie = true};
 
     // GPIO matrix configuration.
     GPIO.func_out_sel_cfg[sclk_pin] = (gpio_func_out_sel_cfg_reg_t){
@@ -115,6 +124,12 @@ void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, i
         .out_inv_sel = false,
         .out_sel     = FSPID_OUT_IDX,
     };
+    GPIO.func_out_sel_cfg[ss_pin] = (gpio_func_out_sel_cfg_reg_t){
+        .oen_inv_sel = false,
+        .oen_sel     = false,
+        .out_inv_sel = false,
+        .out_sel     = FSPICS0_OUT_IDX,
+    };
 
     GPIO.func_in_sel_cfg[FSPICLK_IN_IDX] = (gpio_func_in_sel_cfg_reg_t){
         .in_sel     = sclk_pin,
@@ -131,12 +146,17 @@ void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, i
         .in_inv_sel = false,
         .sig_in_sel = true,
     };
+    GPIO.func_in_sel_cfg[FSPICS0_IN_IDX] = (gpio_func_in_sel_cfg_reg_t){
+        .in_sel     = ss_pin,
+        .in_inv_sel = false,
+        .sig_in_sel = true,
+    };
 }
 
 void spi_write_buffer(badge_err_t *ec, uint8_t *data, int len) {
     (void) ec; // TODO: proper checks and error handling
 
-    size_t buf_idx = 0;
+    // size_t buf_idx = 0;
 
     spi_clear_fifo(true, true);
 
@@ -157,11 +177,11 @@ void spi_write_buffer(badge_err_t *ec, uint8_t *data, int len) {
         while(GPSPI2.cmd.usr)
             logkf(LOG_DEBUG, "boop");
 
-        // Copy chunk of received data back.
-        mem_copy(data, (void *)GPSPI2.data_buf, copy_len);
+        // // Copy chunk of received data back.
+        // mem_copy(data, (void *)GPSPI2.data_buf, copy_len);
 
         len -= copy_len;
         data += copy_len;
-        buf_idx += 1;
+        // buf_idx += 1;
     }
 }
