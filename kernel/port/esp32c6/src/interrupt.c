@@ -7,7 +7,7 @@
 #include "cpu/panic.h"
 #include "isr_ctx.h"
 #include "port/hardware_allocation.h"
-#include "soc/intpri_struct.h"
+#include "soc/pcr_struct.h"
 #include "soc/plic_struct.h"
 
 typedef struct {
@@ -30,6 +30,12 @@ static isr_t isr_table[32];
 
 // Initialise interrupt drivers for this CPU.
 void irq_init() {
+    // Initialise PCR.
+    PCR.intmtx_conf = (pcr_intmtx_conf_reg_t){
+        .intmtx_clk_en = true,
+        .intmtx_rst_en = false,
+    };
+
     // Install interrupt handler.
     asm volatile("csrw mstatus, 0");
     asm volatile("csrw mtvec, %0" ::"r"(riscv_interrupt_vector_table));
@@ -45,18 +51,14 @@ void irq_init() {
     }
 
     // Enable all external interrupts.
-    INTPRI.core0_cpu_int_thresh.val = 0;
-    INTPRI.core0_cpu_int_enable.val = 0xfffffffe;
-    INTPRI.core0_cpu_int_clear.val  = 0xffffffff;
-    INTPRI.core0_cpu_int_clear.val  = 0;
-    PLIC_MX.int_en                  = 0xfffffffe;
-    PLIC_MX.int_type                = 0;
-    PLIC_MX.int_clear               = 0xffffffff;
-    PLIC_MX.int_clear               = 0;
+    PLIC_MX.int_en    = 0xfffffffe;
+    PLIC_MX.int_type  = 0;
+    PLIC_MX.int_clear = 0xffffffff;
+    PLIC_MX.int_clear = 0;
 
     // Set default interrupt priorities.
     for (int i = 0; i < 32; i++) {
-        INTPRI.core0_cpu_int_pri[i].map = 7;
+        PLIC_MX.int_pri[i] = 7;
     }
 }
 
@@ -79,8 +81,8 @@ void irq_ch_prio(int int_irq, int raw_prio) {
 
 // Acknowledge an interrupt.
 void irq_ch_ack(int int_irq) {
-    INTPRI.core0_cpu_int_clear.val = 1 << int_irq;
-    INTPRI.core0_cpu_int_clear.val = 0;
+    PLIC_MX.int_clear = 1 << int_irq;
+    PLIC_MX.int_clear = 0;
 }
 
 // Set the interrupt service routine for an interrupt on this CPU.

@@ -16,6 +16,10 @@ SECTIONS
 	/* Import hardware addresses. */
 INCLUDE esp32c6.peripherals.ld
 PROVIDE(INTPRI = 0x600C5000);
+PROVIDE(PLIC_MX = 0x20001000);
+PROVIDE(PLIC_UX = 0x20001400);
+PROVIDE(CLINT_M = 0x20001800);
+PROVIDE(CLINT_U = 0x20001C00);
 
 	/* Physical memory. */
 	__start_xip    = 0x42000000;
