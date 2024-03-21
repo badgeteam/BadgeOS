@@ -6,6 +6,7 @@
 #include "filesystem.h"
 #include "hal/gpio.h"
 #include "hal/i2c.h"
+#include "hal/spi.h"
 #include "housekeeping.h"
 #include "interrupt.h"
 #include "isr_ctx.h"

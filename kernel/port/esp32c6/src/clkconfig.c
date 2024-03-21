@@ -6,6 +6,7 @@
 #include "attributes.h"
 #include "log.h"
 #include "port/hardware.h"
+#include "soc/spi_struct.h"
 
 // UART0 configuration register (Access: R/W)
 #define PCR_UART0_CONF_REG                 (PCR_BASE + 0x0000)
@@ -178,6 +179,19 @@
 // Numerator of the clock divider for PCR_*_SCLK_CONF_REG (bit position).
 #define PCR_CONF_SCLK_DIV_NUM_POS  0
 
+// Enable bit for PCR_*_CLKM_CONF_REG.
+#define PCR_CONF_CLKM_ENABLE_BIT        0x00400000
+// Clock source select mask for PCR_*_CLKM_CONF_REG.
+#define PCR_CONF_CLKM_SEL_MASK          0x00300000
+// Clock source select mask for PCR_*_CLKM_CONF_REG (bit position).
+#define PCR_CONF_CLKM_SEL_POS           20
+// Clock source select XTAL_CLK for PCR_*_CLKM_CONF_REG
+#define PCR_CONF_CLKM_SEL_XTAL_CLK      0
+// Clock source select PLL_F80M_CLK for PCR_*_CLKM_CONF_REG
+#define PCR_CONF_CLKM_SEL_PLL_F80M_CLK  1
+// Clock source select RC_FAST_CLK for PCR_*_CLKM_CONF_REG
+#define PCR_CONF_CLKM_SEL_RC_FAST_CLK  2
+
 // Nominal frequency of PLL_CLK.
 #define FREQ_PLL_CLK       480000000
 // Nominal frequency of PLL_F160M_CLK.
@@ -197,9 +211,10 @@
 
 // Compute frequency dividers for a certain target frequency and source
 // frequency.
-static uint32_t clk_compute_div(uint32_t source_hz, uint32_t target_hz) PURE;
+static uint32_t i2c_clk_compute_div(uint32_t source_hz, uint32_t target_hz) PURE;
+static spi_clock_reg_t spi_clk_compute_div(uint32_t source_hz, uint32_t target_hz) PURE;
 
-static uint32_t clk_compute_div(uint32_t source_hz, uint32_t target_hz) {
+static uint32_t i2c_clk_compute_div(uint32_t source_hz, uint32_t target_hz) {
     // Divider integral part.
     uint32_t integral   = source_hz / target_hz;
     // Divider fractional part.
@@ -231,11 +246,39 @@ static uint32_t clk_compute_div(uint32_t source_hz, uint32_t target_hz) {
            (closest_den << PCR_CONF_SCLK_DIV_DEN_POS);
 }
 
+static spi_clock_reg_t spi_clk_compute_div(uint32_t source_hz, uint32_t target_hz) {
+    // TODO: proper value calculation
+    (void) source_hz;
+    (void) target_hz;
+
+    spi_clock_reg_t spi_clock_reg;
+
+    // scale down to 1 MHz
+    spi_clock_reg.clkcnt_n = 15;
+    spi_clock_reg.clkdiv_pre = 4;
+
+    spi_clock_reg.clkcnt_l = 7;
+    spi_clock_reg.clkcnt_h = 7;
+
+    return spi_clock_reg;
+}
+
 // Configure I2C0 clock.
 void clkconfig_i2c0(uint32_t freq_hz, bool enable, bool reset) {
     // I2C0 is configured on XTAL_CLK.
     WRITE_REG(PCR_I2C_CONF_REG, PCR_CONF_ENABLE_BIT + reset * PCR_CONF_RESET_BIT);
-    WRITE_REG(PCR_I2C_SCLK_CONF_REG, enable * PCR_CONF_SCLK_ENABLE_BIT + clk_compute_div(FREQ_XTAL_CLK, freq_hz));
+    WRITE_REG(PCR_I2C_SCLK_CONF_REG, enable * PCR_CONF_SCLK_ENABLE_BIT + i2c_clk_compute_div(FREQ_XTAL_CLK, freq_hz));
     logkf(LOG_DEBUG, "PCR_I2C_CONF_REG:      %{u32;x}", READ_REG(PCR_I2C_CONF_REG));
     logkf(LOG_DEBUG, "PCR_I2C_SCLK_CONF_REG: %{u32;x}", READ_REG(PCR_I2C_SCLK_CONF_REG));
+}
+
+void clkconfig_spi2(uint32_t freq_hz, bool enable, bool reset) {
+    // SPI2 is configured on PLL_F80M_CLK.
+    WRITE_REG(PCR_SPI2_CONF_REG, PCR_CONF_ENABLE_BIT + reset * PCR_CONF_RESET_BIT);
+    WRITE_REG(PCR_SPI2_CLKM_CONF_REG, enable * PCR_CONF_CLKM_ENABLE_BIT + (PCR_CONF_CLKM_SEL_PLL_F80M_CLK << PCR_CONF_CLKM_SEL_POS));
+    GPSPI2.clock = spi_clk_compute_div(FREQ_PLL_F80M_CLK, freq_hz);
+    GPSPI2.clk_gate.mst_clk_active = true;
+    GPSPI2.clk_gate.mst_clk_sel = 1;
+    logkf(LOG_DEBUG, "PCR_SPI2_CONF_REG:      %{u32;x}", READ_REG(PCR_SPI2_CONF_REG));
+    logkf(LOG_DEBUG, "PCR_SPI2_CLKM_CONF_REG: %{u32;x}", READ_REG(PCR_SPI2_CLKM_CONF_REG));
 }
