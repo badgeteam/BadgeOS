@@ -16,7 +16,6 @@
 #include "soc/pmu_struct.h"
 
 static void spi_clear_fifo(bool clear_rxfifo, bool clear_txfifo) {
-    // Clear FIFOs.
     GPSPI2.dma_conf = (spi_dma_conf_reg_t){
         .buf_afifo_rst = clear_txfifo,
         .rx_afifo_rst = clear_rxfifo,
@@ -77,20 +76,11 @@ void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, i
     // Clock configuration.
     clkconfig_spi2(1000*1000, true, false);
 
-    // GPSPI2.clk_gate.clk_en = 1;
-    // GPSPI2.clk_gate.mst_clk_active = 1;
-    // GPSPI2.clk_gate.mst_clk_sel = 1;
-
     // TODO: determine function (copied from spi_ll.h)
     GPSPI2.dma_conf.val = 0;
     GPSPI2.dma_conf.slv_tx_seg_trans_clr_en = 1;
     GPSPI2.dma_conf.slv_rx_seg_trans_clr_en = 1;
     GPSPI2.dma_conf.dma_slv_seg_trans_en = 0;
-
-    // Enable the trans_done interrupt.
-    GPSPI2.dma_int_ena.trans_done = 1;
-    // Set the trans_done interrupt.
-    GPSPI2.dma_int_set.trans_done_int_set = 1;
 
     //Enable the write-data phase
     GPSPI2.user.usr_mosi = 1;
@@ -155,33 +145,27 @@ void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, i
 
 void spi_write_buffer(badge_err_t *ec, uint8_t *data, int len) {
     (void) ec; // TODO: proper checks and error handling
-
-    // size_t buf_idx = 0;
-
-    spi_clear_fifo(true, true);
+    const int data_buf_len = sizeof(GPSPI2.data_buf);
+    uint32_t words [data_buf_len/sizeof(GPSPI2.data_buf[0])];
 
     while (len > 0) {
-        int copy_len = sizeof(GPSPI2.data_buf);
-        if (copy_len > len) {
-            copy_len = len;
-        }
+        int copy_len = (len > data_buf_len) ? data_buf_len : len;
 
-        GPSPI2.ms_dlen.ms_data_bitlen = copy_len * 8-1;
-
-        mem_copy((void *)GPSPI2.data_buf, data, copy_len);
-
+        // Access to SPI data buffer must be in full 32 bit words
+        // This assumes optimization for alignment in mem_copy
+        mem_copy(words, data, copy_len);
+        mem_copy((void *)GPSPI2.data_buf, words, data_buf_len); // TODO: optimize copy length
+        
+        // prepare for transfer
+        GPSPI2.ms_dlen.ms_data_bitlen = copy_len * 8 - 1;
+        spi_clear_fifo(true, true);
         spi_config_apply();
 
         // Start transfer and wait for completion
         GPSPI2.cmd.usr = 1;
-        while(GPSPI2.cmd.usr)
-            logkf(LOG_DEBUG, "boop");
-
-        // // Copy chunk of received data back.
-        // mem_copy(data, (void *)GPSPI2.data_buf, copy_len);
+        while(GPSPI2.cmd.usr); // TODO: yield?
 
         len -= copy_len;
         data += copy_len;
-        // buf_idx += 1;
     }
 }
