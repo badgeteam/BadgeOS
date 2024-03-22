@@ -7,6 +7,7 @@
 #include "log.h"
 #include "port/hardware.h"
 #include "soc/spi_struct.h"
+#include "soc/spi_reg.h"
 
 // UART0 configuration register (Access: R/W)
 #define PCR_UART0_CONF_REG                 (PCR_BASE + 0x0000)
@@ -212,7 +213,7 @@
 // Compute frequency dividers for a certain target frequency and source
 // frequency.
 static uint32_t i2c_clk_compute_div(uint32_t source_hz, uint32_t target_hz) PURE;
-static spi_clock_reg_t spi_clk_compute_div(uint32_t source_hz, uint32_t target_hz) PURE;
+static spi_clock_reg_t spi_clk_compute_div(uint32_t source_hz, uint32_t target_hz, uint8_t duty) PURE;
 
 static uint32_t i2c_clk_compute_div(uint32_t source_hz, uint32_t target_hz) {
     // Divider integral part.
@@ -246,25 +247,56 @@ static uint32_t i2c_clk_compute_div(uint32_t source_hz, uint32_t target_hz) {
            (closest_den << PCR_CONF_SCLK_DIV_DEN_POS);
 }
 
-static spi_clock_reg_t spi_clk_compute_div(uint32_t source_hz, uint32_t target_hz) {
-    // TODO: proper value calculation
-    (void) source_hz;
-    (void) target_hz;
+static spi_clock_reg_t spi_clk_compute_div(uint32_t source_hz, uint32_t target_hz, uint8_t duty) {
+    const uint32_t pre_max = SPI_CLKDIV_PRE_V + 1;
+    const uint32_t n_max = SPI_CLKCNT_N_V + 1;
 
-    spi_clock_reg_t spi_clock_reg;
+    spi_clock_reg_t spi_clock_reg = {.val = 0};
 
-    // scale 80MHz down to 250 kHz
+    uint32_t best_n = 1, best_pre = 1;
 
-    int n = 64;
-    int pre = 5;
-    int h = n/2;
+    if ((target_hz < source_hz )) {
+        if ((source_hz/ (pre_max * n_max)) > target_hz) {
+            logkf(LOG_DEBUG, "Maximum SPI clock pre-scaling");
+            best_pre = pre_max;
+            best_n = n_max;
+        }
+        else if (target_hz < source_hz ) {
+            logkf(LOG_DEBUG, "Finding optimal SPI clock pre-scaling");
+            int32_t best_err = target_hz; // assume worst possible
 
-    spi_clock_reg.clkcnt_n = n - 1;
-    spi_clock_reg.clkdiv_pre = pre - 1;
+            // Try to get the most counter resolution and lowest pre-divider
+            for (uint32_t n = n_max; n >= 2; n--) {
+                uint32_t pre = (source_hz/n)/target_hz;
 
-    spi_clock_reg.clkcnt_l = n;
-    spi_clock_reg.clkcnt_h = h - 1;
-    spi_clock_reg.clk_equ_sysclk = 0;
+                if (pre < 1) pre = 1;
+                // Prefer to err on the side of too low clock frequency to not damage peripherals
+                if ((source_hz/n/pre) > target_hz){
+                    pre += 1;
+                }
+                if (pre > pre_max) continue;
+
+                int32_t err = target_hz - (source_hz/n/pre);
+                if (err < best_err) {
+                    best_n = n;
+                    best_pre = pre;
+                    best_err = err;
+                }
+            }
+        }
+        
+        // Map duty from [0..255] to  [1..n-1]
+        uint32_t h = 1 + ((duty * ((best_n-1)-1))/255);
+
+        spi_clock_reg.clkdiv_pre = best_pre - 1;
+        spi_clock_reg.clkcnt_n = best_n - 1;
+        spi_clock_reg.clkcnt_l = best_n - 1;
+        spi_clock_reg.clkcnt_h = h - 1;
+    }
+    else {
+        logkf(LOG_DEBUG, "No SPI clock pre-scaling");
+        spi_clock_reg.clk_equ_sysclk = 1;
+    }
 
     return spi_clock_reg;
 }
@@ -282,10 +314,15 @@ void clkconfig_spi2(uint32_t freq_hz, bool enable, bool reset) {
     // SPI2 is configured on PLL_F80M_CLK.
     WRITE_REG(PCR_SPI2_CONF_REG, PCR_CONF_ENABLE_BIT + reset * PCR_CONF_RESET_BIT);
     WRITE_REG(PCR_SPI2_CLKM_CONF_REG, enable * PCR_CONF_CLKM_ENABLE_BIT + (PCR_CONF_CLKM_SEL_PLL_F80M_CLK << PCR_CONF_CLKM_SEL_POS));
-    // WRITE_REG(PCR_SPI2_CLKM_CONF_REG, enable * PCR_CONF_CLKM_ENABLE_BIT + (PCR_CONF_CLKM_SEL_XTAL_CLK << PCR_CONF_CLKM_SEL_POS));
-    GPSPI2.clock = spi_clk_compute_div(FREQ_PLL_F80M_CLK, freq_hz);
+    GPSPI2.clock = spi_clk_compute_div(FREQ_PLL_F80M_CLK, freq_hz, 256/2);
     // GPSPI2.clk_gate.mst_clk_active = true;
     // GPSPI2.clk_gate.mst_clk_sel = 1;
     logkf(LOG_DEBUG, "PCR_SPI2_CONF_REG:      %{u32;x}", READ_REG(PCR_SPI2_CONF_REG));
     logkf(LOG_DEBUG, "PCR_SPI2_CLKM_CONF_REG: %{u32;x}", READ_REG(PCR_SPI2_CLKM_CONF_REG));
+    logkf(LOG_DEBUG, "CLKDIV_PRE %{u32;d}, CLKCNT_N: %{u32;d}, CLKCNT_L: %{u32;d}, CLKCNT_H: %{u32;d}",
+        GPSPI2.clock.clkdiv_pre,
+        GPSPI2.clock.clkcnt_n,
+        GPSPI2.clock.clkcnt_l,
+        GPSPI2.clock.clkcnt_h
+        );
 }

@@ -32,7 +32,7 @@ static void spi_config_apply(void) {
     while(GPSPI2.cmd.update);
 }
 
-void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, int miso_pin, int ss_pin) {
+void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, int miso_pin, int ss_pin, int32_t bitrate) {
     // Bounds check.
     if (spi_num != 0
     || sclk_pin < 0 || sclk_pin >= io_count()
@@ -74,7 +74,7 @@ void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, i
     GPSPI2.user.val = 0;
 
     // Clock configuration.
-    clkconfig_spi2(1000*1000, true, false);
+    clkconfig_spi2(bitrate, true, false);
 
     // TODO: determine function (copied from spi_ll.h)
     GPSPI2.dma_conf.val = 0;
