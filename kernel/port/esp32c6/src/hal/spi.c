@@ -32,7 +32,7 @@ static void spi_config_apply(void) {
     while(GPSPI2.cmd.update);
 }
 
-void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, int miso_pin, int ss_pin, int32_t bitrate) {
+void spi_controller_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, int miso_pin, int ss_pin, int32_t bitrate) {
     // Bounds check.
     if (spi_num != 0
     || sclk_pin < 0 || sclk_pin >= io_count()
@@ -40,7 +40,7 @@ void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, i
     || miso_pin < 0 || miso_pin >= io_count()
     || ss_pin < 0 || ss_pin >= io_count()
     ) {
-        badge_err_set(ec, ELOC_I2C, ECAUSE_RANGE);
+        badge_err_set(ec, ELOC_SPI, ECAUSE_RANGE);
         return;
     }
 
@@ -81,11 +81,6 @@ void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, i
     GPSPI2.dma_conf.slv_tx_seg_trans_clr_en = 1;
     GPSPI2.dma_conf.slv_rx_seg_trans_clr_en = 1;
     GPSPI2.dma_conf.dma_slv_seg_trans_en = 0;
-
-    //Enable the write-data phase
-    GPSPI2.user.usr_mosi = 1;
-    // //Enable the read-data phase
-    // GPSPI2.user.usr_miso = 1;
 
     spi_config_apply();
 
@@ -143,17 +138,22 @@ void spi_master_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pin, i
     };
 }
 
-void spi_write_buffer(badge_err_t *ec, uint8_t *data, int len) {
-    (void) ec; // TODO: proper checks and error handling
+static void _spi_master_transfer(badge_err_t *ec, int spi_num, void *buf, size_t len) {
     const int data_buf_len = sizeof(GPSPI2.data_buf);
     uint32_t words [data_buf_len/sizeof(GPSPI2.data_buf[0])];
 
+    // Bounds check.
+    if (spi_num != 0) {
+        badge_err_set(ec, ELOC_SPI, ECAUSE_RANGE);
+        return;
+    }
+
     while (len > 0) {
-        int copy_len = (len > data_buf_len) ? data_buf_len : len;
+        size_t copy_len = (len > data_buf_len) ? data_buf_len : len;
 
         // Access to SPI data buffer must be in full 32 bit words
         // This assumes optimization for alignment in mem_copy
-        mem_copy(words, data, copy_len);
+        mem_copy(words, buf, copy_len);
         mem_copy((void *)GPSPI2.data_buf, words, data_buf_len); // TODO: optimize copy length
         
         // prepare for transfer
@@ -165,7 +165,32 @@ void spi_write_buffer(badge_err_t *ec, uint8_t *data, int len) {
         GPSPI2.cmd.usr = 1;
         while(GPSPI2.cmd.usr); // TODO: yield?
 
+        // copy back received data
+        mem_copy(buf, (void *)GPSPI2.data_buf, copy_len);
+
         len -= copy_len;
-        data += copy_len;
+        buf += copy_len;
     }
+}
+
+void spi_controller_read(badge_err_t *ec, int spi_num, void *buf, size_t len) {
+    GPSPI2.user.usr_mosi = 0;
+    GPSPI2.user.usr_miso = 1;
+
+    _spi_master_transfer(ec, spi_num, buf, len);
+}
+
+void spi_controller_write(badge_err_t *ec, int spi_num, void const *buf, size_t len) {
+    GPSPI2.user.usr_mosi = 1;
+    GPSPI2.user.usr_miso = 0;
+
+    _spi_master_transfer(ec, spi_num, (void*) buf, len);
+}
+
+void spi_controller_transfer(badge_err_t *ec, int spi_num, void *buf, size_t len, bool fdx) {
+    GPSPI2.user.usr_mosi = 1;
+    GPSPI2.user.usr_miso = 1;
+    GPSPI2.user.doutdin = fdx;
+
+    _spi_master_transfer(ec, spi_num, buf, len);
 }
