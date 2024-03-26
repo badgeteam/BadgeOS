@@ -47,7 +47,8 @@ set(common_compiler_flags
     -Wall -Wextra                      # Ramp up warning level.
     -std=gnu11                         # We use the C11 standard
     -DBADGEROS_KERNEL                  # Tell the code we're building for the kernel
-    -DBADGEROS_MALLOC_DEBUG_LEVEL=4    # Turn on all malloc() debug stuff for now. 
+    -DBADGEROS_MALLOC_DEBUG_LEVEL=3    # Malloc debug level set to WARN
+    -DSOFTBIT                          # Turn on our emulated bit operations
     -ffunction-sections
     -fno-exceptions
 )
@@ -96,6 +97,8 @@ add_executable(${target}
     ${CMAKE_CURRENT_LIST_DIR}/src/housekeeping.c
     ${CMAKE_CURRENT_LIST_DIR}/src/main.c
     ${CMAKE_CURRENT_LIST_DIR}/src/malloc/malloc.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/malloc/static-buddy.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/malloc/slab-alloc.c
     ${CMAKE_CURRENT_LIST_DIR}/src/scheduler.c
     ${CMAKE_CURRENT_LIST_DIR}/src/syscall.c
     ${cpu_src}
