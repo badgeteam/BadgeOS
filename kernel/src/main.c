@@ -4,6 +4,7 @@
 #include "badge_err.h"
 #include "filesystem.h"
 #include "hal/gpio.h"
+#include "hal/dma.h"
 #include "hal/i2c.h"
 #include "housekeeping.h"
 #include "interrupt.h"
@@ -141,6 +142,18 @@ static void kernel_init() {
 #define SDA_PIN 6
 #define SCL_PIN 7
 #define CH_ADDR 0x42
+
+static char test_data[] =
+"0123456789ABCDEF"
+"0123456789ABCDEF"
+"0123456789ABCDEF"
+"0123456789ABCDEF"
+"0123456789ABCDEF"
+"0123456789ABCDE"
+;
+
+static char test_buffer[sizeof(test_data)] = {[0 ... sizeof(test_data)-1] = 0};
+
 void deboug() {
     badge_err_t ec = {0};
     i2c_master_init(&ec, 0, SDA_PIN, SCL_PIN, 100000);
@@ -156,6 +169,14 @@ void deboug() {
     };
     i2c_master_write_to(&ec, 0, CH_ADDR, &wdata, 4);
     badge_err_assert_always(&ec);
+
+    dma_init(&ec, 0);
+    badge_err_assert_always(&ec);
+
+    logkf(LOG_INFO, "DMA pre: %{cs}", test_buffer);
+    dma_mem_copy(&ec, 0, test_buffer, test_data, sizeof(test_data));
+    badge_err_assert_always(&ec);
+    logkf(LOG_INFO, "DMA post: %{cs}", test_buffer);
 }
 
 // After kernel initialization, the booting CPU core continues here.
