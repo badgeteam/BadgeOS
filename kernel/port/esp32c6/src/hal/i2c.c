@@ -16,19 +16,6 @@
 #include "soc/pcr_struct.h"
 #include "soc/pmu_struct.h"
 
-long get_mie() SECTION(".text");
-long get_mie() {
-    long x;
-    asm("csrr %0, mie" : "=r"(x));
-    return x;
-}
-long get_mip() SECTION(".text");
-long get_mip() {
-    long x;
-    asm("csrr %0, mip" : "=r"(x));
-    return x;
-}
-
 // I2C command register value.
 typedef union {
     struct {
@@ -176,6 +163,12 @@ static bool i2c_driver_cmd(i2c_driver_t *driver) {
             .command      = comd[x].value,
         };
     }
+    if (i < 8) {
+        I2C0.command[i] = (i2c_comd_reg_t){
+            .command_done = false,
+            .command      = ((i2c_comd_val_t){.op_code = I2C_OPC_END}).value,
+        };
+    }
 
     return i;
 }
@@ -222,16 +215,21 @@ static bool i2c_driver_txdata(i2c_driver_t *driver) {
 }
 
 // Receive as much RX data as possible.
-static void i2c_driver_rxdata(i2c_driver_t *driver) {
-    while (driver->dev->sr.rxfifo_cnt) {
-        if (driver->next_rxd->type != I2C_CMD_READ) {
-            driver->next_rxd = (i2c_cmd_t *)driver->next_rxd->node.next;
-        }
-        driver->next_rxd->data[driver->next_rxd->index++] = driver->dev->data.val;
-        if (driver->next_rxd->index >= driver->next_rxd->length) {
-            driver->next_rxd = (i2c_cmd_t *)driver->next_rxd->node.next;
-        }
-    }
+static bool i2c_driver_rxdata(i2c_driver_t *driver) {
+    return false;
+    // while (driver->dev->sr.rxfifo_cnt) {
+    //     if (!driver->next_rxd) {
+    //         return false;
+    //     } else if (driver->next_rxd->type != I2C_CMD_READ) {
+    //         driver->next_rxd = (i2c_cmd_t *)driver->next_rxd->node.next;
+    //     } else {
+    //         driver->next_rxd->data[driver->next_rxd->index++] = driver->dev->data.val;
+    //         if (driver->next_rxd->index >= driver->next_rxd->length) {
+    //             driver->next_rxd = (i2c_cmd_t *)driver->next_rxd->node.next;
+    //         }
+    //     }
+    // }
+    // return true;
 }
 
 
@@ -254,6 +252,9 @@ static bool i2c_driver_begin(i2c_driver_t *driver, i2c_trans_t *trans) {
         // Commands queued, begin the transaction.
         i2c_driver_txdata(driver);
         driver->dev->int_ena.txfifo_wm_int_ena = true;
+        // driver->dev->int_ena.rxfifo_wm_int_ena = true;
+        driver->dev->ctr.fsm_rst               = true;
+        driver->dev->ctr.fsm_rst               = false;
         driver->dev->ctr.conf_upgate           = true;
         driver->dev->ctr.trans_start           = true;
     }
@@ -265,12 +266,13 @@ static bool i2c_driver_begin(i2c_driver_t *driver, i2c_trans_t *trans) {
 static void i2c_driver_isr(i2c_driver_t *driver) {
     i2c_int_status_reg_t irq = driver->dev->int_status;
     i2c_dev_t           *dev = driver->dev;
-    logk_from_isr(LOG_DEBUG, "I2C ISR");
 
     // RXFIFO full IRQ.
     if (irq.rxfifo_wm_int_st) {
         // Read RXFIFO.
-        i2c_driver_rxdata(driver);
+        if (!i2c_driver_rxdata(driver)) {
+            I2C0.int_ena.rxfifo_wm_int_ena = false;
+        }
         // Clear interrupt flag.
         dev->int_clr.rxfifo_wm_int_clr = true;
         dev->int_clr.val               = 0;
@@ -295,11 +297,14 @@ static void i2c_driver_isr(i2c_driver_t *driver) {
         // Try to queue more I²C transaction.
         if (i2c_driver_cmd(driver)) {
             // Commands queued, resume the transaction.
-            dev->ctr.conf_upgate = true;
-            dev->ctr.trans_start = true;
+            driver->dev->ctr.fsm_rst = true;
+            driver->dev->ctr.fsm_rst = false;
+            dev->ctr.trans_start     = true;
         } else {
             // Read remaining RXFIFO.
             i2c_driver_rxdata(driver);
+            I2C0.int_ena.txfifo_wm_int_ena = false;
+            I2C0.int_ena.rxfifo_wm_int_ena = false;
             // Nothing more to queue, send finished trigger.
             atomic_flag_clear(&driver->isr);
         }

@@ -154,25 +154,16 @@ void deboug() {
     //     .reg = 4,
     //     .led = 0b11110110011001101111,
     // };
-    // i2c_master_write_to(&ec, 0, CH_ADDR, &wdata, 4);
-    // badge_err_assert_always(&ec);
+    i2c_master_write_to(&ec, 0, CH_ADDR, "\x00\xff", 2);
+    badge_err_assert_always(&ec);
 
-    // Set a fancy pattern on HH24 badge LEDs.
-    i2c_trans_t *trans = i2c_trans_create(&ec);
+    // Read co-processor version.
+    i2c_master_write_to(&ec, 0, CH_ADDR, &(char[]){0}, 1);
     badge_err_assert_always(&ec);
-    i2c_trans_start(&ec, trans);
+    uint8_t coproc_ver = 0;
+    i2c_master_read_from(&ec, 0, CH_ADDR, &coproc_ver, 1);
     badge_err_assert_always(&ec);
-    i2c_trans_addr(&ec, trans, CH_ADDR, false);
-    badge_err_assert_always(&ec);
-    i2c_trans_write1(&ec, trans, 0x04);
-    badge_err_assert_always(&ec);
-    i2c_trans_write1(&ec, trans, 0xff);
-    badge_err_assert_always(&ec);
-    i2c_trans_stop(&ec, trans);
-    badge_err_assert_always(&ec);
-    logk(LOG_DEBUG, "Pre");
-    i2c_master_run(&ec, 0, trans);
-    logk(LOG_DEBUG, "Post");
+    logkf(LOG_DEBUG, "Coproc version: %{u8;d}", coproc_ver);
 }
 
 // After kernel initialization, the booting CPU core continues here.
