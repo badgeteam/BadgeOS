@@ -11,6 +11,7 @@
 #include "kbelf.h"
 #include "log.h"
 #include "malloc.h"
+#include "port/port.h"
 #include "process/internal.h"
 #include "process/process.h"
 #include "process/types.h"
@@ -211,6 +212,7 @@ void proc_start_raw(badge_err_t *ec, process_t *process, char const *executable)
         return;
     }
     logk(LOG_DEBUG, "Starting main thread");
+    port_fencei();
     atomic_store(&process->flags, PROC_RUNNING);
     sched_resume_thread(ec, thread);
     mutex_release(NULL, &process->mtx);

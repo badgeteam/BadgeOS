@@ -1,12 +1,14 @@
 
 // SPDX-License-Identifier: MIT
 
+#include "backtrace.h"
 #include "badge_err.h"
 #include "filesystem.h"
 #include "hal/gpio.h"
 #include "hal/i2c.h"
 #include "housekeeping.h"
 #include "interrupt.h"
+#include "isr_ctx.h"
 #include "log.h"
 #include "malloc.h"
 #include "memprotect.h"
@@ -90,6 +92,9 @@ void basic_runtime_init() {
     // Timekeeping initialization.
     time_init();
 
+    // Announce that we're alive.
+    logk(LOG_INFO, "BadgerOS starting...");
+
     // Page allocator initialization.
     // page_alloc_init();
     // Kernel memory allocator initialization.
@@ -125,8 +130,6 @@ void basic_runtime_init() {
 // When finished, the non-booting CPUs will be started (method and entrypoints to be determined).
 static void kernel_init() {
     badge_err_t ec = {0};
-    logk(LOG_INFO, "BadgerOS starting...");
-
     // Full hardware initialization.
     port_init();
 
@@ -137,26 +140,6 @@ static void kernel_init() {
 }
 
 
-
-#define SDA_PIN 6
-#define SCL_PIN 7
-#define CH_ADDR 0x42
-void deboug() {
-    badge_err_t ec = {0};
-    i2c_master_init(&ec, 0, SDA_PIN, SCL_PIN, 100000);
-    badge_err_assert_always(&ec);
-
-    // Set a fancy pattern on HH24 badge LEDs.
-    struct __attribute__((packed)) {
-        uint8_t  reg;
-        uint32_t led;
-    } wdata = {
-        .reg = 4,
-        .led = 0b11110110011001101111,
-    };
-    i2c_master_write_to(&ec, 0, CH_ADDR, &wdata, 4);
-    badge_err_assert_always(&ec);
-}
 
 // After kernel initialization, the booting CPU core continues here.
 // This starts up the `init` process while other CPU cores wait for processes to be scheduled for them.
@@ -171,8 +154,6 @@ static void userland_init() {
     assert_dev_drop(pid == 1);
     proc_start(&ec, pid, "/sbin/init");
     badge_err_assert_always(&ec);
-
-    deboug();
 }
 
 

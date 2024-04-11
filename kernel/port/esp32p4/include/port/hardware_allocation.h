@@ -34,7 +34,7 @@
 /* ==== Timers ==== */
 
 // Number of usable hardware timers.
-#define TIMER_COUNT        4
+#define TIMER_COUNT        2
 // Timer used for system timekeeping.
 #define TIMER_SYSTICK_NUM  0
 // System tick rate in Hz.
@@ -47,14 +47,14 @@
 // Region size used for nullpointer protection regions.
 #define PMP_SIZE_NULLPTR  0x10000000
 // Region size used for ROM write protection.
-#define PMP_SIZE_ROM_WP   0x00080000
+#define PMP_SIZE_ROM_WP   0x00020000
 // Region size used for FLASH write protection.
-#define PMP_SIZE_FLASH_WP 0x01000000
+#define PMP_SIZE_FLASH_WP 0x04000000
 
 // Region base used for ROM write protection.
-#define PMP_BASE_ROM_WP   0x40000000
+#define PMP_BASE_ROM_WP   0x4FC00000
 // Region base used for ROM write protection.
-#define PMP_BASE_FLASH_WP 0x42000000
+#define PMP_BASE_FLASH_WP 0x40000000
 
 // NAPOT PMP entry for lower nullpointer protection.
 #define PMP_ENTRY_NULLPTR_LOW_NAPOT  12

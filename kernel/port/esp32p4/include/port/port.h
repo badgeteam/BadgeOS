@@ -15,7 +15,4 @@ void port_init();
 void port_putc(char msg);
 
 // Fence data and instruction memory for executable mapping.
-static inline void port_fencei() {
-    asm("fence rw,rw");
-    asm("fence.i");
-}
+void port_fencei();

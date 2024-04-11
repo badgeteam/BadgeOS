@@ -1,7 +1,7 @@
 
 // SPDX-License-Identifier: MIT
 
-#include "cpu/isr_ctx.h"
+#include "isr_ctx.h"
 
 #include "rawprint.h"
 
@@ -36,3 +36,23 @@ void kernel_reg_dump_arr(uint32_t const *arr) {
 void isr_ctx_dump(isr_ctx_t const *ctx) {
     kernel_reg_dump_arr((uint32_t const *)&ctx->regs);
 }
+
+
+
+#define isr_noexc_copy_func(width)                                                                                     \
+    /* Copy function implementation. */                                                                                \
+    static void isr_noexc_copy_u##width##_func(void *cookie) {                                                         \
+        uint##width##_t *dest = ((uint##width##_t **)cookie)[0];                                                       \
+        uint##width##_t *src  = ((uint##width##_t **)cookie)[1];                                                       \
+        *dest                 = *src;                                                                                  \
+    }                                                                                                                  \
+    /* Try to copy from src to dest. */                                                                                \
+    bool isr_noexc_copy_u##width(uint##width##_t *dest, uint##width##_t const *src) {                                  \
+        size_t arr[2] = {(size_t)dest, (size_t)src};                                                                   \
+        return isr_noexc_run(isr_noexc_copy_u##width##_func, NULL, arr);                                               \
+    }
+
+isr_noexc_copy_func(8);
+isr_noexc_copy_func(16);
+isr_noexc_copy_func(32);
+isr_noexc_copy_func(64);

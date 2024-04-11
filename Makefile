@@ -5,9 +5,12 @@ MAKEFLAGS += --silent
 SHELL    := /usr/bin/env bash
 OUTPUT   ?= $(shell pwd)/root
 
-.PHONY: all openocd gdb flash monitor clean-all clean build clang-format-check clang-tidy-check
+.PHONY: all prepare openocd gdb flash monitor clean-all clean build clang-format-check clang-tidy-check
 
 all: build
+
+prepare:
+	git submodule update --init
 
 build:
 	$(MAKE) -C files build

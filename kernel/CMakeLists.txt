@@ -47,8 +47,10 @@ set(common_compiler_flags
     -Wall -Wextra                      # Ramp up warning level.
     -std=gnu11                         # We use the C11 standard
     -DBADGEROS_KERNEL                  # Tell the code we're building for the kernel
+    -DBADGEROS_PORT_${BADGEROS_PORT}
     -DBADGEROS_MALLOC_DEBUG_LEVEL=3    # Malloc debug level set to WARN
     -DSOFTBIT                          # Turn on our emulated bit operations
+    -fno-omit-frame-pointer            # Always use frame pointer
     -ffunction-sections
     -fno-exceptions
 )
@@ -84,6 +86,7 @@ add_executable(${target}
     ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/log.c
     ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/mutex.c
     ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/num_to_str.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/rawprint.c
     ${CMAKE_CURRENT_LIST_DIR}/src/blockdevice/blkdev_ram.c
     ${CMAKE_CURRENT_LIST_DIR}/src/blockdevice/blockdevice.c
     ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/filesystem.c
@@ -104,7 +107,7 @@ add_executable(${target}
     ${cpu_src}
     ${port_src}
 )
-target_include_directories(${target} PUBLIC
+target_include_directories(${target} PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/include
     ${CMAKE_CURRENT_LIST_DIR}/include/badgelib
     ${cpu_include}
@@ -112,9 +115,17 @@ target_include_directories(${target} PUBLIC
 )
 
 # Add libraries.
-add_compile_options(-I${CMAKE_CURRENT_LIST_DIR}/include -I${CMAKE_CURRENT_LIST_DIR}/include/badgelib -include ${CMAKE_CURRENT_LIST_DIR}/include/loading/kbelf_pre.h)
 add_subdirectory(lib/kbelf)
-target_link_libraries(${target} PUBLIC kbelf)
+target_compile_options(kbelf PRIVATE
+    -include ${CMAKE_CURRENT_LIST_DIR}/include/loading/kbelf_pre.h
+)
+target_include_directories(kbelf PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/include
+    ${CMAKE_CURRENT_LIST_DIR}/include/badgelib
+    ${cpu_include}
+    ${port_include}
+)
+target_link_libraries(${target} PRIVATE kbelf)
 
 
 # Convert the raw binary file into a ESP32 image file

@@ -4,10 +4,11 @@
 MAKEFLAGS         += --silent
 IDF_PATH          ?= $(shell pwd)/../esp-idf
 SHELL             := /usr/bin/env bash
-PORT              ?= $(shell find /dev/ -name ttyUSB* -or -name ttyACM* | head -1)
+PORT              ?= $(shell find /dev/ -name ttyUSB* -or -name ttyACM* 2>/dev/null | head -1)
 OUTPUT            ?= $(shell pwd)/firmware
 BUILDDIR          ?= build
 BADGER_RAMFS_ROOT ?= ../files/root
+BADGEROS_PORT     ?= esp32c6
 
 .PHONY: all clean-tools clean configure build flash monitor test clang-format-check clang-tidy-check openocd gdb
 
@@ -36,21 +37,17 @@ clang-tidy-check: configure
 	clang-tidy-18 -p build $(shell jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$') --warnings-as-errors="*"
 
 openocd:
-	openocd -c 'set ESP_RTOS "none"' -f board/esp32c6-builtin.cfg
+	openocd -c 'set ESP_RTOS "none"' -f board/$(BADGEROS_PORT)-builtin.cfg
 
 gdb:
-	riscv32-unknown-elf-gdb -x port/esp32c6/gdbinit build/badger-os.elf
+	riscv32-unknown-elf-gdb -x port/$(BADGEROS_PORT)/gdbinit build/badger-os.elf
 
 clean-all: clean
 clean:
 	rm -rf "$(BUILDDIR)"
 
 flash: build
-	esptool.py -b 921600 --port '$(PORT)' \
-		write_flash --flash_mode dio --flash_freq 80m --flash_size 2MB \
-		0x0 port/esp32c6/bootloader.bin \
-		0x10000 '$(OUTPUT)/badger-os.bin' \
-		0x8000 port/esp32c6/partition-table.bin
+	./port/$(BADGEROS_PORT)/flash.sh '$(PORT)' '$(OUTPUT)'
 
 monitor:
 	echo -e "\033[1mType ^A^X to exit.\033[0m"

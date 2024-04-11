@@ -14,7 +14,7 @@
 _start:
     # Set stack and global pointer.
     .option push
-    .option norvc
+    .option norelax
     la sp, stack_top
     la gp, __global_pointer$
     .option pop

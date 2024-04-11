@@ -4,7 +4,7 @@
 #include "rawprint.h"
 
 #include "num_to_str.h"
-#include "port/hardware.h"
+#include "port/port.h"
 #include "time.h"
 
 #include <stddef.h>
@@ -35,37 +35,24 @@ void rawprint_substr(char const *msg, size_t length) {
 
 // Simple printer.
 void rawprint(char const *msg) {
-    if (!msg)
-        return;
-    char prev = 0;
-    while (*msg) {
-        if (*msg == '\r') {
-            rawputc('\r');
-            rawputc('\n');
-        } else if (*msg == '\n') {
-            if (prev != '\r') {
-                rawputc('\r');
-                rawputc('\n');
-            }
-        } else {
-            rawputc(*msg);
-        }
-        prev = *msg;
-        msg++;
-    }
+    for (; *msg; msg++) rawputc(*msg);
 }
 
 // Simple printer.
 void rawputc(char msg) {
-    static bool    discon   = false;
-    timestamp_us_t timeout  = time_us() + 5000;
-    discon                 &= !(READ_REG(USB_JTAG_BASE + 4) & 2);
-    while (!discon && !(READ_REG(USB_JTAG_BASE + 4) & 2)) {
-        if (time_us() > timeout)
-            discon = true;
+    static char prev = 0;
+    if (msg == '\r') {
+        port_putc('\r');
+        port_putc('\n');
+    } else if (msg == '\n') {
+        if (prev != '\r') {
+            port_putc('\r');
+            port_putc('\n');
+        }
+    } else {
+        port_putc(msg);
     }
-    WRITE_REG(USB_JTAG_BASE, msg);
-    WRITE_REG(UART0_BASE, msg);
+    prev = msg;
 }
 
 // Bin 2 hex printer.

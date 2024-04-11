@@ -45,6 +45,7 @@ set(common_compiler_flags
     -std=gnu11                         # We use the C11 standard
     -fno-tree-loop-distribute-patterns # do not generate hidden calls to memset/memcpy
     -fpie -pie                         # Generate position-independent code
+    -fno-omit-frame-pointer            # Always use frame pointer
 )
 
 # we must pass the same options to GCC and LD when using LTO, as the linker will actually do the codegen
