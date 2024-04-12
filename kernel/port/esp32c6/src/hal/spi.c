@@ -122,7 +122,7 @@ void spi_controller_init(badge_err_t *ec, int spi_num, int sclk_pin, int mosi_pi
     };
 }
 
-static void _spi_controller_transfer(badge_err_t *ec, int spi_num, void *buf, size_t len) {
+static void s_spi_controller_transfer(badge_err_t *ec, int spi_num, void *buf, size_t len) {
     const int data_buf_len = sizeof(GPSPI2.data_buf);
     uint32_t words [data_buf_len/sizeof(GPSPI2.data_buf[0])];
 
@@ -165,14 +165,14 @@ void spi_controller_read(badge_err_t *ec, int spi_num, void *buf, size_t len) {
     GPSPI2.user.usr_mosi = 0;
     GPSPI2.user.usr_miso = 1;
 
-    _spi_controller_transfer(ec, spi_num, buf, len);
+    s_spi_controller_transfer(ec, spi_num, buf, len);
 }
 
 void spi_controller_write(badge_err_t *ec, int spi_num, void const *buf, size_t len) {
     GPSPI2.user.usr_mosi = 1;
     GPSPI2.user.usr_miso = 0;
 
-    _spi_controller_transfer(ec, spi_num, (void*) buf, len);
+    s_spi_controller_transfer(ec, spi_num, (void*) buf, len);
 }
 
 void spi_controller_transfer(badge_err_t *ec, int spi_num, void *buf, size_t len, bool fdx) {
@@ -180,5 +180,5 @@ void spi_controller_transfer(badge_err_t *ec, int spi_num, void *buf, size_t len
     GPSPI2.user.usr_miso = 1;
     GPSPI2.user.doutdin = fdx;
 
-    _spi_controller_transfer(ec, spi_num, buf, len);
+    s_spi_controller_transfer(ec, spi_num, buf, len);
 }

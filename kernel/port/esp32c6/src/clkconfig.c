@@ -263,7 +263,7 @@ static spi_clock_reg_t spi_clk_compute_div(uint32_t source_hz, uint32_t target_h
         }
         else if (target_hz < source_hz ) {
             logkf(LOG_DEBUG, "Finding optimal SPI clock pre-scaling");
-            int32_t best_err = target_hz; // assume worst possible
+            int32_t best_err = (int32_t) target_hz; // assume worst possible
 
             // Try to get the most counter resolution and lowest pre-divider
             for (uint32_t n = n_max; n >= 2; n--) {
@@ -276,7 +276,7 @@ static spi_clock_reg_t spi_clk_compute_div(uint32_t source_hz, uint32_t target_h
                 }
                 if (pre > pre_max) continue;
 
-                int32_t err = target_hz - (source_hz/n/pre);
+                int32_t err = (int32_t) target_hz - (int32_t) (source_hz/n/pre);
                 if (err < best_err) {
                     best_n = n;
                     best_pre = pre;
