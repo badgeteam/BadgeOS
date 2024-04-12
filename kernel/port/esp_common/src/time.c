@@ -26,10 +26,8 @@
 
 
 
-int         tint_count = 0;
 // Callback to the timer driver for when a timer alarm fires.
 static void timer_isr_timer_alarm() {
-    tint_count++;
     timer_alarm_disable(TIMER_SYSTICK_NUM);
     timer_int_clear(TIMER_SYSTICK_NUM);
     sched_request_switch_from_isr();

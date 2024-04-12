@@ -1,7 +1,8 @@
 
 // SPDX-License-Identifier: MIT
 
-#include "port/process/process.h"
+
+#include "process/process.h"
 
 #include "arrays.h"
 #include "badge_strings.h"
@@ -11,11 +12,13 @@
 #include "kbelf.h"
 #include "log.h"
 #include "malloc.h"
+#include "memprotect.h"
+#include "port/hardware_allocation.h"
 #include "port/port.h"
 #include "process/internal.h"
-#include "process/process.h"
 #include "process/types.h"
 #include "scheduler/types.h"
+#include "static-buddy.h"
 
 #include <stdatomic.h>
 
@@ -41,6 +44,7 @@ static bool        allow_proc1_death() {
 // Clean up: the housekeeping task.
 static void clean_up_from_housekeeping(int taskno, void *arg) {
     (void)taskno;
+    logk(LOG_DEBUG, "kaboom");
     proc_delete((pid_t)arg);
 }
 
@@ -55,7 +59,7 @@ void proc_exit_self(int code) {
     mutex_release(NULL, &process->mtx);
 
     // Add deleting runtime to the housekeeping list.
-    hk_add_once(0, clean_up_from_housekeeping, (void *)process->pid);
+    assert_always(hk_add_once(0, clean_up_from_housekeeping, (void *)process->pid) != -1);
 }
 
 
@@ -104,7 +108,7 @@ process_t *proc_create_raw(badge_err_t *ec) {
     pid_counter++;
 
     // Initialise the empty memory map.
-    assert_dev_drop(proc_mpu_gen(&handle->memmap));
+    memprotect_create(&handle->memmap.mpu_ctx);
 
     mutex_release(NULL, &proc_mtx);
     badge_err_set_ok(ec);
@@ -179,25 +183,29 @@ void proc_start_raw(badge_err_t *ec, process_t *process, char const *executable)
     mutex_acquire(NULL, &process->mtx, TIMESTAMP_US_MAX);
 
     // Load the executable.
-    logk(LOG_DEBUG, "Creating dynamic loader");
     kbelf_dyn dyn = kbelf_dyn_create(process->pid);
-    logk(LOG_DEBUG, "Adding executable");
-    if (!kbelf_dyn_set_exec(dyn, executable, NULL)) {
-        kbelf_dyn_destroy(dyn);
+    if (!dyn) {
+        logkf(LOG_ERROR, "Out of memory to start %{cs}", executable);
         mutex_release(NULL, &process->mtx);
-        badge_err_set(ec, ELOC_PROCESS, ECAUSE_UNKNOWN);
+        badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOMEM);
         return;
     }
-    logk(LOG_DEBUG, "Loading program");
+    if (!kbelf_dyn_set_exec(dyn, executable, NULL)) {
+        logkf(LOG_ERROR, "Failed to open %{cs}", executable);
+        kbelf_dyn_destroy(dyn);
+        mutex_release(NULL, &process->mtx);
+        badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOTFOUND);
+        return;
+    }
     if (!kbelf_dyn_load(dyn)) {
         kbelf_dyn_destroy(dyn);
+        logkf(LOG_ERROR, "Failed to load %{cs}", executable);
         mutex_release(NULL, &process->mtx);
         badge_err_set(ec, ELOC_PROCESS, ECAUSE_UNKNOWN);
         return;
     }
 
     // Create the process' main thread.
-    logk(LOG_DEBUG, "Creating main thread");
     sched_thread_t *thread = proc_create_thread_raw_unsafe(
         ec,
         process,
@@ -211,11 +219,11 @@ void proc_start_raw(badge_err_t *ec, process_t *process, char const *executable)
         mutex_release(NULL, &process->mtx);
         return;
     }
-    logk(LOG_DEBUG, "Starting main thread");
     port_fencei();
     atomic_store(&process->flags, PROC_RUNNING);
     sched_resume_thread(ec, thread);
     mutex_release(NULL, &process->mtx);
+    kbelf_dyn_destroy(dyn);
     logkf(LOG_INFO, "Process %{d} started", process->pid);
 }
 
@@ -247,6 +255,8 @@ sched_thread_t *proc_create_thread_raw_unsafe(
         free(kstack);
         return NULL;
     }
+    thread->user_isr_ctx.mpu_ctx   = &process->memmap.mpu_ctx;
+    thread->kernel_isr_ctx.mpu_ctx = &process->memmap.mpu_ctx;
 
     // Add the thread to the list.
     array_insert(process->threads, sizeof(sched_thread_t *), process->threads_len, &thread, process->threads_len);
@@ -282,7 +292,7 @@ static inline void proc_memmap_sort_raw(proc_memmap_t *memmap) {
 }
 
 // Allocate more memory to a process.
-size_t proc_map_raw(badge_err_t *ec, process_t *proc, size_t vaddr_req, size_t min_size, size_t min_align) {
+size_t proc_map_raw(badge_err_t *ec, process_t *proc, size_t vaddr_req, size_t min_size, size_t min_align, int flags) {
     (void)min_align;
     (void)vaddr_req;
 
@@ -292,27 +302,34 @@ size_t proc_map_raw(badge_err_t *ec, process_t *proc, size_t vaddr_req, size_t m
         return 0;
     }
 
-    void *base = malloc(min_size);
+    // Allocate memory to the process.
+    void *base = buddy_allocate(min_size, BLOCK_TYPE_USER, 0);
     if (!base) {
         badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOMEM);
         return 0;
     }
+    size_t size = buddy_get_size(base);
+    mem_set(base, 0, size);
 
+    // Update memory protection.
+    if (!memprotect(&map->mpu_ctx, (size_t)base, (size_t)base, size, flags & MEMPROTECT_FLAG_RWX)) {
+        buddy_deallocate(base);
+        badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOMEM);
+        return 0;
+    }
+
+    // Account the process's memory.
     map->regions[map->regions_len] = (proc_memmap_ent_t){
         .base  = (size_t)base,
-        .size  = (size_t)min_size,
+        .size  = size,
         .write = true,
         .exec  = true,
     };
     map->regions_len++;
     proc_memmap_sort_raw(map);
-    if (!proc_mpu_gen(map)) {
-        badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOMEM);
-        proc_unmap_raw(NULL, proc, (size_t)base);
-        return 0;
-    }
+    memprotect_commit(&map->mpu_ctx);
 
-    logkf(LOG_INFO, "Mapped %{size;d} bytes at %{size;x} to process %{d}", min_size, base, proc->pid);
+    logkf(LOG_INFO, "Mapped %{size;d} bytes at %{size;x} to process %{d}", size, base, proc->pid);
     badge_err_set_ok(ec);
     return (size_t)base;
 }
@@ -322,7 +339,9 @@ void proc_unmap_raw(badge_err_t *ec, process_t *proc, size_t base) {
     proc_memmap_t *map = &proc->memmap;
     for (size_t i = 0; i < map->regions_len; i++) {
         if (map->regions[i].base == base) {
-            free((void *)base);
+            assert_dev_drop(memprotect(&map->mpu_ctx, base, base, map->regions[i].size, 0));
+            memprotect_commit(&map->mpu_ctx);
+            buddy_deallocate((void *)base);
             array_remove(&map->regions[0], sizeof(map->regions[0]), map->regions_len, NULL, i);
             map->regions_len--;
             badge_err_set_ok(ec);
@@ -330,6 +349,46 @@ void proc_unmap_raw(badge_err_t *ec, process_t *proc, size_t base) {
         }
     }
     badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOTFOUND);
+}
+
+// Whether the process owns this range of memory.
+// Returns the lowest common denominator of the access bits bitwise or 8.
+int proc_map_contains_raw(process_t *proc, size_t base, size_t size) {
+    // Align to whole pages.
+    if (base % MEMMAP_PAGE_SIZE) {
+        size += base % MEMMAP_PAGE_SIZE;
+        base -= base % MEMMAP_PAGE_SIZE;
+    }
+    if (size % MEMMAP_PAGE_SIZE) {
+        size += MEMMAP_PAGE_SIZE - size % MEMMAP_PAGE_SIZE;
+    }
+
+    mutex_acquire_shared(NULL, &proc->mtx, TIMESTAMP_US_MAX);
+    int access = 7;
+    while (size) {
+        size_t i;
+        for (i = 0; i < proc->memmap.regions_len; i++) {
+            if (base >= proc->memmap.regions[i].base &&
+                base < proc->memmap.regions[i].base + proc->memmap.regions[i].size) {
+                goto found;
+            }
+        }
+
+        // This page is not in the region map.
+        mutex_release_shared(NULL, &proc->mtx);
+        return 0;
+
+    found:
+        // This page is in the region map.
+        if (proc->memmap.regions[i].size > size) {
+            // All pages found.
+            break;
+        }
+        base += proc->memmap.regions[i].size;
+        size += proc->memmap.regions[i].size;
+    }
+    mutex_release_shared(NULL, &proc->mtx);
+    return access | 8;
 }
 
 // Add a file to the process file handle list.
@@ -412,8 +471,8 @@ void proc_delete_runtime(process_t *process) {
     assert_always(mutex_acquire(NULL, &process->mtx, PROC_MTX_TIMEOUT));
     if (atomic_load(&process->flags) & PROC_EXITED) {
         // Already exited, return now.
-        return;
         mutex_release(NULL, &process->mtx);
+        return;
     } else {
         // Flag the scheduler to start suspending threads.
         atomic_fetch_or(&process->flags, PROC_EXITING);
@@ -480,6 +539,7 @@ void proc_delete(pid_t pid) {
     proc_delete_runtime(handle);
 
     // Release kernel memory allocated to process.
+    memprotect_destroy(&handle->memmap.mpu_ctx);
     free(handle->argv);
     free(handle);
     array_lencap_remove(&procs, sizeof(process_t), &procs_len, &procs_cap, NULL, res.index);
@@ -531,12 +591,12 @@ void proc_start(badge_err_t *ec, pid_t pid, char const *executable) {
 
 // Allocate more memory to a process.
 // Returns actual virtual address on success, 0 on failure.
-size_t proc_map(badge_err_t *ec, pid_t pid, size_t vaddr_req, size_t min_size, size_t min_align) {
+size_t proc_map(badge_err_t *ec, pid_t pid, size_t vaddr_req, size_t min_size, size_t min_align, int flags) {
     mutex_acquire_shared(NULL, &proc_mtx, TIMESTAMP_US_MAX);
     process_t *proc = proc_get(pid);
     size_t     res  = 0;
     if (proc) {
-        res = proc_map_raw(ec, proc, vaddr_req, min_size, min_align);
+        res = proc_map_raw(ec, proc, vaddr_req, min_size, min_align, flags);
     } else {
         badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOTFOUND);
     }
@@ -554,4 +614,20 @@ void proc_unmap(badge_err_t *ec, pid_t pid, size_t base) {
         badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOTFOUND);
     }
     mutex_release_shared(NULL, &proc_mtx);
+}
+
+// Whether the process owns this range of memory.
+// Returns the lowest common denominator of the access bits bitwise or 8.
+int proc_map_contains(badge_err_t *ec, pid_t pid, size_t base, size_t size) {
+    mutex_acquire_shared(NULL, &proc_mtx, TIMESTAMP_US_MAX);
+    process_t *proc = proc_get(pid);
+    int        ret  = 0;
+    if (proc) {
+        ret = proc_map_contains_raw(proc, base, size);
+        badge_err_set_ok(ec);
+    } else {
+        badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOTFOUND);
+    }
+    mutex_release_shared(NULL, &proc_mtx);
+    return ret;
 }

@@ -28,6 +28,7 @@ gdb:
 	$(MAKE) -C kernel gdb
 
 flash:
+	$(MAKE) -C files build
 	$(MAKE) -C kernel flash
 
 monitor:

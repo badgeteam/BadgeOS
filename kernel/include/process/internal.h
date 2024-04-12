@@ -44,9 +44,12 @@ sched_thread_t *proc_create_thread_raw_unsafe(
 void   proc_delete_thread_raw_unsafe(badge_err_t *ec, process_t *process, sched_thread_t *thread);
 // Allocate more memory to a process.
 // Returns actual virtual address on success, 0 on failure.
-size_t proc_map_raw(badge_err_t *ec, process_t *process, size_t vaddr_req, size_t min_size, size_t min_align);
+size_t proc_map_raw(badge_err_t *ec, process_t *process, size_t vaddr, size_t size, size_t align, int flags);
 // Release memory allocated to a process.
 void   proc_unmap_raw(badge_err_t *ec, process_t *process, size_t base);
+// Whether the process owns this range of memory.
+// Returns the lowest common denominator of the access bits bitwise or 8.
+int    proc_map_contains_raw(process_t *proc, size_t base, size_t size);
 // Add a file to the process file handle list.
 int    proc_add_fd_raw(badge_err_t *ec, process_t *process, file_t real);
 // Find a file in the process file handle list.

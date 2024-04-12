@@ -6,6 +6,8 @@
 #include "cpu/regs.h"
 
 #ifndef __ASSEMBLER__
+#include "memprotect.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -45,7 +47,8 @@ STRUCT_FIELD_WORD(isr_ctx_t, scratch2, 8)
 STRUCT_FIELD_WORD(isr_ctx_t, scratch3, 12)
 STRUCT_FIELD_WORD(isr_ctx_t, scratch4, 16)
 STRUCT_FIELD_WORD(isr_ctx_t, scratch5, 20)
-STRUCT_FIELD_WORD(isr_ctx_t, scratch6, 24)
+// Pointer to memory protection information.
+STRUCT_FIELD_PTR(isr_ctx_t, mpu_ctx_t, mpu_ctx, 28)
 // Frame pointer to use for backtraces.
 STRUCT_FIELD_PTR(isr_ctx_t, void, frameptr, 28)
 // Registers storage.

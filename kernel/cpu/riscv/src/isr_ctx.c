@@ -27,14 +27,34 @@ void kernel_reg_dump_arr(uint32_t const *arr) {
             rawprint(" 0x");
             rawprinthex(arr[y + x], 8);
         }
-        rawputc('\r');
         rawputc('\n');
     }
 }
 
+#define DUMP_CSR(name, id)                                                                                             \
+    {                                                                                                                  \
+        rawprint(name);                                                                                                \
+        long tmp;                                                                                                      \
+        asm("csrr %0, " #id : "=r"(tmp));                                                                              \
+        rawprinthex(tmp, sizeof(size_t) * 2);                                                                          \
+        rawputc('\n');                                                                                                 \
+    }
+
 // Print a register dump given isr_ctx_t.
 void isr_ctx_dump(isr_ctx_t const *ctx) {
     kernel_reg_dump_arr((uint32_t const *)&ctx->regs);
+    DUMP_CSR("  MSTATUS   ", mstatus)
+    DUMP_CSR("  MCAUSE    ", mcause)
+    DUMP_CSR("  PMPCFG0   ", pmpcfg0)
+    DUMP_CSR("  PMPCFG1   ", pmpcfg1)
+    DUMP_CSR("  PMPADDR0  ", pmpaddr0)
+    DUMP_CSR("  PMPADDR1  ", pmpaddr1)
+    DUMP_CSR("  PMPADDR2  ", pmpaddr2)
+    DUMP_CSR("  PMPADDR3  ", pmpaddr3)
+    DUMP_CSR("  PMPADDR4  ", pmpaddr4)
+    DUMP_CSR("  PMPADDR5  ", pmpaddr5)
+    DUMP_CSR("  PMPADDR6  ", pmpaddr6)
+    DUMP_CSR("  PMPADDR7  ", pmpaddr7)
 }
 
 

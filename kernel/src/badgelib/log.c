@@ -35,7 +35,7 @@ static char const *const colcode[] = {
     "\033[34m",
 };
 
-static char const *const term = "\033[0m\r\n";
+static char const *const term = "\033[0m\n";
 
 
 
@@ -159,7 +159,6 @@ void logk_hexdump_vaddr_from_isr(log_level_t level, char const *msg, void const 
                 rawputc('.');
             }
         }
-        rawputc('\r');
         rawputc('\n');
     }
     rawprint("\033[0m");

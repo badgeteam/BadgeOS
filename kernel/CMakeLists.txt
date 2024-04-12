@@ -109,13 +109,15 @@ add_executable(${target}
 )
 target_include_directories(${target} PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/include
+    ${CMAKE_CURRENT_LIST_DIR}/src/malloc
     ${CMAKE_CURRENT_LIST_DIR}/include/badgelib
+    ${CMAKE_CURRENT_LIST_DIR}/../common
     ${cpu_include}
     ${port_include}
 )
 
 # Add libraries.
-add_subdirectory(lib/kbelf)
+add_subdirectory(../lib/kbelf ${CMAKE_BINARY_DIR}/kbelf)
 target_compile_options(kbelf PRIVATE
     -include ${CMAKE_CURRENT_LIST_DIR}/include/loading/kbelf_pre.h
 )

@@ -104,7 +104,7 @@ void riscv_trap_handler() {
     asm volatile("csrr %0, mscratch" : "=r"(kctx));
 
     // Print privilige mode.
-    if (trap_depth == 0) {
+    if (trap_depth == 1) {
         if (mstatus & (3 << RISCV_STATUS_MPP_BASE_BIT)) {
             rawprint("Running in kernel mode");
             if (!kctx->is_kernel_thread) {
@@ -119,12 +119,12 @@ void riscv_trap_handler() {
     }
 
     // Print current process.
-    if (trap_depth == 0 && kctx->thread && !(kctx->thread->flags & THREAD_KERNEL)) {
+    if (trap_depth == 1 && kctx->thread && !(kctx->thread->flags & THREAD_KERNEL)) {
         rawprint(" in process ");
         rawprintdec(kctx->thread->process->pid, 1);
     }
     rawprint("\n");
-    if (trap_depth == 0) {
+    if (trap_depth == 1) {
         backtrace_from_ptr(kctx->frameptr);
     }
 
@@ -137,6 +137,7 @@ void riscv_trap_handler() {
         // When the user traps just stop the process.
         sched_raise_from_isr(false, kill_proc_on_trap);
     }
+    trap_depth--;
 }
 
 // Return a value from the syscall handler.

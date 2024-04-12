@@ -95,8 +95,6 @@ void basic_runtime_init() {
     // Announce that we're alive.
     logk(LOG_INFO, "BadgerOS starting...");
 
-    // Page allocator initialization.
-    // page_alloc_init();
     // Kernel memory allocator initialization.
     kernel_heap_init();
     // Memory protection initialization.
@@ -154,6 +152,7 @@ static void userland_init() {
     assert_dev_drop(pid == 1);
     proc_start(&ec, pid, "/sbin/init");
     badge_err_assert_always(&ec);
+    while (1) continue;
 }
 
 

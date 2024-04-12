@@ -64,7 +64,10 @@ add_executable(${target}
     ${CMAKE_CURRENT_LIST_DIR}/src/syscall.S
     ${CMAKE_CURRENT_LIST_DIR}/src/main.c
 )
-target_include_directories(${target} PUBLIC ${CMAKE_CURRENT_LIST_DIR}/src)
+target_include_directories(${target} PUBLIC
+    ${CMAKE_CURRENT_LIST_DIR}/src
+    ${CMAKE_CURRENT_LIST_DIR}/../../common
+)
 
 # Declare which files are installed to the output directory:
 install(TARGETS app.elf DESTINATION .)

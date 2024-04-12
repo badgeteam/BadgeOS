@@ -4,6 +4,7 @@
 #include "cpu/isr.h"
 #include "cpu/riscv.h"
     .global __global_pointer$
+    .global memprotect_swap_from_isr
 
 
 
@@ -214,6 +215,11 @@ isr_context_switch:
     
     # Switch context and set new privilege.
     lw t0, isr_ctx_t_ctxswitch(t0)
+    csrw mscratch, t0
+    
+    # Swap memory protection.
+    jal  memprotect_swap_from_isr
+    csrr t0, mscratch
     lw t1, isr_ctx_t_is_kernel_thread(t0)
     li t2, (3 << RISCV_STATUS_MPP_BASE_BIT)
     bnez t1, .isr_context_switch_do_m
@@ -274,7 +280,12 @@ __trap_asm:
     lw   t1, isr_ctx_t_ctxswitch(t0)
     beq  t1, x0, .__trap_asm_exit
     # Swap out the context pointer.
-    mv   t0, t1
+    csrr t0, mscratch
+    lw   t0, isr_ctx_t_ctxswitch(t0)
+    csrw mscratch, t0
+    # Swap memory protection.
+    jal  memprotect_swap_from_isr
+    csrr t0, mscratch
     # Set privilege level.
     lw   t2, isr_ctx_t_is_kernel_thread(t0)
     li   t3, 3 << RISCV_STATUS_MPP_BASE_BIT
@@ -330,7 +341,12 @@ __isr_asm:
     lw   t1, isr_ctx_t_ctxswitch(t0)
     beq  t1, x0, .__isr_asm_exit
     # Swap out the context pointer.
-    mv   t0, t1
+    csrr t0, mscratch
+    lw   t0, isr_ctx_t_ctxswitch(t0)
+    csrw mscratch, t0
+    # Swap memory protection.
+    jal  memprotect_swap_from_isr
+    csrr t0, mscratch
     # Set privilege level.
     lw   t2, isr_ctx_t_is_kernel_thread(t0)
     li   t3, 3 << RISCV_STATUS_MPP_BASE_BIT
@@ -346,7 +362,6 @@ __isr_asm:
     # This is an interrupt; restoring all registers is mandatory.
     restore_all_regs
     isr_exit
-#pragma endregion
     mret
     .cfi_endproc
 
