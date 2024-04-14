@@ -17,10 +17,10 @@ set(port_src
     ${CMAKE_CURRENT_LIST_DIR}/src/port.c
 )
 set(port_include
-    ${CMAKE_CURRENT_LIST_DIR}/include
-    ${CMAKE_CURRENT_LIST_DIR}/../esp_common/include
-    ${CMAKE_CURRENT_LIST_DIR}/../esp_common/esp-idf/components/soc/esp32p4/include
-    ${CMAKE_CURRENT_LIST_DIR}/../esp_common/esp-idf/components/soc/include
+    ${CMAKE_CURRENT_LIST_DIR}/include/
+    ${CMAKE_CURRENT_LIST_DIR}/../esp_common/include/
+    ${CMAKE_CURRENT_LIST_DIR}/../esp_common/esp-idf/components/soc/esp32p4/include/
+    ${CMAKE_CURRENT_LIST_DIR}/../esp_common/esp-idf/components/soc/include/
     ${CMAKE_CURRENT_LIST_DIR}/../esp_common/esp-idf/components/esp_rom/include/esp32p4/
 )
 set(port_link

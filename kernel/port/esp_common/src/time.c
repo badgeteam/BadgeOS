@@ -38,6 +38,9 @@ void time_init() {
     LP_WDT.wprotect.val = 0x50D83AA1;
     LP_WDT.config0.val  = 0;
 
+    TIMERG0.regclk.clk_en = true;
+    TIMERG1.regclk.clk_en = true;
+
     // Configure interrupts.
 #ifdef BADGEROS_PORT_esp32c6
 #if TIMER_SYSTICK_NUM / ESP_TIMG_TIMER_COUNT
@@ -102,7 +105,11 @@ void timer_set_freq(int timerno, frequency_hz_t freq) {
 // Start timer.
 void timer_start(int timerno) {
     GET_TIMER_INFO(timerno)
-    timg->hw_timer[timer].config.tx_en = true;
+    logkf_from_isr(LOG_DEBUG, "T%{d} config: %{u32;x}", timerno, timg->hw_timer[timer].config.val);
+    timg->hw_timer[timer].config.tx_divcnt_rst = false;
+    timg->hw_timer[timer].config.tx_increase   = true;
+    timg->hw_timer[timer].config.tx_en         = true;
+    logkf_from_isr(LOG_DEBUG, "T%{d} config: %{u32;x}", timerno, timg->hw_timer[timer].config.val);
 }
 
 // Stop timer.
@@ -114,12 +121,12 @@ void timer_stop(int timerno) {
 // Configure timer alarm.
 void timer_alarm_config(int timerno, int64_t threshold, bool reset_on_alarm) {
     GET_TIMER_INFO(timerno)
+    timg->hw_timer[timer].alarmlo.val = threshold;
+    timg->hw_timer[timer].alarmhi.val = threshold >> 32;
     timg_txconfig_reg_t tmp           = timg->hw_timer[timer].config;
     tmp.tx_autoreload                 = reset_on_alarm;
     tmp.tx_alarm_en                   = true;
     timg->hw_timer[timer].config      = tmp;
-    timg->hw_timer[timer].alarmlo.val = threshold;
-    timg->hw_timer[timer].alarmhi.val = threshold >> 32;
 }
 
 // Disable timer alarm.

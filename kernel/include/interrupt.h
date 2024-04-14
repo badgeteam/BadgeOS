@@ -21,9 +21,11 @@ void irq_ch_ack(int int_irq);
 
 // Enable/disable an internal interrupt on this CPU.
 // Returns whether the interrupt was enabled on this CPU.
-static inline bool irq_ch_enable(int int_irq, bool enable);
+bool irq_ch_enable(int int_irq, bool enable);
 // Query whether an internal interrupt is enabled on this CPU.
-static inline bool irq_ch_enabled(int int_irq);
+bool irq_ch_enabled(int int_irq);
+// Query whether an internal interrupt is pending.
+bool irq_ch_pending(int int_irq);
 
 // Set the interrupt service routine for an interrupt on this CPU.
 void irq_ch_set_isr(int int_irq, isr_t isr);

@@ -6,6 +6,7 @@
 #include "log.h"
 #include "port/pmu_init.h"
 #include "rom/cache.h"
+#include "soc/hp_sys_clkrst_struct.h"
 #include "soc/uart_struct.h"
 
 
