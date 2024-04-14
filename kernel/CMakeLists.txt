@@ -27,8 +27,8 @@ endif()
 
 # Determine the compiler prefix
 get_filename_component(compiler_name "${CMAKE_C_COMPILER}" NAME)
-string(REGEX MATCH "^([A-Za-z0-9_]+\-)*" BADGER_COMPILER_PREFIX "${compiler_name}") 
-find_program(BADGER_OBJCOPY NAMES "${BADGER_COMPILER_PREFIX}objcopy" REQUIRED)  
+string(REGEX MATCH "^([A-Za-z0-9_]+\-)*" BADGER_COMPILER_PREFIX "${compiler_name}")
+find_program(BADGER_OBJCOPY NAMES "${BADGER_COMPILER_PREFIX}objcopy" REQUIRED)
 find_program(BADGER_OBJDUMP NAMES "${BADGER_COMPILER_PREFIX}objdump" REQUIRED)
 
 # Include port-specific.
@@ -38,8 +38,9 @@ include(cpu/riscv/CMakeLists.txt)
 # LTO is disabled due to GCC bugs inserting calls to memcpy everywhere
 set(common_compiler_flags
     -ffreestanding                     # We do not compile against an OS.
+    -static -fno-pic                   # Disable PIC
     -march=${target_arch}              # Selects the target CPU.
-    -mabi=${target_abi}                # Selects target ABI 
+    -mabi=${target_abi}                # Selects target ABI
     -nodefaultlibs -nostdlib           # Do not link any default libraries like libgcc or libc.
     -O2                                # Optimize the code.
     -ggdb                              # Generate debug information in default extended format.
@@ -141,7 +142,7 @@ add_custom_command(
 # Proxy target to allow installation of the bin file
 add_custom_target(badger-os.bin.target ALL DEPENDS badger-os.bin)
 
-# Also build a dump file that is put into the 
+# Also build a dump file that is put into the
 add_custom_target(
     badger-os.elf.disasm
     ALL
