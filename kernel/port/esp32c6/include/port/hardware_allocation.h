@@ -34,11 +34,9 @@
 /* ==== Timers ==== */
 
 // Number of usable hardware timers.
-#define TIMER_COUNT        2
+#define TIMER_COUNT        4
 // Timer used for system timekeeping.
 #define TIMER_SYSTICK_NUM  0
-// Timer used for preempting.
-#define TIMER_PREEMPT_NUM  0
 // System tick rate in Hz.
 #define TIMER_SYSTICK_RATE 1000000
 
@@ -68,18 +66,6 @@
 #define PMP_ENTRY_FLASH_WP_NAPOT     15
 // NAPOT PMP entry for U-mode global permissions.
 #define PMP_ENTRY_USER_GLOBAL_NAPOT  11
-// Base PMP entry for external RAM assigned to userland.
-#define PMP_ENTRY_USER_EXTRAM_BASE   4
-// TOR PMP entry for external RAM assigned to userland.
-#define PMP_ENTRY_USER_EXTRAM_TOR    5
-// Base PMP entry for SRAM assigned to userland.
-#define PMP_ENTRY_USER_SRAM_BASE     6
-// TOR PMP entry for SRAM assigned to userland.
-#define PMP_ENTRY_USER_SRAM_TOR      7
-// Base PMP entry for SRAM assigned to userland.
-#define PMP_ENTRY_USER_FLASH_BASE    8
-// TOR PMP entry for SRAM assigned to userland.
-#define PMP_ENTRY_USER_FLASH_TOR     9
 
 // Kernel supports virtual memory.
 #define MEMMAP_VMEM             0

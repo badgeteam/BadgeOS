@@ -24,7 +24,7 @@
 
 
 /// Returns non-0 value if `V` is aligned to `A`.
-#define is_aligned(V, A) (((V) & ((A)-1)) == 0)
+#define is_aligned(V, A) (((V) & ((A) - 1)) == 0)
 
 #define is_flag_set(C, F) (((C) & (F)) != 0)
 #define reset_flag(C, F)  ((C) &= ~(F))
@@ -328,6 +328,7 @@ pop_thread:
             isr_ctx_switch_set(&next_thread->kernel_isr_ctx);
         } else {
             if (proc_getflags_raw(next_thread->process) & PROC_EXITING) {
+                logkf_from_isr(LOG_WARN, "Removing thread %{zx}", next_thread);
                 // If a thread's process is exiting, suspend it and get the next one instead.
                 reset_flag(next_thread->flags, THREAD_RUNNING);
                 goto pop_thread;
@@ -362,7 +363,7 @@ sched_thread_t *sched_create_userland_thread(
 ) {
     size_t const kernel_stack_bottom_addr = (size_t)kernel_stack_bottom;
 
-    // assert_dev_drop(process != NULL);
+    assert_dev_drop(process != NULL);
     assert_dev_drop(entry_point != NULL);
     assert_dev_drop(is_aligned(kernel_stack_bottom_addr, STACK_ALIGNMENT));
     assert_dev_drop(is_aligned(stack_size, STACK_ALIGNMENT));

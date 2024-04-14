@@ -32,3 +32,6 @@
 
 // Packed struct (don't add padding to align fields).
 #define PACKED __attribute__((packed))
+
+// Function written in assembly.
+#define NAKED __attribute__((naked))

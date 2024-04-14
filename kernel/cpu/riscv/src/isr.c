@@ -3,6 +3,7 @@
 
 #include "cpu/isr.h"
 
+#include "backtrace.h"
 #include "cpu/isr_ctx.h"
 #include "cpu/panic.h"
 #include "log.h"
@@ -24,7 +25,7 @@ static char const *const trapnames[] = {
     "Load access fault",
     "Store address misaligned",
     "Store access fault",
-    "ECALL from U-mode",
+    NULL, // "ECALL from U-mode",
     "ECALL from S-mode",
     NULL, // Reserved
     "ECALL from M-mode",
@@ -48,20 +49,34 @@ static void kill_proc_on_trap() {
 }
 
 // Called from ASM on non-system call trap.
-void __trap_handler() {
+void riscv_trap_handler() {
+    // TODO: Per-CPU double trap detection.
+    static int trap_depth = 0;
+
     uint32_t mcause, mstatus, mtval, mepc;
     asm volatile("csrr %0, mstatus" : "=r"(mstatus));
     asm volatile("csrr %0, mcause" : "=r"(mcause));
 
-    if (mcause == RV_TRAP_U_ECALL) {
+    trap_depth++;
+    if ((mcause & 31) == RISCV_TRAP_U_ECALL) {
         // ECALL from U-mode goes to system call handler instead of trap handler.
-        sched_raise_from_isr(true, __syscall_handler);
+        sched_raise_from_isr(true, syscall_handler);
+        trap_depth--;
         return;
     }
 
+    // Unhandled trap.
+    rawprint("\033[0m");
+    if (trap_depth >= 3) {
+        rawprint("**** TRIPLE FAULT ****\n");
+        panic_poweroff();
+    } else if (trap_depth == 2) {
+        rawprint("**** DOUBLE FAULT ****\n");
+    }
+
     // Print trap name.
-    if (mcause < TRAPNAMES_LEN && trapnames[mcause]) {
-        rawprint(trapnames[mcause]);
+    if ((mcause & 31) < TRAPNAMES_LEN && trapnames[mcause & 31]) {
+        rawprint(trapnames[mcause & 31]);
     } else {
         rawprint("Trap 0x");
         rawprinthex(mcause, 8);
@@ -74,44 +89,59 @@ void __trap_handler() {
 
     // Print trap value.
     asm volatile("csrr %0, mtval" : "=r"(mtval));
-    if (mtval && ((1 << mcause) & MEM_ADDR_TRAPS)) {
+    if (mtval && ((1 << (mcause & 31)) & MEM_ADDR_TRAPS)) {
         rawprint(" while accessing 0x");
+        rawprinthex(mtval, 8);
+    } else if (mtval && (mcause & 31) == RISCV_TRAP_IILLEGAL) {
+        rawprint(" while decoding 0x");
         rawprinthex(mtval, 8);
     }
 
     rawputc('\r');
     rawputc('\n');
 
-    // Print privilige mode.
-    if (mstatus & (3 << RV32_MSTATUS_MPP_BASE_BIT)) {
-        rawprint("Running in kernel mode");
-    } else {
-        rawprint("Running in user mode");
-    }
-
     isr_ctx_t *kctx;
     asm volatile("csrr %0, mscratch" : "=r"(kctx));
 
+    // Print privilige mode.
+    if (trap_depth == 1) {
+        if (mstatus & (3 << RISCV_STATUS_MPP_BASE_BIT)) {
+            rawprint("Running in kernel mode");
+            if (!kctx->is_kernel_thread) {
+                rawprint(" (despite is_kernel_thread=0)");
+            }
+        } else {
+            rawprint("Running in user mode");
+            if (kctx->is_kernel_thread) {
+                rawprint(" (despite is_kernel_thread=1)");
+            }
+        }
+    }
+
     // Print current process.
-    if (!(kctx->thread->flags & THREAD_KERNEL)) {
+    if (trap_depth == 1 && kctx->thread && !(kctx->thread->flags & THREAD_KERNEL)) {
         rawprint(" in process ");
         rawprintdec(kctx->thread->process->pid, 1);
     }
     rawprint("\n");
+    if (trap_depth == 1) {
+        backtrace_from_ptr(kctx->frameptr);
+    }
 
     isr_ctx_dump(kctx);
 
-    if (mstatus & (3 << RV32_MSTATUS_MPP_BASE_BIT)) {
+    if (mstatus & (3 << RISCV_STATUS_MPP_BASE_BIT) || trap_depth > 1) {
         // When the kernel traps it's a bad time.
         panic_poweroff();
     } else {
         // When the user traps just stop the process.
         sched_raise_from_isr(false, kill_proc_on_trap);
     }
+    trap_depth--;
 }
 
 // Return a value from the syscall handler.
-void __syscall_return(long long value) {
+void syscall_return(long long value) {
     isr_global_disable();
     isr_ctx_t *usr  = &isr_ctx_get()->thread->user_isr_ctx;
     usr->regs.a0    = value;

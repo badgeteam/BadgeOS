@@ -4,10 +4,49 @@
 #include "filesystem/vfs_fat.h"
 
 // Try to mount a FAT filesystem.
-void vfs_fat_mount(badge_err_t *ec, vfs_t *vfs);
+void vfs_fat_mount(badge_err_t *ec, vfs_t *vfs) {
+    // Read BPB
+    fat_bpb_t bpb;
+    uint32_t root_dir_sectors, sectors_per_fat, total_sectors, data_sector_cnt, cluster_count, first_data_sector;
+    blkdev_read_partial(ec, vfs->media, 0, 0, (void *)&bpb, sizeof(fat_bpb_t));
+    
+    // Determine FAT type
+    // Root Entry Count is 0 on FAT32
+    if(bpb.root_entry_count == 0) {
+        fat32_header_t fat32_header;
+        root_dir_sectors = 0;
+        blkdev_read_partial(ec, vfs->media, 0, 36, (void *)&fat32_header, sizeof(fat32_header_t));
+        sectors_per_fat = fat32_header.sectors_per_fat_32;
+        total_sectors = bpb.sector_count_32;
+        data_sector_cnt = total_sectors - (bpb.reserved_sector_count + (bpb.fat_count * sectors_per_fat));
+    }
+    else {
+        // FAT12/FAT16
+        fat16_header_t fat16_header;
+        root_dir_sectors = ((bpb.root_entry_count * 32) + (bpb.bytes_per_sector - 1)) / bpb.bytes_per_sector;
+        blkdev_read_partial(ec, vfs->media, 0, 36, (void *)&fat16_header, sizeof(fat16_header_t));
+        sectors_per_fat = bpb.sectors_per_fat_16;
+        total_sectors = bpb.sector_count_16;
+        data_sector_cnt = total_sectors - (bpb.reserved_sector_count + (bpb.fat_count * sectors_per_fat) + root_dir_sectors);
+    }
+    
+    // Calculate some parameters
+    cluster_count = data_sector_cnt / bpb.sectors_per_cluster;
+    first_data_sector = bpb.reserved_sector_count + (bpb.fat_count * sectors_per_fat) + root_dir_sectors;
+    
+    // Store disk parameters
+    vfs->type                    = FS_TYPE_FAT;
+    vfs->fat.bytes_per_sector    = bpb.bytes_per_sector;
+    vfs->fat.sectors_per_cluster = bpb.sectors_per_cluster;
+    vfs->fat.data_sector         = first_data_sector;
+    vfs->fat.fat_sector          = bpb.reserved_sector_count;
+    vfs->fat.cluster_count       = cluster_count;
+}
 
 // Unmount a FAT filesystem.
-void vfs_fat_umount(vfs_t *vfs);
+void vfs_fat_umount(vfs_t *vfs) {
+
+}
 
 // Identify whether a block device contains a FAT filesystem.
 // Returns false on error.

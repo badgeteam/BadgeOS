@@ -401,7 +401,7 @@ void fs_mount(badge_err_t *ec, fs_type_t type, blkdev_t *media, char const *moun
 
     // Delegate to filesystem-specific mount.
     switch (type) {
-        // case FS_TYPE_FAT: vfs_fat_mount(ec, &vfs_table[vfs_index]); break;
+        case FS_TYPE_FAT: vfs_fat_mount(ec, &vfs_table[vfs_index]); break;
         case FS_TYPE_RAMFS: vfs_ramfs_mount(ec, &vfs_table[vfs_index]); break;
         default: badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_PARAM); break;
     }
@@ -450,7 +450,7 @@ void fs_umount(badge_err_t *ec, char const *mountpoint) {
 
     // Delegate to filesystem-specific mount.
     switch (vfs_table[vfs_index].type) {
-        // case FS_TYPE_FAT: vfs_fat_umount(&vfs_table[vfs_index]); break;
+        case FS_TYPE_FAT: vfs_fat_umount(&vfs_table[vfs_index]); break;
         case FS_TYPE_RAMFS: vfs_ramfs_umount(&vfs_table[vfs_index]); break;
         default: __builtin_unreachable();
     }
@@ -464,12 +464,12 @@ void fs_umount(badge_err_t *ec, char const *mountpoint) {
 // Returns `FS_TYPE_UNKNOWN` on error or if the filesystem is unknown.
 fs_type_t fs_detect(badge_err_t *ec, blkdev_t *media) {
     (void)media;
-    // if (vfs_fat_detect(ec, media)) {
-    //     return FS_TYPE_FAT;
-    // } else {
+    if (vfs_fat_detect(ec, media)) {
+         return FS_TYPE_FAT;
+    } else {
     badge_err_set_ok(ec);
     return FS_TYPE_UNKNOWN;
-    // }
+    }
 }
 
 

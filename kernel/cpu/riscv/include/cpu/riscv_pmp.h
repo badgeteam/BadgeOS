@@ -324,7 +324,7 @@ typedef union {
         // Address matching mode.
         uint8_t addr_match_mode : 2;
         // Reserved; set to 0.
-        uint8_t _reserved       : 2;
+        uint8_t                 : 2;
         // Lock and apply to M-mode accesses.
         uint8_t lock            : 1;
     };

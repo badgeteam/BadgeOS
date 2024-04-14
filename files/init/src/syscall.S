@@ -43,3 +43,15 @@ syscall_fs_getdents:
     li a7, SYSCALL_FS_GETDENTS
     ecall
     ret
+
+    .global syscall_mem_alloc
+syscall_mem_alloc:
+    li a7, SYSCALL_MEM_ALLOC
+    ecall
+    ret
+
+    .global syscall_mem_dealloc
+syscall_mem_dealloc:
+    li a7, SYSCALL_MEM_DEALLOC
+    ecall
+    ret

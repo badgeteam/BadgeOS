@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 
-import sys, re, subprocess, io
+import sys, re, subprocess, io, time
 
 file_name = "build/badger-os.elf"
 
@@ -67,7 +67,6 @@ sys.stdin = io.TextIOWrapper(sys.stdin.buffer, errors="ignore")
 
 for line in sys.stdin:
     line = matcher.sub(addr2line, line.rstrip())
-
     sys.stdout.write(line + "\r\n")
 
 sys.stdout.write("\n")

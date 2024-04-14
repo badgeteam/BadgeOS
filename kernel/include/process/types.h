@@ -3,12 +3,11 @@
 
 #pragma once
 
-#include "cpu/process/types.h"
 #include "filesystem.h"
 #include "kbelf.h"
+#include "memprotect.h"
 #include "mutex.h"
 #include "port/hardware_allocation.h"
-#include "port/process/types.h"
 #include "scheduler/scheduler.h"
 
 #include <stdbool.h>
@@ -34,7 +33,7 @@ typedef struct {
 // Process memory map information.
 typedef struct proc_memmap_t {
     // Memory management cache.
-    proc_mpu_t        mpu;
+    mpu_ctx_t         mpu_ctx;
     // Number of mapped regions.
     size_t            regions_len;
     // Mapped regions.

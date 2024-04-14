@@ -14,11 +14,10 @@ typedef bool (*format_str_cb_t)(char const *msg, size_t len, void *cookie);
 // Format a string and output characters via callback.
 //
 // Format string types:
-//   %%         - Print a literal % character.
-//   %{cs}      - Print a C-String; alias for `%{char;c;nul}`.
-//   %{ls}      - Print a pointer/length string; alias for `%{char;c;array}`.
-//   %{<type;><format><;multiple><;joiner>}
-//              - General format string; type and multiple are optional.
+//   %%                                     - Print a literal % character.
+//   %{cs}                                  - Print a C-String; alias for `%{char;c;nul}`.
+//   %{ls}                                  - Print a pointer/length string; alias for `%{char;c;array}`.
+//   %{<type;><format><;multiple><;joiner>} - General format string; type and multiple are optional.
 //
 // Format specifiers:
 //   d - Print decimal.

@@ -91,7 +91,7 @@ bool kbelfx_seg_alloc(kbelf_inst inst, size_t segs_len, kbelf_segment *segs) {
         logkf(LOG_DEBUG, "Segment %{size;d}: %{size;x} - %{size;x}", i, start, end);
     }
 
-    size_t vaddr_real = proc_map_raw(NULL, proc, min_addr, max_addr - min_addr, min_align);
+    size_t vaddr_real = proc_map_raw(NULL, proc, min_addr, max_addr - min_addr, min_align, MEMPROTECT_FLAG_RWX);
     if (!vaddr_real)
         return false;
 

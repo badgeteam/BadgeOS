@@ -4,6 +4,7 @@
 #include "port/clkconfig.h"
 
 #include "attributes.h"
+#include "log.h"
 #include "port/hardware.h"
 
 // UART0 configuration register (Access: R/W)
@@ -154,9 +155,9 @@
 #define PCR_DATE_REG                       (PCR_BASE + 0x0FFC)
 
 // Reset bit for PCR_*_CONF_REG.
-#define PCR_CONF_RESET_BIT  0x0001
+#define PCR_CONF_RESET_BIT  0x0002
 // Enable bit for PCR_*_CONF_REG.
-#define PCR_CONF_ENABLE_BIT 0x0002
+#define PCR_CONF_ENABLE_BIT 0x0001
 
 // Enable bit for PCR_*_SCLK_CONF_REG.
 #define PCR_CONF_SCLK_ENABLE_BIT   0x00400000
@@ -207,13 +208,13 @@ static uint32_t clk_compute_div(uint32_t source_hz, uint32_t target_hz) {
     // Closest found error.
     int32_t      closest_err = INT32_MAX;
     // Closest found denominator.
-    uint_fast8_t closest_den = 0;
+    uint_fast8_t closest_den = 2;
     // Closest found numerator.
     uint_fast8_t closest_num = 0;
 
     // Perform a search.
     for (uint_fast8_t num = 2; num < 64; num++) {
-        uint_fast8_t den  = (fractional * num) >> 24;
+        uint_fast8_t den  = ((uint64_t)fractional * num) >> 24;
         uint32_t     frac = (den << 24) / num;
         int32_t      err  = (int32_t)(frac - fractional);
         if (err < 0)
@@ -233,6 +234,8 @@ static uint32_t clk_compute_div(uint32_t source_hz, uint32_t target_hz) {
 // Configure I2C0 clock.
 void clkconfig_i2c0(uint32_t freq_hz, bool enable, bool reset) {
     // I2C0 is configured on XTAL_CLK.
-    WRITE_REG(PCR_I2C_SCLK_CONF_REG, enable * PCR_CONF_SCLK_ENABLE_BIT + clk_compute_div(FREQ_XTAL_CLK, freq_hz));
     WRITE_REG(PCR_I2C_CONF_REG, PCR_CONF_ENABLE_BIT + reset * PCR_CONF_RESET_BIT);
+    WRITE_REG(PCR_I2C_SCLK_CONF_REG, enable * PCR_CONF_SCLK_ENABLE_BIT + clk_compute_div(FREQ_XTAL_CLK, freq_hz));
+    logkf(LOG_DEBUG, "PCR_I2C_CONF_REG:      %{u32;x}", READ_REG(PCR_I2C_CONF_REG));
+    logkf(LOG_DEBUG, "PCR_I2C_SCLK_CONF_REG: %{u32;x}", READ_REG(PCR_I2C_SCLK_CONF_REG));
 }

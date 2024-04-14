@@ -105,7 +105,7 @@
 
 #define BADGEROS_MALLOC_DEBUG_MSG(level, format, ...)                                                                  \
     do {                                                                                                               \
-        logkf(level, FMT_S " " FMT_S "():" FMT_D ": " format, __FILE__, __func__, __LINE__, ##__VA_ARGS__);            \
+        logkf(level, FMT_S "():" FMT_D ": " format, __func__, __LINE__, ##__VA_ARGS__);                                \
     } while (0)
 
 #define BADGEROS_MALLOC_ASSERT_ERROR(cond, format, ...) BADGEROS_MALLOC_ASSERT(cond, LOG_FATAL, format, ##__VA_ARGS__)
