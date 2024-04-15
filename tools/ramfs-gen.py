@@ -36,15 +36,16 @@ def add_rom(path, virtpath, name):
     global roms, files
     infd = open(path, "rb")
     data = infd.read()
-    roms += "static uint8_t const {}[] = {{\n    ".format(name)
+    roms += "uint8_t const {}[] = {{\n    ".format(name)
     for byte in data:
         roms += "0x{:02x},".format(byte)
     roms += "\n};\n"
-    roms += "static size_t const {}_len = {};\n".format(name, len(data))
+    roms += "size_t const {}_len = {};\n".format(name, len(data))
     files += "    fd = fs_open(&ec, \"{}\", OFLAGS_CREATE | OFLAGS_WRITEONLY);\n".format(escape(virtpath))
     files += "    badge_err_assert_dev(&ec);\n"
-    files += "    fs_write(&ec, fd, {}, {}_len);\n".format(name, name)
+    files += "    len = fs_write(&ec, fd, {}, {}_len);\n".format(name, name)
     files += "    badge_err_assert_dev(&ec);\n"
+    files += "    assert_dev_drop(len == {}_len);\n".format(name)
     files += "    fs_close(&ec, fd);\n"
     files += "    badge_err_assert_dev(&ec);\n"
     infd.close()
@@ -67,6 +68,7 @@ outfd.write(roms)
 outfd.write("void {}() {{\n".format(sys.argv[3]))
 outfd.write("    badge_err_t ec = {0};\n")
 outfd.write("    file_t fd;\n")
+outfd.write("    fileoff_t len;\n")
 outfd.write(dirs)
 outfd.write(files)
 outfd.write("}\n")

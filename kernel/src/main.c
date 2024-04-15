@@ -95,6 +95,10 @@ extern intmtx_t INTMTX0;
         logkf(LOG_DEBUG, "CSR " #name ": %{long;x}", tmp);                                                             \
     }
 
+uint64_t const deadbeef = 0xdeadbeeff00dbabe;
+
+#include "filesystem/vfs_ramfs.h"
+
 // After control handover, the booting CPU core starts here and other cores wait.
 // This sets up the basics of everything needed by the other systems of the kernel.
 // When finished, the booting CPU will perform kernel initialization.
@@ -128,7 +132,7 @@ void basic_runtime_init() {
     timer_int_enable(1, true);
     irq_enable(true);
     asm("csrs mie, %0" ::"r"(0xffffffff));
-    while (timer_value_get(1) < 500000);
+    while (timer_value_get(1) < 500000) continue;
     logk(LOG_DEBUG, "Interrupt should have fired");
     logkf(
         LOG_DEBUG,
@@ -152,7 +156,11 @@ void basic_runtime_init() {
     DUMP_CSR(mie)
     DUMP_CSR(mtvec)
 
-    while (1);
+    // while (1);
+    logkf(LOG_DEBUG, "%{u64;x}", deadbeef);
+    extern uint8_t filerom_0[];
+    logkf(LOG_DEBUG, "0x%{size;x}", filerom_0);
+    logk_hexdump(LOG_DEBUG, "/sbin/init", filerom_0, 8);
 
     // Scheduler initialization.
     sched_init();
