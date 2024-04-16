@@ -62,7 +62,7 @@ else()
 message("Building in debug mode")
 set(common_compiler_flags ${common_compiler_flags}
     -fsanitize=undefined               # Adds sanitizer for undefined behaviour.
-    -fsanitize-undefined-trap-on-error # Invoke a trap instruction instead of calling into the UBsan runtime.
+    -fsanitize-trap=all
 )
 endif()
 

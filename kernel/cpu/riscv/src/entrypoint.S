@@ -23,6 +23,7 @@
 	.global __stack_bottom
 	.global __stack_size
 	.equ __stack_size, 8192
+	# .equ __stack_size, 1500*16
 	.lcomm __stack_bottom, __stack_size
 	.equ __stack_top, __stack_bottom + __stack_size
 

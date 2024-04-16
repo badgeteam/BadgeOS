@@ -49,7 +49,7 @@ int hk_task_time_cmp(void const *a, void const *b) {
 
 
 // Stack for the housekeeping thread.
-static uint8_t         hk_stack[8192];
+static uint8_t         hk_stack[8192] ALIGNED_TO(16);
 // The housekeeping thread handle.
 static sched_thread_t *hk_thread;
 // Task mutex.

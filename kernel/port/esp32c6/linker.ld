@@ -110,6 +110,7 @@ PROVIDE(CLINT_U = 0x20001C00);
 		__start_init_array = .;
 		KEEP(*(.init_array))
 		__stop_init_array = .;
+		. = ALIGN(__section_alignment);
 	} :rodataseg
 	.rodata : AT(LOADADDR(.init_array) + SIZEOF(.init_array)) {
 		*(.rodata) *(.rodata*)

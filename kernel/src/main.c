@@ -98,6 +98,7 @@ extern intmtx_t INTMTX0;
 uint64_t const deadbeef = 0xdeadbeeff00dbabe;
 
 #include "filesystem/vfs_ramfs.h"
+#include "soc/spi_mem_struct.h"
 
 // After control handover, the booting CPU core starts here and other cores wait.
 // This sets up the basics of everything needed by the other systems of the kernel.
@@ -159,8 +160,12 @@ void basic_runtime_init() {
     // while (1);
     logkf(LOG_DEBUG, "%{u64;x}", deadbeef);
     extern uint8_t filerom_0[];
-    logkf(LOG_DEBUG, "0x%{size;x}", filerom_0);
-    logk_hexdump(LOG_DEBUG, "/sbin/init", filerom_0, 8);
+    // logkf(LOG_DEBUG, "0x%{size;x}", filerom_0);
+    // logkf(LOG_DEBUG, "/sbin/init\n%{u8;x;arr}", filerom_0, (size_t)64);
+    logkf(LOG_DEBUG, "0x%{u8;x}", filerom_0[0]);
+    logkf(LOG_DEBUG, "0x%{u8;x}", filerom_0[1]);
+    logkf(LOG_DEBUG, "0x%{u8;x}", filerom_0[2]);
+    logkf(LOG_DEBUG, "0x%{u8;x}", filerom_0[3]);
 
     // Scheduler initialization.
     sched_init();
