@@ -328,7 +328,6 @@ pop_thread:
             isr_ctx_switch_set(&next_thread->kernel_isr_ctx);
         } else {
             if (proc_getflags_raw(next_thread->process) & PROC_EXITING) {
-                logkf_from_isr(LOG_WARN, "Removing thread %{zx}", next_thread);
                 // If a thread's process is exiting, suspend it and get the next one instead.
                 reset_flag(next_thread->flags, THREAD_RUNNING);
                 goto pop_thread;

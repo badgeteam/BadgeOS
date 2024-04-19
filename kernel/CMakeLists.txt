@@ -40,7 +40,6 @@ set(common_compiler_flags
     -ffreestanding                     # We do not compile against an OS.
     -static -fno-pic                   # Disable PIC
     -fno-exceptions
-    -fno-stack-protector
     -march=${target_arch}              # Selects the target CPU.
     -mabi=${target_abi}                # Selects target ABI
     -nodefaultlibs -nostdlib           # Do not link any default libraries like libgcc or libc.
