@@ -74,7 +74,7 @@ void hk_thread_func(void *ignored) {
             if (task.interval > 0 && task.next_time <= TIMESTAMP_US_MAX - task.interval) {
                 // Repeated tasks get put back into the queue.
                 task.next_time += task.interval;
-                array_sorted_insert(queue, sizeof(taskent_t), queue_len, &task, hk_task_time_cmp);
+                array_sorted_insert(queue, sizeof(taskent_t), queue_len - 1, &task, hk_task_time_cmp);
             } else {
                 // One-time tasks are removed.
                 queue_len--;

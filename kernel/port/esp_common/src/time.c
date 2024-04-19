@@ -43,14 +43,13 @@ void time_init() {
 
     // Configure interrupts.
 #ifdef BADGEROS_PORT_esp32c6
-#if TIMER_SYSTICK_NUM / ESP_TIMG_TIMER_COUNT
-    irq_ch_route(EXT_IRQ_TG1_T0_INTR, INT_CHANNEL_TIMER_ALARM);
-#else
     irq_ch_route(EXT_IRQ_TG0_T0_INTR, INT_CHANNEL_TIMER_ALARM);
+#endif
+#ifdef BADGEROS_PORT_esp32p4
+    irq_ch_route(ETS_TG0_T0_INTR_SOURCE, INT_CHANNEL_TIMER_ALARM);
 #endif
     irq_ch_set_isr(INT_CHANNEL_TIMER_ALARM, timer_isr_timer_alarm);
     irq_ch_enable(INT_CHANNEL_TIMER_ALARM, true);
-#endif
 
     // Configure SYSTICK timer.
     timer_set_freq(TIMER_SYSTICK_NUM, TIMER_SYSTICK_RATE);
@@ -105,11 +104,9 @@ void timer_set_freq(int timerno, frequency_hz_t freq) {
 // Start timer.
 void timer_start(int timerno) {
     GET_TIMER_INFO(timerno)
-    logkf_from_isr(LOG_DEBUG, "T%{d} config: %{u32;x}", timerno, timg->hw_timer[timer].config.val);
     timg->hw_timer[timer].config.tx_divcnt_rst = false;
     timg->hw_timer[timer].config.tx_increase   = true;
     timg->hw_timer[timer].config.tx_en         = true;
-    logkf_from_isr(LOG_DEBUG, "T%{d} config: %{u32;x}", timerno, timg->hw_timer[timer].config.val);
 }
 
 // Stop timer.

@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 // Interrupt map register.
-typedef struct {
+typedef union {
     struct {
         // Mapped interrupt signal.
         uint32_t map : 6;

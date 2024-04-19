@@ -7,6 +7,7 @@
 #include "cpu/isr_ctx.h"
 #include "cpu/panic.h"
 #include "log.h"
+#include "port/hardware.h"
 #include "process/internal.h"
 #include "process/types.h"
 #include "rawprint.h"
@@ -53,12 +54,16 @@ void riscv_trap_handler() {
     // TODO: Per-CPU double trap detection.
     static int trap_depth = 0;
 
-    uint32_t mcause, mstatus, mtval, mepc;
-    asm volatile("csrr %0, mstatus" : "=r"(mstatus));
+    long mcause, mstatus, mtval, mepc;
     asm volatile("csrr %0, mcause" : "=r"(mcause));
+    if (mcause < 0) {
+        riscv_interrupt_handler();
+        return;
+    }
+    asm volatile("csrr %0, mstatus" : "=r"(mstatus));
 
     trap_depth++;
-    if ((mcause & 31) == RISCV_TRAP_U_ECALL) {
+    if ((mcause & RISCV_VT_ICAUSE_MASK) == RISCV_TRAP_U_ECALL) {
         // ECALL from U-mode goes to system call handler instead of trap handler.
         sched_raise_from_isr(true, syscall_handler);
         trap_depth--;

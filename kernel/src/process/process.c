@@ -298,6 +298,7 @@ size_t proc_map_raw(badge_err_t *ec, process_t *proc, size_t vaddr_req, size_t m
 
     proc_memmap_t *map = &proc->memmap;
     if (map->regions_len >= PROC_MEMMAP_MAX_REGIONS) {
+        logk(LOG_WARN, "Out of regions");
         badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOMEM);
         return 0;
     }
@@ -305,6 +306,7 @@ size_t proc_map_raw(badge_err_t *ec, process_t *proc, size_t vaddr_req, size_t m
     // Allocate memory to the process.
     void *base = buddy_allocate(min_size, BLOCK_TYPE_USER, 0);
     if (!base) {
+        logk(LOG_WARN, "Out of vmem");
         badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOMEM);
         return 0;
     }

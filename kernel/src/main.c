@@ -81,24 +81,9 @@ void syscall_sys_shutdown(bool is_reboot) {
 
 
 
-static void test_isr() {
-    logk_from_isr(LOG_DEBUG, "Timer interrupt!");
-    timer_int_enable(1, false);
-    timer_stop(1);
+void foobar(int tn, void *cookie) {
+    logk(LOG_DEBUG, "haha yeos");
 }
-extern intmtx_t INTMTX0;
-
-#define DUMP_CSR(name)                                                                                                 \
-    {                                                                                                                  \
-        long tmp;                                                                                                      \
-        asm("csrr %0, " #name : "=r"(tmp));                                                                            \
-        logkf(LOG_DEBUG, "CSR " #name ": %{long;x}", tmp);                                                             \
-    }
-
-uint64_t const deadbeef = 0xdeadbeeff00dbabe;
-
-#include "filesystem/vfs_ramfs.h"
-#include "soc/spi_mem_struct.h"
 
 // After control handover, the booting CPU core starts here and other cores wait.
 // This sets up the basics of everything needed by the other systems of the kernel.
@@ -122,55 +107,11 @@ void basic_runtime_init() {
     // Memory protection initialization.
     memprotect_init();
 
-    // Timer ISR test.
-    irq_ch_route(ETS_TG1_T0_INTR_SOURCE, 29);
-    irq_ch_set_isr(29, test_isr);
-    irq_ch_enable(29, true);
-    timer_set_freq(1, 1000000);
-    timer_value_set(1, 0);
-    timer_start(1);
-    timer_alarm_config(1, 500000, false);
-    timer_int_enable(1, true);
-    irq_enable(true);
-    asm("csrs mie, %0" ::"r"(0xffffffff));
-    while (timer_value_get(1) < 500000) continue;
-    logk(LOG_DEBUG, "Interrupt should have fired");
-    logkf(
-        LOG_DEBUG,
-        "Pending: %{u32;x} %{u32;x} %{u32;x} %{u32;x}",
-        INTMTX0.pending[0],
-        INTMTX0.pending[1],
-        INTMTX0.pending[2],
-        INTMTX0.pending[3]
-    );
-    logkf(LOG_DEBUG, "TG0 raw: %{u32;x}", TIMERG0.int_raw_timers);
-    logkf(LOG_DEBUG, "TG1 raw: %{u32;x}", TIMERG1.int_raw_timers);
-    logkf(LOG_DEBUG, "TG0 st: %{u32;x}", TIMERG0.int_st_timers);
-    logkf(LOG_DEBUG, "TG1 st: %{u32;x}", TIMERG1.int_st_timers);
-    logkf(LOG_DEBUG, "TG0 T0 IRQ: %{d}", (INTMTX0.pending[1] >> (ETS_TG0_T0_INTR_SOURCE - 32)) & 1);
-    logkf(LOG_DEBUG, "TG0 T1 IRQ: %{d}", (INTMTX0.pending[1] >> (ETS_TG0_T1_INTR_SOURCE - 32)) & 1);
-    logkf(LOG_DEBUG, "TG1 T0 IRQ: %{d}", (INTMTX0.pending[1] >> (ETS_TG1_T0_INTR_SOURCE - 32)) & 1);
-    logkf(LOG_DEBUG, "TG1 T1 IRQ: %{d}", (INTMTX0.pending[1] >> (ETS_TG1_T1_INTR_SOURCE - 32)) & 1);
-    logkf(LOG_DEBUG, "Pending: %{d}", irq_ch_pending(29));
-    DUMP_CSR(mstatus)
-    DUMP_CSR(mip)
-    DUMP_CSR(mie)
-    DUMP_CSR(mtvec)
-
-    // while (1);
-    logkf(LOG_DEBUG, "%{u64;x}", deadbeef);
-    extern uint8_t filerom_0[];
-    // logkf(LOG_DEBUG, "0x%{size;x}", filerom_0);
-    // logkf(LOG_DEBUG, "/sbin/init\n%{u8;x;arr}", filerom_0, (size_t)64);
-    logkf(LOG_DEBUG, "0x%{u8;x}", filerom_0[0]);
-    logkf(LOG_DEBUG, "0x%{u8;x}", filerom_0[1]);
-    logkf(LOG_DEBUG, "0x%{u8;x}", filerom_0[2]);
-    logkf(LOG_DEBUG, "0x%{u8;x}", filerom_0[3]);
-
     // Scheduler initialization.
     sched_init();
     // Housekeeping thread initialization.
     hk_init();
+    hk_add_repeated(0, 1000000, foobar, NULL);
     // Add the remainder of the kernel lifetime as a new thread.
     sched_thread_t *thread = sched_create_kernel_thread(
         &ec,
@@ -219,7 +160,6 @@ static void userland_init() {
     assert_dev_drop(pid == 1);
     proc_start(&ec, pid, "/sbin/init");
     badge_err_assert_always(&ec);
-    while (1) continue;
 }
 
 

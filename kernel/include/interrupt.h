@@ -20,8 +20,7 @@ void irq_ch_prio(int int_irq, int prio);
 void irq_ch_ack(int int_irq);
 
 // Enable/disable an internal interrupt on this CPU.
-// Returns whether the interrupt was enabled on this CPU.
-bool irq_ch_enable(int int_irq, bool enable);
+void irq_ch_enable(int int_irq, bool enable);
 // Query whether an internal interrupt is enabled on this CPU.
 bool irq_ch_enabled(int int_irq);
 // Query whether an internal interrupt is pending.

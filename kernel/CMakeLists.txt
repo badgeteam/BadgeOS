@@ -19,7 +19,7 @@ endif()
 
 # Set the C compiler
 if(NOT DEFINED CMAKE_C_COMPILER)
-    find_program(CMAKE_C_COMPILER NAMES riscv32-unknown-linux-gnu-gcc riscv32-linux-gnu-gcc riscv64-unknown-linux-gnu-gcc riscv64-linux-gnu-gcc REQUIRED)
+    find_program(CMAKE_C_COMPILER NAMES riscv32-badgeros-linux-gnu-gcc riscv32-unknown-linux-gnu-gcc riscv32-linux-gnu-gcc riscv64-unknown-linux-gnu-gcc riscv64-linux-gnu-gcc REQUIRED)
     message("Detected RISC-V C compiler as '${CMAKE_C_COMPILER}'")
 else()
     message("Using compiler '${CMAKE_C_COMPILER}' from environment")
@@ -39,6 +39,8 @@ include(cpu/riscv/CMakeLists.txt)
 set(common_compiler_flags
     -ffreestanding                     # We do not compile against an OS.
     -static -fno-pic                   # Disable PIC
+    -fno-exceptions
+    -fno-stack-protector
     -march=${target_arch}              # Selects the target CPU.
     -mabi=${target_abi}                # Selects target ABI
     -nodefaultlibs -nostdlib           # Do not link any default libraries like libgcc or libc.
@@ -62,7 +64,7 @@ else()
 message("Building in debug mode")
 set(common_compiler_flags ${common_compiler_flags}
     -fsanitize=undefined               # Adds sanitizer for undefined behaviour.
-    -fsanitize-trap=all
+    -fsanitize-undefined-trap-on-error
 )
 endif()
 

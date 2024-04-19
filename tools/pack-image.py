@@ -19,7 +19,7 @@ def patchElf(fd):
     # Initialise checksum.
     xsum_state = 0xEF
 
-    fd.seek(1, 0)
+    fd.seek(1, os.SEEK_SET)
     seg_num = fd.read(1)[0]
 
 
@@ -29,7 +29,7 @@ def patchElf(fd):
 
 
     # Compute checksum.
-    fd.seek(24)
+    fd.seek(24, os.SEEK_SET)
     for _ in range(seg_num):
         seg_laddr = readword()
         seg_len = readword()
@@ -41,7 +41,6 @@ def patchElf(fd):
     fd.write(bytes([xsum_state]))
 
 def main():
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument("input", type=Path)

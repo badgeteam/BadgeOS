@@ -23,6 +23,15 @@
 // MINTSTATUS CSR name.
 #define CSR_MINTSTATUS_STR  "0x346"
 
+// Number of interrupt channels (excluding trap handler) in the vector table.
+#define RISCV_VT_INT_COUNT   47
+// Number of padding words in the vector table.
+#define RISCV_VT_PADDING     16
+// Bitmask for interrupt cause.
+#define RISCV_VT_ICAUSE_MASK 63
+// Bitmask for trap cause.
+#define RISCV_VT_TCAUSE_MASK 31
+
 
 /* ==== SOC INFO ==== */
 

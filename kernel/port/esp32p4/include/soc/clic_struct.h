@@ -5,8 +5,12 @@
 
 typedef union {
     struct {
+        // Whether `Smclicshv` is supported.
         uint32_t nvbits : 1;
+        // Number of bits used to represent interrupt priority.
         uint32_t nlbits : 4;
+        // Number of privilege modes supported.
+        // When 0, only M-mode has interrupts.
         uint32_t nmbits : 2;
         uint32_t        : 25;
     };
@@ -16,8 +20,11 @@ typedef union {
 
 typedef union {
     struct {
+        // Actual number of interrupt channels.
         uint32_t num_int : 13;
+        // CLIC hardware version.
         uint32_t version : 8;
+        // Number of bits used to represent interrupt priority.
         uint32_t ctlbits : 4;
         uint32_t         : 7;
     };
@@ -44,23 +51,26 @@ typedef struct {
 
 typedef union {
     struct {
+        // Interrupt is pending.
         uint32_t pending   : 1;
         uint32_t           : 7;
+        // Interrupt is enabled.
         uint32_t enable    : 1;
         uint32_t           : 7;
+        // TODO: What is this?
         uint32_t attr_shv  : 1;
+        // Whether the interrupt is edge-triggered.
         uint32_t attr_trig : 1;
-        uint32_t attr_mode : 1;
-        uint32_t           : 13;
+        uint32_t           : 4;
+        // Which privilege mode receives this interrupt.
+        uint32_t attr_mode : 2;
+        // Interrupt priority.
+        uint32_t ctl       : 8;
     };
     // Packed value.
     uint32_t val;
 } clic_int_ctl_reg_t;
 
 typedef union {
-    struct {
-        clic_int_ctl_reg_t volatile intirq_ctl[16];
-        clic_int_ctl_reg_t volatile extirq_ctl[32];
-    };
     clic_int_ctl_reg_t volatile irq_ctl[48];
 } clic_ctl_dev_t;

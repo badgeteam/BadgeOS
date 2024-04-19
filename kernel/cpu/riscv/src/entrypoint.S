@@ -38,33 +38,34 @@ _start:
 	# Set up registers.
 	.option push
 	.option norelax
-	la gp, __global_pointer$
-	mv tp, x0
-	la sp, __stack_top
+	la   gp, __global_pointer$
+	mv   tp, x0
+	la   sp, __stack_top
 	.option pop
 	
 	# Zero out .bss section.
-	la a0, __start_bss
-	la a1, __stop_bss
-	beq a0, a1, .bssinit_skip
+	la   a0, __start_bss
+	la   a1, __stop_bss
+	beq  a0, a1, .bssinit_skip
 .bssinit_loop:
-	sw x0, 0(a0)
+	sw   x0, 0(a0)
 	addi a0, a0, 4
-	bne a0, a1, .bssinit_loop
+	bne  a0, a1, .bssinit_loop
 .bssinit_skip:
 	
 	# Run init functions.
-	la s0, __start_init_array
-	la s1, __stop_init_array
-	beq s0, s1, .initfun_skip
+	li   s0, 0
+	la   s1, __start_init_array
+	la   s2, __stop_init_array
+	beq  s1, s2, .initfun_skip
 .initfun_loop:
-	lw ra, 0(s0)
+	lw   ra, 0(s1)
 	jalr ra, ra
-	addi s0, s0, 4
-	bne s0, s1, .initfun_loop
+	addi s1, s1, 4
+	bne  s1, s2, .initfun_loop
 .initfun_skip:
 	
 	# Jump to the C entrypoint.
-	jal basic_runtime_init
+	jal  basic_runtime_init
 	# This function isn't allowed to return.
 	ebreak

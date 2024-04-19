@@ -1,6 +1,8 @@
 
 # SPDX-License-Identifier: MIT
 
+#include "port/hardware.h"
+
 
 
     # Run a restricted function and catch exceptions.
@@ -100,12 +102,6 @@ isr_noexc_tvec_none:
 
 
 
-    # Temporary interrupt handler for noexc runtime.
-isr_noexc_ivec:
-    ebreak
-
-
-
     # Interrupt vector table for the CPU.
     # This must be aligned to a 256-byte boundary, so it is in a special section.
     .section ".interrupt_vector_table"
@@ -114,10 +110,10 @@ isr_noexc_vec:
     .option norvc
     # Trap handler.
     j isr_noexc_tvec
-    # Interrupt handler.
-    .rept 31
-    .word isr_noexc_ivec
+    # Interrupt handlers.
+    .rept RISCV_VT_INT_COUNT
+    ebreak
     .endr
-    # Padding to 256-byte size.
-    .skip 128
+    # Padding.
+    .skip RISCV_VT_PADDING*4
     .option pop

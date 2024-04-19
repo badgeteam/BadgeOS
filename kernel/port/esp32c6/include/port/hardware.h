@@ -3,8 +3,10 @@
 
 #pragma once
 
+#ifndef __ASSEMBLER__
 #include <stddef.h>
 #include <stdint.h>
+#endif
 
 
 
@@ -12,6 +14,15 @@
 
 // Number of PMP regions supported by the CPU.
 #define RISCV_PMP_REGION_COUNT 16
+
+// Number of interrupt channels (excluding trap handler) in the vector table.
+#define RISCV_VT_INT_COUNT   47
+// Number of padding words in the vector table.
+#define RISCV_VT_PADDING     16
+// Bitmask for interrupt cause.
+#define RISCV_VT_ICAUSE_MASK 63
+// Bitmask for trap cause.
+#define RISCV_VT_TCAUSE_MASK 31
 
 
 /* ==== SOC INFO ==== */
@@ -159,8 +170,10 @@
 
 
 
+#ifndef __ASSEMBLER__
 #define WRITE_REG(addr, val)                                                                                           \
     do {                                                                                                               \
         *(volatile uint32_t *)(addr) = (val);                                                                          \
     } while (0)
 #define READ_REG(addr) (*(volatile uint32_t *)(addr))
+#endif
