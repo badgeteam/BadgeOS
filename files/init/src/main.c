@@ -32,6 +32,7 @@ int main(int argc, char **argv) {
     else
         print("No read :c\n");
     int volatile *mem = syscall_mem_alloc(0, 32, 0, MEMFLAGS_RW);
+    *mem              = 3;
     syscall_mem_dealloc(mem);
     return 0;
 }

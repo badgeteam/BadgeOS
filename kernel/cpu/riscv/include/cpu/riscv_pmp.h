@@ -13,6 +13,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+typedef struct proc_memmap_t proc_memmap_t;
+
 static_assert(
     RISCV_PMP_REGION_COUNT == 16 || RISCV_PMP_REGION_COUNT == 64, "RISC-V PMP region count must be either 16 or 64."
 );
@@ -20,7 +22,7 @@ static_assert(
 #if __riscv_xlen == 32
 
 // 2^XLEN-byte NAPOT range starting at address 0.
-#define RISCV_PMPADDR_NAPOT_GLOBAL 0x1fffffff
+#define RISCV_PMPADDR_NAPOT_GLOBAL __LONG_MAX__
 
 #define __RISCV_PMP_CFG_BITPOS_0  0
 #define __RISCV_PMP_CFG_BITPOS_1  8
@@ -354,15 +356,26 @@ void riscv_pmpaddr_write_all(size_t const addr_in[RISCV_PMP_REGION_COUNT]);
 
 // Add a memory protection region.
 // For kernels using PMP as memory protection.
-bool riscv_pmp_memprotect(riscv_pmp_ctx_t *ctx, size_t paddr, size_t length, uint32_t flags);
+bool riscv_pmp_memprotect(proc_memmap_t *new_mm, riscv_pmp_ctx_t *ctx, size_t paddr, size_t length, uint32_t flags);
 // Swap in the set of PMP entries.
 void riscv_pmp_memprotect_swap(riscv_pmp_ctx_t *ctx);
 
 
 
+// Determine whether an address is a valid NAPOT address.
+static inline bool riscv_pmpaddr_is_napot(size_t base, size_t size) CONST;
+static inline bool riscv_pmpaddr_is_napot(size_t base, size_t size) {
+    // Size must be a power of 2 >= 8.
+    if (size < 8 || (size & (size - 1))) {
+        return false;
+    }
+    // Base must be aligned to size.
+    return (base & (size - 1)) == 0;
+}
+
 // Compute NAPOT address value.
 // Assumes `base` is aligned to `size` bytes and that `size` is a power of two >= 8.
-static inline size_t riscv_pmpaddr_calc_napot(size_t base, size_t size) PURE;
+static inline size_t riscv_pmpaddr_calc_napot(size_t base, size_t size) CONST;
 static inline size_t riscv_pmpaddr_calc_napot(size_t base, size_t size) {
     return (base >> 2) | ((size >> 3) - 1);
 }

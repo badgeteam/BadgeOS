@@ -8,6 +8,9 @@
 #include "memprotect.h"
 #include "port/hardware_allocation.h"
 
+// PMP granularity.
+static size_t grain;
+
 // Initialise memory protection driver.
 void riscv_pmp_init() {
     // Make sure we're the first to touch PMP so all of it is in our control;
@@ -60,6 +63,16 @@ void riscv_pmp_init() {
     asm volatile("csrw pmpcfg12, x0");
     asm volatile("csrw pmpcfg14, x0");
 #endif
+
+    // Determine PMP granularity.
+    long addr = __LONG_MAX__;
+    asm volatile("csrw pmpaddr0, %0; csrr %0, pmpaddr0" : "+r"(addr));
+    assert_dev_drop(addr != 0);
+    grain = 4;
+    while (!(addr & 1)) {
+        addr  >>= 1;
+        grain <<= 1;
+    }
 }
 
 
@@ -286,50 +299,87 @@ void riscv_pmpaddr_write_all(size_t const addr_in[RISCV_PMP_REGION_COUNT]) {
 
 // Add a memory protection region.
 // For kernels using PMP as memory protection.
-bool riscv_pmp_memprotect(riscv_pmp_ctx_t *ctx, size_t paddr, size_t length, uint32_t flags) {
-    if (paddr % MEMMAP_PAGE_SIZE || length % MEMMAP_PAGE_SIZE) {
-        return false;
-    }
+bool riscv_pmp_memprotect(proc_memmap_t *new_mm, riscv_pmp_ctx_t *ctx, size_t addr, size_t length, uint32_t flags) {
+    (void)addr;
+    (void)length;
+    (void)flags;
 
-    // Corresponding NAPOT pmpaddr value.
-    if (paddr % length || (length & (length - 1)) || length < 8) {
-        return false;
-    }
-    size_t napot_addr = riscv_pmpaddr_calc_napot(paddr, length);
+    // Last address, used for TOR entries.
+    size_t prev_addr = PROC_RISCV_PMP_START ? __SIZE_MAX__ : 0;
+    size_t pmp       = 0;
 
-    // Look for a matching range.
-    int empty = -1;
-    for (int i = 0; i < PROC_RISCV_PMP_COUNT; i++) {
-        if (ctx->pmpaddr[i] == napot_addr && ctx->pmpcfg[i].addr_match_mode) {
-            // Matching region found; update permissions.
-            ctx->pmpcfg[i] = (riscv_pmpcfg_t){
-                .addr_match_mode = RISCV_PMPCFG_NAPOT,
-                .read            = !!(flags & MEMPROTECT_FLAG_R),
-                .write           = !!(flags & MEMPROTECT_FLAG_W),
-                .exec            = !!(flags & MEMPROTECT_FLAG_X),
-            };
-            return true;
-        } else if ((ctx->pmpcfg[i].value & 7) == 0) {
-            // Empty region found.
-            empty = i;
+    // Temporary PMP data.
+    riscv_pmp_ctx_t tmp;
+
+    for (size_t i = 0; i < new_mm->regions_len; i++) {
+        proc_memmap_ent_t *region = &new_mm->regions[i];
+
+        if ((region->base | region->size) & (grain - 1)) {
+            // Misaligned region.
+            return false;
         }
+        if (pmp >= PROC_RISCV_PMP_COUNT) {
+            // Out of PMPs.
+            return false;
+        }
+
+        // Count amount of PMPs required.
+        if (region->base != prev_addr && region->size == 4) {
+            // NA4 region.
+            tmp.pmpcfg[pmp] = (riscv_pmpcfg_t){
+                .read            = true,
+                .write           = region->write,
+                .exec            = region->exec,
+                .addr_match_mode = RISCV_PMPCFG_NA4,
+                .lock            = false,
+            };
+            tmp.pmpaddr[pmp] = region->base >> 2;
+
+        } else if (region->base != prev_addr && riscv_pmpaddr_is_napot(region->base, region->size)) {
+            // NAPOT region.
+            tmp.pmpcfg[pmp] = (riscv_pmpcfg_t){
+                .read            = true,
+                .write           = region->write,
+                .exec            = region->exec,
+                .addr_match_mode = RISCV_PMPCFG_NAPOT,
+                .lock            = false,
+            };
+            tmp.pmpaddr[pmp] = riscv_pmpaddr_calc_napot(region->base, region->size);
+
+        } else {
+            if (region->base != prev_addr) {
+                // Base address.
+                if (pmp > PROC_RISCV_PMP_COUNT - 2) {
+                    // Out of PMPs.
+                    return false;
+                }
+                tmp.pmpcfg[pmp].value = 0;
+                tmp.pmpaddr[pmp]      = region->base >> 2;
+                pmp++;
+            }
+
+            // TOR region.
+            tmp.pmpcfg[pmp] = (riscv_pmpcfg_t){
+                .read            = true,
+                .write           = region->write,
+                .exec            = region->exec,
+                .addr_match_mode = RISCV_PMPCFG_TOR,
+                .lock            = false,
+            };
+            tmp.pmpaddr[pmp] = (region->base + region->size) >> 2;
+        }
+        prev_addr = region->base + region->size;
+        pmp++;
     }
 
-    if (empty >= 0 && (flags & 7)) {
-        // Empty region found to apply flags to.
-        ctx->pmpcfg[empty] = (riscv_pmpcfg_t){
-            .addr_match_mode = RISCV_PMPCFG_NAPOT,
-            .read            = !!(flags & MEMPROTECT_FLAG_R),
-            .write           = !!(flags & MEMPROTECT_FLAG_W),
-            .exec            = !!(flags & MEMPROTECT_FLAG_X),
-        };
-        ctx->pmpaddr[empty] = napot_addr;
-        return true;
-
-    } else {
-        // No region found.
-        return false;
+    // Clear remaining PMP entries.
+    for (; pmp < PROC_RISCV_PMP_COUNT; pmp++) {
+        tmp.pmpcfg[pmp].value = 0;
     }
+
+    // Commit generated PMPs.
+    *ctx = tmp;
+    return true;
 }
 
 

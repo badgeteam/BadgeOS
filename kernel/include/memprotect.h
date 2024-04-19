@@ -16,7 +16,8 @@
 #define MEMPROTECT_FLAG_RWX    0x00000007
 #define MEMPROTECT_FLAG_KERNEL 0x80000000
 
-#include <port/memprotect.h>
+#include "port/memprotect.h"
+#include "process/types.h"
 
 
 
@@ -30,7 +31,7 @@ void memprotect_create(mpu_ctx_t *ctx);
 // Clean up a memory protection context.
 void memprotect_destroy(mpu_ctx_t *ctx);
 // Add a memory protection region.
-bool memprotect(mpu_ctx_t *ctx, size_t vaddr, size_t paddr, size_t length, uint32_t flags);
+bool memprotect(proc_memmap_t *new_mm, mpu_ctx_t *ctx, size_t vaddr, size_t paddr, size_t length, uint32_t flags);
 // Commit pending memory protections, if any.
 void memprotect_commit(mpu_ctx_t *ctx);
 // Swap in memory protections for the current thread.

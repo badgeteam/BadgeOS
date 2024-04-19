@@ -53,6 +53,7 @@ set(common_compiler_flags
     -DSOFTBIT                          # Turn on our emulated bit operations
     -fno-omit-frame-pointer            # Always use frame pointer
     -ffunction-sections
+    -fno-stack-protector
     -fno-exceptions
 )
 if("${CMAKE_BUILD_TYPE}" MATCHES "Release")
