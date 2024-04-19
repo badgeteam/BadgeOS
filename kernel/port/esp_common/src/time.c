@@ -73,7 +73,7 @@ void timer_set_freq(int timerno, frequency_hz_t freq) {
     frequency_hz_t base_freq;
 #ifdef BADGEROS_PORT_esp32p4
     // TODO: Determine what selects timer clock source.
-    base_freq = 80000000;
+    base_freq = 40000000;
 #endif
 #ifdef BADGEROS_PORT_esp32c6
     uint32_t clksrc;

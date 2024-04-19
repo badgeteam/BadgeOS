@@ -64,6 +64,8 @@ STRUCT_FIELD_PTR(isr_ctx_t, sched_thread_t, thread, 164)
 // Thread is a kernel thread.
 // If true, the thread is run in M-mode, otherwise it is run in U-mode.
 STRUCT_FIELD_WORD(isr_ctx_t, is_kernel_thread, 168)
+// Use SP as the stack, not the ISR stack.
+STRUCT_FIELD_WORD(isr_ctx_t, use_sp, 172)
 STRUCT_END(isr_ctx_t)
 
 
@@ -75,7 +77,7 @@ enum {
     STACK_ALIGNMENT = 16,
 };
 
-// Get the current kernel context.
+// Get the current ISR context.
 static inline isr_ctx_t *isr_ctx_get() {
     isr_ctx_t *kctx;
     asm("csrr %0, mscratch" : "=r"(kctx));
@@ -92,6 +94,11 @@ static inline void isr_ctx_switch_set(isr_ctx_t *switch_to) {
     isr_ctx_t *kctx;
     asm("csrr %0, mscratch" : "=r"(kctx));
     kctx->ctxswitch = switch_to;
+}
+// Immediately swap the ISR context handle.
+static inline isr_ctx_t *isr_ctx_swap(isr_ctx_t *kctx) {
+    asm("csrrw %0, mscratch, %0" : "+r"(kctx));
+    return kctx;
 }
 // Print a register dump given isr_ctx_t.
 void isr_ctx_dump(isr_ctx_t const *ctx);

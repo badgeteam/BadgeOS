@@ -81,10 +81,6 @@ void syscall_sys_shutdown(bool is_reboot) {
 
 
 
-void foobar(int tn, void *cookie) {
-    logk(LOG_DEBUG, "haha yeos");
-}
-
 // After control handover, the booting CPU core starts here and other cores wait.
 // This sets up the basics of everything needed by the other systems of the kernel.
 // When finished, the booting CPU will perform kernel initialization.
@@ -111,7 +107,6 @@ void basic_runtime_init() {
     sched_init();
     // Housekeeping thread initialization.
     hk_init();
-    hk_add_repeated(0, 1000000, foobar, NULL);
     // Add the remainder of the kernel lifetime as a new thread.
     sched_thread_t *thread = sched_create_kernel_thread(
         &ec,

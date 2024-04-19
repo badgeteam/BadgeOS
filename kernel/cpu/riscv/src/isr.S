@@ -57,10 +57,13 @@
     # Set up special regs.
     li tp, 0
     .option push
-    .option norvc
+    .option norelax
     la gp, __global_pointer$
     .option pop
+    lw t1, isr_ctx_t_use_sp(t0)
+    bnez t1, .isr_entry_\@
     la sp, __interrupt_stack_hi
+.isr_entry_\@:
 #pragma endregion
     .endm
 

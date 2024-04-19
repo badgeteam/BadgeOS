@@ -44,7 +44,6 @@ static bool        allow_proc1_death() {
 // Clean up: the housekeeping task.
 static void clean_up_from_housekeeping(int taskno, void *arg) {
     (void)taskno;
-    logk(LOG_DEBUG, "kaboom");
     proc_delete((pid_t)arg);
 }
 
@@ -261,7 +260,7 @@ sched_thread_t *proc_create_thread_raw_unsafe(
     // Add the thread to the list.
     array_insert(process->threads, sizeof(sched_thread_t *), process->threads_len, &thread, process->threads_len);
     process->threads_len++;
-    logkf(LOG_DEBUG, "Creating user thread, PC: 0x%{size;x}", entry_point);
+    // logkf(LOG_DEBUG, "Creating user thread, PC: 0x%{size;x}", entry_point);
 
     return thread;
 }
