@@ -43,6 +43,8 @@ To select target chip, choose one of:
 - `export BADGEROS_PORT=esp32p4`
 - `export BADGEROS_PORT=esp32c6` (default)
 
+Before building, first run: `make prepare`
+
 To build: `make build`
 
 To remove build files: `make clean`
