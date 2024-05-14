@@ -6,9 +6,11 @@
 #include "backtrace.h"
 #include "cpu/isr_ctx.h"
 #include "cpu/panic.h"
+#include "interrupt.h"
 #include "log.h"
 #include "port/hardware.h"
 #include "process/internal.h"
+#include "process/sighandler.h"
 #include "process/types.h"
 #include "rawprint.h"
 #include "scheduler/cpu.h"
@@ -56,6 +58,7 @@ void riscv_trap_handler() {
 
     long mcause, mstatus, mtval, mepc;
     asm volatile("csrr %0, mcause" : "=r"(mcause));
+    long trapno = mcause & RISCV_VT_ICAUSE_MASK;
     if (mcause < 0) {
         riscv_interrupt_handler();
         return;
@@ -70,12 +73,41 @@ void riscv_trap_handler() {
     isr_ctx_t *kctx              = isr_ctx_swap(&recurse_ctx);
     recurse_ctx.thread           = kctx->thread;
 
-    if ((mcause & RISCV_VT_ICAUSE_MASK) == RISCV_TRAP_U_ECALL) {
-        // ECALL from U-mode goes to system call handler instead of trap handler.
-        sched_raise_from_isr(true, syscall_handler);
-        isr_ctx_swap(kctx);
-        trap_depth--;
-        return;
+    if (!kctx->is_kernel_thread) {
+        switch (trapno) {
+            case RISCV_TRAP_U_ECALL:
+                // ECALL from U-mode goes to system call handler.
+                sched_raise_from_isr(kctx->thread, true, syscall_handler);
+                isr_ctx_swap(kctx);
+                trap_depth--;
+                return;
+
+            case RISCV_TRAP_IACCESS:
+            case RISCV_TRAP_LACCESS:
+            case RISCV_TRAP_SACCESS:
+            case RISCV_TRAP_IPAGE:
+            case RISCV_TRAP_LPAGE:
+            case RISCV_TRAP_SPAGE:
+                // Memory access faults go to the SIGSEGV handler.
+                sched_raise_from_isr(kctx->thread, true, proc_sigsegv_handler);
+                isr_ctx_swap(kctx);
+                trap_depth--;
+                return;
+
+            case RISCV_TRAP_IILLEGAL:
+                // Memory access faults go to the SIGILL handler.
+                sched_raise_from_isr(kctx->thread, true, proc_sigill_handler);
+                isr_ctx_swap(kctx);
+                trap_depth--;
+                return;
+
+            case RISCV_TRAP_EBREAK:
+                // Memory access faults go to the SIGTRAP handler.
+                sched_raise_from_isr(kctx->thread, true, proc_sigtrap_handler);
+                isr_ctx_swap(kctx);
+                trap_depth--;
+                return;
+        }
     }
 
     // Unhandled trap.
@@ -88,8 +120,8 @@ void riscv_trap_handler() {
     }
 
     // Print trap name.
-    if ((mcause & 31) < TRAPNAMES_LEN && trapnames[mcause & 31]) {
-        rawprint(trapnames[mcause & 31]);
+    if (trapno < TRAPNAMES_LEN && trapnames[trapno]) {
+        rawprint(trapnames[trapno]);
     } else {
         rawprint("Trap 0x");
         rawprinthex(mcause, 8);
@@ -102,10 +134,10 @@ void riscv_trap_handler() {
 
     // Print trap value.
     asm volatile("csrr %0, mtval" : "=r"(mtval));
-    if (mtval && ((1 << (mcause & 31)) & MEM_ADDR_TRAPS)) {
+    if (mtval && ((1 << trapno) & MEM_ADDR_TRAPS)) {
         rawprint(" while accessing 0x");
         rawprinthex(mtval, 8);
-    } else if (mtval && (mcause & 31) == RISCV_TRAP_IILLEGAL) {
+    } else if (mtval && trapno == RISCV_TRAP_IILLEGAL) {
         rawprint(" while decoding 0x");
         rawprinthex(mtval, 8);
     }
@@ -143,7 +175,7 @@ void riscv_trap_handler() {
         panic_poweroff();
     } else {
         // When the user traps just stop the process.
-        sched_raise_from_isr(false, kill_proc_on_trap);
+        sched_raise_from_isr(kctx->thread, false, kill_proc_on_trap);
     }
     isr_ctx_swap(kctx);
     trap_depth--;
@@ -151,7 +183,7 @@ void riscv_trap_handler() {
 
 // Return a value from the syscall handler.
 void syscall_return(long long value) {
-    isr_global_disable();
+    irq_enable(false);
     isr_ctx_t *usr  = &isr_ctx_get()->thread->user_isr_ctx;
     usr->regs.a0    = value;
     usr->regs.a1    = value >> 32;

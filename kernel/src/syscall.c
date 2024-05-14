@@ -9,27 +9,12 @@
 #include "log.h"
 #include "process/internal.h"
 #include "process/process.h"
+#include "process/sighandler.h"
 #include "rawprint.h"
 #include "scheduler/cpu.h"
 #include "scheduler/scheduler.h"
 
 
-
-// Called on invalid system call.
-static void invalid_syscall(long sysno) {
-    isr_ctx_t *ctx = isr_ctx_get();
-
-    // Report error.
-    rawprint("Invalid syscall ");
-    rawprintdec(sysno, 0);
-    rawprint(" at PC 0x");
-    rawprinthex(ctx->regs.pc, sizeof(ctx->regs.pc) * 2);
-    rawprint("\n");
-    isr_ctx_dump(ctx);
-
-    // Terminate thread.
-    proc_exit_self(-1);
-}
 
 // Temporary write system call.
 void syscall_temp_write(char const *message, size_t length) {
@@ -41,9 +26,6 @@ void syscall_temp_write(char const *message, size_t length) {
     }
 }
 
-// Shutdown system call implementation.
-extern void syscall_sys_shutdown(bool is_reboot);
-
 // System call handler jump table thing.
 SYSCALL_HANDLER_SIGNATURE {
     SYSCALL_HANDLER_IGNORE_UNUSED;
@@ -52,7 +34,7 @@ SYSCALL_HANDLER_SIGNATURE {
     switch (sysnum) {
         case SYSCALL_TEMP_WRITE: syscall_temp_write((char const *)a0, a1); break;
         case SYSCALL_THREAD_YIELD: sched_yield(); break;
-        case SYSCALL_SELF_EXIT: syscall_self_exit(a0); break;
+        case SYSCALL_PROC_EXIT: syscall_proc_exit(a0); break;
         case SYSCALL_SYS_SHUTDOWN: syscall_sys_shutdown(a0); break;
         case SYSCALL_FS_OPEN: retval = syscall_fs_open((char const *)a0, a1, a2); break;
         case SYSCALL_FS_CLOSE: retval = syscall_fs_close(a0); break;
@@ -62,7 +44,15 @@ SYSCALL_HANDLER_SIGNATURE {
         case SYSCALL_MEM_ALLOC: retval = (size_t)syscall_mem_alloc(a0, a1, a2, a3); break;
         case SYSCALL_MEM_SIZE: retval = syscall_mem_size((void *)a0); break;
         case SYSCALL_MEM_DEALLOC: syscall_mem_dealloc((void *)a0); break;
-        default: invalid_syscall(sysnum); break;
+        case SYSCALL_PROC_SIGHANDLER: retval = (size_t)syscall_proc_sighandler(a0, (void *)a1); break;
+        case SYSCALL_PROC_SIGRET: syscall_proc_sigret(); break;
+        default:
+            proc_sigsys_handler();
+            isr_global_disable();
+            sched_lower_from_isr();
+            isr_context_switch();
+            return;
     }
+
     syscall_return(retval);
 }

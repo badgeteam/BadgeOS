@@ -4,11 +4,14 @@
 #include "process/syscall_impl.h"
 
 #include "process/internal.h"
+#include "process/sighandler.h"
 #include "process/types.h"
+#include "scheduler/cpu.h"
+#include "signal.h"
 
 // Sycall: Exit the process; exit code can be read by parent process.
 // When this system call returns, the thread will be suspended awaiting process termination.
-void syscall_self_exit(int code) {
+void syscall_proc_exit(int code) {
     proc_exit_self(code);
 }
 
@@ -36,4 +39,20 @@ bool syscall_mem_dealloc(void *address) {
     badge_err_t *ec = {0};
     proc_unmap_raw(ec, proc_current(), (size_t)address);
     return badge_err_is_ok(ec);
+}
+
+void *syscall_proc_sighandler(int signum, void *newhandler) {
+    if (signum < 0 || signum >= SIG_COUNT) {
+        proc_sigsys_handler();
+    }
+    process_t *const proc = proc_current();
+    mutex_acquire(NULL, &proc->mtx, TIMESTAMP_US_MAX);
+    void *old                 = (void *)proc->sighandlers[signum];
+    proc->sighandlers[signum] = (size_t)newhandler;
+    mutex_release(NULL, &proc->mtx);
+    return old;
+}
+
+void syscall_proc_sigret() {
+    sched_signal_exit();
 }

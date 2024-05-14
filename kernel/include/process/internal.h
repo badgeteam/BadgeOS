@@ -56,3 +56,11 @@ int    proc_add_fd_raw(badge_err_t *ec, process_t *process, file_t real);
 file_t proc_find_fd_raw(badge_err_t *ec, process_t *process, int virt);
 // Remove a file from the process file handle list.
 void   proc_remove_fd_raw(badge_err_t *ec, process_t *process, int virt);
+
+// Perform a pre-resume check for a user thread.
+// Used to implement asynchronous events.
+void proc_pre_resume_cb(sched_thread_t *thread);
+// Atomically whether signals are pending.
+bool proc_signals_pending_raw(process_t *process);
+// Raise a signal to a process' main thread or a specified thread, while suspending it's other threads.
+void proc_raise_signal_raw(badge_err_t *ec, process_t *process, int signum);

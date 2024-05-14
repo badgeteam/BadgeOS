@@ -13,9 +13,16 @@ MEMORY
 	lpsram (RWX) : ORIGIN = 0x50108000, LENGTH = 32K
 }
 
+PHDRS
+{
+	codeseg   PT_LOAD;
+	rodataseg PT_LOAD;
+	dataseg   PT_LOAD;
+}
+
 SECTIONS
 {
-	/DISCARD/ : { *(.note.GNU-stack) *(.eh_frame) *(.eh_frame.*) }
+	/DISCARD/ : { *(.note) *(.note.*) *(.eh_frame) *(.eh_frame.*) }
 
 	/* Import hardware addresses. */
 INCLUDE esp32p4.peripherals.ld
@@ -56,13 +63,13 @@ PROVIDE(CLIC_CTL = 0x20801000);
 		SHORT(0xffff);		/* Max chip rev. */
 		LONG(0x00000000);	/* (reserved) */
 		BYTE(0x00);			/* SHA256 appended (not appended). */
-	} >xip
+	} >xip :codeseg
 	
 	/* ESP image segment 0: code. */
 	.espseg.0 : AT(LOADADDR(.esphdr) + SIZEOF(.esphdr)) {
 		LONG(__start_text);
 		LONG(__stop_text - __start_text);
-	} >xip
+	} >xip :codeseg
 	
 	__start_text = .;
 	.init_array : AT(LOADADDR(.espseg.0) + SIZEOF(.espseg.0)) {
@@ -70,40 +77,40 @@ PROVIDE(CLIC_CTL = 0x20801000);
 		__start_init_array = .;
 		*(.init_array)
 		__stop_init_array = .;
-	} >xip
+	} >xip :codeseg
 	.text : AT(LOADADDR(.init_array) + SIZEOF(.init_array)) {
 		. = ALIGN(256);
 		*(.interrupt_vector_table)
 		*(.text) *(.text.*)
 		. = ALIGN(4);
-	} >xip
+	} >xip :codeseg
 	__stop_text = .;
 	
 	/* ESP image segment 1: rodata. */
 	.espseg.1 : AT(LOADADDR(.text) + SIZEOF(.text)) {
 		LONG(__start_rodata);
 		LONG(__stop_rodata - __start_rodata);
-	} >xip
+	} >xip :codeseg
 	
 	__start_rodata = .;
 	.got : AT(LOADADDR(.espseg.1) + SIZEOF(.espseg.1)) {
 		*(.got.plt) *(.igot.plt) *(.got) *(.igot)
-	} >xip
+	} >xip :rodataseg
 	.plt : AT(LOADADDR(.got) + SIZEOF(.got)) {
 		*(.plt) *(.iplt)
-	} >xip
+	} >xip :rodataseg
 	.rodata : AT(LOADADDR(.plt) + SIZEOF(.plt)) {
 		. = ALIGN(__section_alignment);
 		*(.rodata) *(.rodata.*)
 		. = ALIGN(4);
-	} >xip
+	} >xip :rodataseg
 	__stop_rodata = .;
 	
 	/* ESP image segment 2: data. */
 	.espseg.2 : AT(LOADADDR(.rodata) + SIZEOF(.rodata)) {
 		LONG(__start_data);
 		LONG(__stop_data - __start_data);
-	} >xip
+	} >xip :rodataseg
 	
 	. = __start_sram;
 	__start_data = .;
@@ -111,13 +118,13 @@ PROVIDE(CLIC_CTL = 0x20801000);
 		. = ALIGN(__section_alignment);
 		*(.data) *(.data.*)
 		. = ALIGN(__section_alignment);
-	} >sram
+	} >sram :dataseg
 	__start_ss = .;
 	.sdata : AT(LOADADDR(.data) + SIZEOF(.data)) {
 		*(.sdata) *(.sdata.*)
 		*(.srodata) *(.srodata.*)
 		. = ALIGN(4);
-	} >sram
+	} >sram :dataseg
 	__stop_data = .;
 	
 	/* Zero-initialized */

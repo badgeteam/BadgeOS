@@ -30,24 +30,52 @@ SYSCALL_DEF(0x0104, SYSCALL_THREAD_DETACH, syscall_thread_detach, bool, tid_t th
 // Destroy a thread; it will be stopped and its resources released.
 SYSCALL_DEF(0x0105, SYSCALL_THREAD_DESTROY, syscall_thread_destroy, bool, tid_t thread)
 
-// Exit the current thread; exit code can be read unless destroyed.
+// Exit the current thread; exit code can be read unless destroyed or detached.
 SYSCALL_DEF(0x0106, SYSCALL_THREAD_EXIT, syscall_thread_exit, void, int code)
 
 
 
-/* ==== SELF MANAGEMENT SYSCALLS ==== */
+/* ==== PROCESS MANAGEMENT SYSCALLS ==== */
 // Implemented in process/syscall_impl.c
 
 // Exit the process; exit code can be read by parent process.
-SYSCALL_DEF(0x0200, SYSCALL_SELF_EXIT, syscall_self_exit, void, int code)
+SYSCALL_DEF(0x0200, SYSCALL_PROC_EXIT, syscall_proc_exit, void, int code)
 
+// Get the command-line arguments (i.e. argc+argv) of a process (or pid 0 for self).
+// If memory is large enough, a NULL-terminated argv array of C-string pointers and their data is stored in `memory`.
+// The function returns how many bytes would be needed to store the structure.
+// If the memory was not large enough, it it not modified.
+SYSCALL_DEF(0x0201, SYSCALL_PROC_GETARGS, syscall_proc_getargs, size_t, size_t cap, void *memory)
+
+// Create a "pre-start" child process that inherits this process' file descriptors and environment variables.
+// The child process is created in a halted state and it is killed if the parent exits before the child is resumed.
+// Returns process ID of new child on success, or a (negative) errno on failure.
+SYSCALL_DEF(0x0202, SYSCALL_PROC_PCREATE, syscall_proc_pcreate, int, char const *binary, int argc, char const **argv)
+
+// Closes a file handle of a "pre-start" child process.
+SYSCALL_DEF(0x0203, SYSCALL_PROC_PFCLOSE, syscall_proc_pfclose, bool, int child, int fileno)
+
+// Copies a parent process file handle to the specified "pre-start" child process file handle.
+// Fails if the child process already has a handle by this number or has already started.
+SYSCALL_DEF(0x0204, SYSCALL_PROC_PFCLONE, syscall_proc_pfclone, bool, int child, int parent_fileno, int child_fileno)
+
+// Starts a "pre-start" child process, thereby converting it into a running child process.
+SYSCALL_DEF(0x0205, SYSCALL_PROC_PFSTART, syscall_proc_pfstart, bool, int child)
+
+// Set the signal handler for a specific signal number.
+SYSCALL_DEF(0x0206, SYSCALL_PROC_SIGHANDLER, syscall_proc_sighandler, void *, int signum, void *newhandler)
+
+// Return from a signal handler.
+SYSCALL_DEF(0x0207, SYSCALL_PROC_SIGRET, syscall_proc_sigret, void)
+
+// TODO: Get child process exit code.
 
 
 /* ==== FILESYSTEM SYSCALLS ==== */
 // Implemented in filesystem/syscall_impl.c
 
 // Open a file, optionally relative to a directory.
-// Returns <= -1 on error, file descriptor number of success.
+// Returns <= -1 on error, file descriptor number on success.
 SYSCALL_DEF(0x0300, SYSCALL_FS_OPEN, syscall_fs_open, file_t, char const *path, file_t relative_to, int oflags)
 
 // Flush and close a file.
@@ -89,10 +117,6 @@ SYSCALL_DEF(0x0401, SYSCALL_MEM_SIZE, syscall_mem_size, size_t, void *address)
 // Unmap a range of memory previously allocated with `SYSCALL_MEM_ALLOC`.
 // Returns whether a range of memory was unmapped.
 SYSCALL_DEF(0x0402, SYSCALL_MEM_DEALLOC, syscall_mem_dealloc, bool, void *address)
-
-
-
-/* ==== PROCESS MANAGEMENT SYSCALLS ==== */
 
 
 

@@ -13,6 +13,8 @@
 #define PROC_EXITING 0x00000002
 // Process has fully exited.
 #define PROC_EXITED  0x00000004
+// Process has signals pending.
+#define PROC_SIGPEND 0x00000008
 
 
 
@@ -42,3 +44,6 @@ void   proc_unmap(badge_err_t *ec, pid_t pid, size_t base);
 // Whether the process owns this range of memory.
 // Returns the lowest common denominator of the access bits bitwise or 8.
 int    proc_map_contains(badge_err_t *ec, pid_t pid, size_t base, size_t size);
+
+// Raise a signal to a process, which may be the current process.
+void proc_raise_signal(badge_err_t *ec, pid_t pid, int signum);

@@ -1,4 +1,6 @@
 
+// SPDX-License-Identifier: MIT
+
 #include "cpu/panic.h"
 
 #include "isr_ctx.h"

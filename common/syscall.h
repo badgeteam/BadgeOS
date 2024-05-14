@@ -18,6 +18,13 @@
 typedef int file_t;
 typedef int tid_t;
 
+// Process is running or waiting for syscalls.
+#define PROC_RUNNING     0x00000001
+// Process is waiting for threads to exit.
+#define PROC_EXITING     0x00000002
+// Process has fully exited.
+#define PROC_EXITED      0x00000004
+
 // Open for read-only.
 #define OFLAGS_READONLY  0x00000001
 // Open for write-only.

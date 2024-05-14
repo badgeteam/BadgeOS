@@ -5,10 +5,12 @@
 
 #include "filesystem.h"
 #include "kbelf.h"
+#include "list.h"
 #include "memprotect.h"
 #include "mutex.h"
 #include "port/hardware_allocation.h"
 #include "scheduler/scheduler.h"
+#include "signal.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -46,6 +48,14 @@ typedef struct {
     file_t real;
 } proc_fd_t;
 
+// Pending signal entry.
+typedef struct {
+    // Doubly-linked list node.
+    dlist_node_t node;
+    // Signal number.
+    int          signum;
+} sigpending_t;
+
 // Globally unique process ID.
 typedef int pid_t;
 
@@ -71,6 +81,11 @@ typedef struct process_t {
     mutex_t          mtx;
     // Process status flags.
     atomic_int       flags;
+    // Pending signals list.
+    dlist_t          sigpending;
+    // Signal handler virtual addresses.
+    // First index is for signal handler returns.
+    size_t           sighandlers[SIG_COUNT];
     // Exit code if applicable.
     int              exit_code;
 } process_t;

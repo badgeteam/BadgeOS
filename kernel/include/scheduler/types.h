@@ -44,6 +44,8 @@ enum {
     THREAD_KERNEL     = (1 << 3),
     // The thread is a kernel thread or a user thread running in kernel mode.
     THREAD_PRIVILEGED = (1 << 4),
+    // The user thread is running a signal handler.
+    THREAD_SIGHANDLER = (1 << 5),
 };
 
 struct sched_thread_t {

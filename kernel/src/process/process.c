@@ -1,7 +1,6 @@
 
 // SPDX-License-Identifier: MIT
 
-
 #include "process/process.h"
 
 #include "arrays.h"
@@ -16,7 +15,9 @@
 #include "port/hardware_allocation.h"
 #include "port/port.h"
 #include "process/internal.h"
+#include "process/sighandler.h"
 #include "process/types.h"
+#include "scheduler/cpu.h"
 #include "scheduler/types.h"
 #include "static-buddy.h"
 
@@ -93,6 +94,11 @@ process_t *proc_create_raw(badge_err_t *ec) {
         .mtx = MUTEX_T_INIT_SHARED,
         .pid = pid_counter,
     };
+
+    // Set default signal handlers.
+    for (size_t i = 0; i < SIG_COUNT; i++) {
+        handle->sighandlers[i] = SIG_DFL;
+    }
 
     // Insert the entry into the list.
     process_t         dummy = {.pid = pid_counter};
@@ -443,6 +449,37 @@ void proc_remove_fd_raw(badge_err_t *ec, process_t *process, int virt) {
 }
 
 
+// Perform a pre-resume check for a user thread.
+// Used to implement asynchronous events.
+void proc_pre_resume_cb(sched_thread_t *thread) {
+    process_t *const process = thread->process;
+    if (proc_signals_pending_raw(process)) {
+        logk_from_isr(LOG_DEBUG, "There be pending signals");
+        sched_raise_from_isr(thread, false, proc_signal_handler);
+    }
+}
+
+// Atomically check for pending signals.
+bool proc_signals_pending_raw(process_t *process) {
+    return atomic_load(&process->flags) & PROC_SIGPEND;
+}
+
+// Raise a signal to a process' main thread or a specified thread, while suspending it's other threads.
+void proc_raise_signal_raw(badge_err_t *ec, process_t *process, int signum) {
+    assert_always(mutex_acquire(NULL, &process->mtx, PROC_MTX_TIMEOUT));
+    sigpending_t *node = malloc(sizeof(sigpending_t));
+    if (!node) {
+        badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOMEM);
+    } else {
+        node->signum = signum;
+        dlist_append(&process->sigpending, &node->node);
+        atomic_fetch_or(&process->flags, PROC_SIGPEND);
+    }
+    mutex_release(NULL, &process->mtx);
+}
+
+
+
 // Suspend all threads for a process except the current.
 void proc_suspend(process_t *process, sched_thread_t *current) {
     assert_always(mutex_acquire(NULL, &process->mtx, PROC_MTX_TIMEOUT));
@@ -640,4 +677,17 @@ int proc_map_contains(badge_err_t *ec, pid_t pid, size_t base, size_t size) {
     }
     mutex_release_shared(NULL, &proc_mtx);
     return ret;
+}
+
+
+// Raise a signal to a process' main thread, while suspending it's other threads.
+void proc_raise_signal(badge_err_t *ec, pid_t pid, int signum) {
+    mutex_acquire_shared(NULL, &proc_mtx, TIMESTAMP_US_MAX);
+    process_t *proc = proc_get(pid);
+    if (proc) {
+        proc_raise_signal_raw(ec, proc, signum);
+    } else {
+        badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOTFOUND);
+    }
+    mutex_release_shared(NULL, &proc_mtx);
 }

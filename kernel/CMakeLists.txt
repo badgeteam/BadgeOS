@@ -103,6 +103,7 @@ add_executable(${target}
     ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/vfs_internal.c
     ${CMAKE_CURRENT_LIST_DIR}/src/loading/kbelfx.c
     ${CMAKE_CURRENT_LIST_DIR}/src/process/process.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/process/sighandler.c
     ${CMAKE_CURRENT_LIST_DIR}/src/process/syscall_impl.c
     ${CMAKE_CURRENT_LIST_DIR}/src/housekeeping.c
     ${CMAKE_CURRENT_LIST_DIR}/src/main.c

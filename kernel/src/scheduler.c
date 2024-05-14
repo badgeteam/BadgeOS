@@ -332,6 +332,7 @@ pop_thread:
                 reset_flag(next_thread->flags, THREAD_RUNNING);
                 goto pop_thread;
             }
+            proc_pre_resume_cb(next_thread);
             isr_ctx_switch_set(&next_thread->user_isr_ctx);
         }
 

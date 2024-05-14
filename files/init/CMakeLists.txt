@@ -61,8 +61,8 @@ project(badgeros C ASM)
 set(target app.elf)
 add_executable(${target}
     ${CMAKE_CURRENT_LIST_DIR}/src/start.S
-    ${CMAKE_CURRENT_LIST_DIR}/src/syscall.S
     ${CMAKE_CURRENT_LIST_DIR}/src/main.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/syscall.c
 )
 target_include_directories(${target} PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/src

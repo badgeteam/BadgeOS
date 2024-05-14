@@ -47,7 +47,8 @@ extern void syscall_return(long long value) __attribute__((noreturn));
 // Disable interrupts and return whether they were enabled.
 static inline bool isr_global_disable() {
     uint32_t mstatus;
-    asm volatile("csrrc %0, mstatus, %1" : "=r"(mstatus) : "r"((1U << RISCV_STATUS_MIE_BIT)));
+    asm volatile("csrr %0, mstatus" : "=r"(mstatus));
+    asm volatile("csrc mstatus, %0" ::"r"((1U << RISCV_STATUS_MIE_BIT)));
     return mstatus & (1U << RISCV_STATUS_MIE_BIT);
 }
 // Enable interrupts.
