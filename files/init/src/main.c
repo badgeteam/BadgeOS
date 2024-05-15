@@ -46,6 +46,15 @@ int main(int argc, char **argv) {
     *mem              = 3;
     syscall_mem_dealloc(mem);
 
+    // Start child process, ok.
+    char const *binary = "/sbin/test";
+    int         pid    = syscall_proc_pcreate(binary, 1, &binary);
+    if (pid < 0)
+        print("No pcreate :c\n");
+    bool started = syscall_proc_pstart(pid);
+    if (!started)
+        print("No pstart :c\n");
+
     // SIGTRAP test.
     print("Time for trolling\n");
     syscall_proc_sighandler(SIGTRAP, sigtrap_handler);

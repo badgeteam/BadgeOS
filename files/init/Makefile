@@ -3,7 +3,6 @@
 
 MAKEFLAGS += --silent
 SHELL    := /usr/bin/env bash
-PORT     ?= $(shell find /dev/ -name ttyUSB* -or -name ttyACM* | head -1)
 OUTPUT   ?= $(shell pwd)/app
 BUILDDIR ?= build
 

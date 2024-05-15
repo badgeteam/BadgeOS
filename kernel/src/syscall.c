@@ -35,7 +35,11 @@ SYSCALL_HANDLER_SIGNATURE {
         case SYSCALL_TEMP_WRITE: syscall_temp_write((char const *)a0, a1); break;
         case SYSCALL_THREAD_YIELD: sched_yield(); break;
         case SYSCALL_PROC_EXIT: syscall_proc_exit(a0); break;
-        case SYSCALL_SYS_SHUTDOWN: syscall_sys_shutdown(a0); break;
+        case SYSCALL_PROC_GETARGS: retval = syscall_proc_getargs(a0, (void *)a1); break;
+        case SYSCALL_PROC_PCREATE: retval = syscall_proc_pcreate((char const *)a0, a1, (char const **)a2); break;
+        case SYSCALL_PROC_PSTART: retval = syscall_proc_pstart(a0); break;
+        case SYSCALL_PROC_SIGHANDLER: retval = (size_t)syscall_proc_sighandler(a0, (void *)a1); break;
+        case SYSCALL_PROC_SIGRET: syscall_proc_sigret(); break;
         case SYSCALL_FS_OPEN: retval = syscall_fs_open((char const *)a0, a1, a2); break;
         case SYSCALL_FS_CLOSE: retval = syscall_fs_close(a0); break;
         case SYSCALL_FS_READ: retval = syscall_fs_read(a0, (void *)a1, a2); break;
@@ -44,8 +48,7 @@ SYSCALL_HANDLER_SIGNATURE {
         case SYSCALL_MEM_ALLOC: retval = (size_t)syscall_mem_alloc(a0, a1, a2, a3); break;
         case SYSCALL_MEM_SIZE: retval = syscall_mem_size((void *)a0); break;
         case SYSCALL_MEM_DEALLOC: syscall_mem_dealloc((void *)a0); break;
-        case SYSCALL_PROC_SIGHANDLER: retval = (size_t)syscall_proc_sighandler(a0, (void *)a1); break;
-        case SYSCALL_PROC_SIGRET: syscall_proc_sigret(); break;
+        case SYSCALL_SYS_SHUTDOWN: syscall_sys_shutdown(a0); break;
         default:
             proc_sigsys_handler();
             isr_global_disable();

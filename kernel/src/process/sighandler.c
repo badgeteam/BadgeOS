@@ -63,6 +63,7 @@ void proc_signal_handler() {
 
 // Raises a fault signal to the current thread.
 // If the thread is already running a signal handler, the process is killed.
+static void trap_signal_handler(int signum) NORETURN;
 static void trap_signal_handler(int signum) {
     sched_thread_t  *thread  = sched_get_current_thread_unsafe();
     process_t *const proc    = thread->process;

@@ -8,13 +8,17 @@
 
 
 // Process is running or waiting for syscalls.
-#define PROC_RUNNING 0x00000001
+#define PROC_RUNNING  0x00000001
 // Process is waiting for threads to exit.
-#define PROC_EXITING 0x00000002
+#define PROC_EXITING  0x00000002
 // Process has fully exited.
-#define PROC_EXITED  0x00000004
+#define PROC_EXITED   0x00000004
 // Process has signals pending.
-#define PROC_SIGPEND 0x00000008
+#define PROC_SIGPEND  0x00000008
+// Process is pre-start.
+#define PROC_PRESTART 0x00000010
+// Process has a state change not acknowledged.
+#define PROC_STATECHG 0x00000020
 
 
 
@@ -24,17 +28,13 @@ typedef struct process_t process_t;
 typedef int              pid_t;
 
 // Create a new, empty process.
-pid_t    proc_create(badge_err_t *ec);
+pid_t    proc_create(badge_err_t *ec, pid_t parent, char const *binary, int argc, char const *const *argv);
 // Delete a process and release any resources it had.
 void     proc_delete(pid_t pid);
 // Get the process' flags.
 uint32_t proc_getflags(badge_err_t *ec, pid_t pid);
-
-// Set arguments for a process.
-// If omitted, argc will be 0 and argv will be NULL.
-void proc_setargs(badge_err_t *ec, pid_t pid, int argc, char const *const *argv);
 // Load an executable and start a prepared process.
-void proc_start(badge_err_t *ec, pid_t pid, char const *executable);
+void     proc_start(badge_err_t *ec, pid_t pid);
 
 // Allocate more memory to a process.
 // Returns actual virtual address on success, 0 on failure.
@@ -47,3 +47,6 @@ int    proc_map_contains(badge_err_t *ec, pid_t pid, size_t base, size_t size);
 
 // Raise a signal to a process, which may be the current process.
 void proc_raise_signal(badge_err_t *ec, pid_t pid, int signum);
+
+// Check whether a process is a parent to another.
+bool proc_is_parent(pid_t parent, pid_t child);

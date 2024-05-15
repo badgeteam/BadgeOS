@@ -89,7 +89,7 @@ bool sched_signal_enter(size_t handler_vaddr, size_t return_vaddr, int signum) {
     thread->user_isr_ctx.regs.sp -= usize;
 
     // Save context to user's stack.
-    // TODO: Copy-to-user function here?
+    // TODO: Enable SUM bit for S-mode kernel.
     long *stackptr = (long *)usp;
     stackptr[0]    = thread->user_isr_ctx.regs.t0;
     stackptr[1]    = thread->user_isr_ctx.regs.t1;
@@ -109,6 +109,7 @@ bool sched_signal_enter(size_t handler_vaddr, size_t return_vaddr, int signum) {
     stackptr[17]   = thread->user_isr_ctx.regs.pc;
     stackptr[18]   = thread->user_isr_ctx.regs.s0;
     stackptr[19]   = thread->user_isr_ctx.regs.ra;
+    // TODO: Disable SUM bit for S-mode kernel.
 
     // Set up registers for entering signal handler.
     thread->user_isr_ctx.regs.s0 = thread->user_isr_ctx.regs.sp + usize;
@@ -137,7 +138,7 @@ bool sched_signal_exit() {
     }
 
     // Restore user's state.
-    // TODO: Copy-from-user function here?
+    // TODO: Enable SUM bit for S-mode kernel.
     long *stackptr               = (long *)usp;
     thread->user_isr_ctx.regs.t0 = stackptr[0];
     thread->user_isr_ctx.regs.t1 = stackptr[1];
@@ -157,6 +158,7 @@ bool sched_signal_exit() {
     thread->user_isr_ctx.regs.pc = stackptr[17];
     thread->user_isr_ctx.regs.s0 = stackptr[18];
     thread->user_isr_ctx.regs.ra = stackptr[19];
+    // TODO: Disable SUM bit for S-mode kernel.
 
     // Restore user's stack pointer.
     thread->user_isr_ctx.regs.sp += usize;

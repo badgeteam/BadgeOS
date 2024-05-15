@@ -61,10 +61,18 @@ typedef int pid_t;
 
 // A process and all of its resources.
 typedef struct process_t {
+    // Node for child process list.
+    dlist_node_t     node;
+    // Parent process, NULL for process 1.
+    process_t       *parent;
+    // Process binary.
+    char const      *binary;
     // Number of arguments.
     int              argc;
     // Value of arguments.
     char           **argv;
+    // Size required to store all of argv.
+    size_t           argv_size;
     // Number of file descriptors.
     size_t           fds_len;
     // File descriptors.
@@ -83,6 +91,8 @@ typedef struct process_t {
     atomic_int       flags;
     // Pending signals list.
     dlist_t          sigpending;
+    // Child process list.
+    dlist_t          children;
     // Signal handler virtual addresses.
     // First index is for signal handler returns.
     size_t           sighandlers[SIG_COUNT];

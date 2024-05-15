@@ -1,5 +1,6 @@
 
 // SPDX-License-Identifier: MIT
+// clang-format off
 
 /* ==== TEMPORARY SYSCALLS ==== */
 // Implemented in syscall.c
@@ -41,7 +42,7 @@ SYSCALL_DEF(0x0106, SYSCALL_THREAD_EXIT, syscall_thread_exit, void, int code)
 // Exit the process; exit code can be read by parent process.
 SYSCALL_DEF(0x0200, SYSCALL_PROC_EXIT, syscall_proc_exit, void, int code)
 
-// Get the command-line arguments (i.e. argc+argv) of a process (or pid 0 for self).
+// Get the command-line arguments (i.e. argc+argv) of the current process.
 // If memory is large enough, a NULL-terminated argv array of C-string pointers and their data is stored in `memory`.
 // The function returns how many bytes would be needed to store the structure.
 // If the memory was not large enough, it it not modified.
@@ -50,25 +51,23 @@ SYSCALL_DEF(0x0201, SYSCALL_PROC_GETARGS, syscall_proc_getargs, size_t, size_t c
 // Create a "pre-start" child process that inherits this process' file descriptors and environment variables.
 // The child process is created in a halted state and it is killed if the parent exits before the child is resumed.
 // Returns process ID of new child on success, or a (negative) errno on failure.
-SYSCALL_DEF(0x0202, SYSCALL_PROC_PCREATE, syscall_proc_pcreate, int, char const *binary, int argc, char const **argv)
+SYSCALL_DEF(0x0202, SYSCALL_PROC_PCREATE, syscall_proc_pcreate, int, char const *binary, int argc, char const *const *argv)
 
-// Closes a file handle of a "pre-start" child process.
-SYSCALL_DEF(0x0203, SYSCALL_PROC_PFCLOSE, syscall_proc_pfclose, bool, int child, int fileno)
-
-// Copies a parent process file handle to the specified "pre-start" child process file handle.
-// Fails if the child process already has a handle by this number or has already started.
-SYSCALL_DEF(0x0204, SYSCALL_PROC_PFCLONE, syscall_proc_pfclone, bool, int child, int parent_fileno, int child_fileno)
+// Destroy a "pre-start" child process.
+// Usually used in case of errors.
+SYSCALL_DEF(0x0203, SYSCALL_PROC_PDESTROY, syscall_proc_pdestroy, bool, int child)
 
 // Starts a "pre-start" child process, thereby converting it into a running child process.
-SYSCALL_DEF(0x0205, SYSCALL_PROC_PFSTART, syscall_proc_pfstart, bool, int child)
+SYSCALL_DEF(0x0204, SYSCALL_PROC_PSTART, syscall_proc_pstart, bool, int child)
 
 // Set the signal handler for a specific signal number.
-SYSCALL_DEF(0x0206, SYSCALL_PROC_SIGHANDLER, syscall_proc_sighandler, void *, int signum, void *newhandler)
+SYSCALL_DEF(0x0205, SYSCALL_PROC_SIGHANDLER, syscall_proc_sighandler, void *, int signum, void *newhandler)
 
 // Return from a signal handler.
-SYSCALL_DEF(0x0207, SYSCALL_PROC_SIGRET, syscall_proc_sigret, void)
+SYSCALL_DEF(0x0206, SYSCALL_PROC_SIGRET, syscall_proc_sigret, void)
 
-// TODO: Get child process exit code.
+// Get child process status update.
+SYSCALL_DEF(0x0207, SYSCALL_PROC_WAITPID, syscall_proc_waitpid, int, int pid, int *wstatus, int options)
 
 
 /* ==== FILESYSTEM SYSCALLS ==== */

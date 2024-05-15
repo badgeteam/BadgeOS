@@ -15,6 +15,7 @@ set(cpu_src
     ${CMAKE_CURRENT_LIST_DIR}/src/panic.c
     ${CMAKE_CURRENT_LIST_DIR}/src/riscv_pmp.c
     ${CMAKE_CURRENT_LIST_DIR}/src/scheduler.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/usercopy.c
 )
 set(cpu_include ${CMAKE_CURRENT_LIST_DIR}/include)
 set(cpu_link)

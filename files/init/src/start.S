@@ -31,12 +31,7 @@ _start:
     jal main
     
     # Exit the process if main returns
-    mv s0, a0
-    li a7, SYSCALL_SYS_SHUTDOWN
-    li a0, 0
-    ecall
     li a7, SYSCALL_PROC_EXIT
-    mv a0, s0
     ecall
 
 
