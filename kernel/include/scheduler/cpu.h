@@ -23,7 +23,7 @@ void sched_lower_from_isr();
 
 // Check whether the current thread is in a signal handler.
 // Returns signal number, or 0 if not in a signal handler.
-int sched_is_sighandler();
+bool sched_is_sighandler();
 
 // Enters a signal handler in the current thread.
 // Returns false if there isn't enough resources to do so.

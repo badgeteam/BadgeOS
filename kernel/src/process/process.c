@@ -38,7 +38,7 @@ static process_t **procs       = NULL;
 extern atomic_int  kernel_shutdown_mode;
 // Allow process 1 to die without kernel panic.
 static bool        allow_proc1_death() {
-    return true;
+    return kernel_shutdown_mode && procs_len == 1;
 }
 
 // Set arguments for a process.
@@ -50,7 +50,33 @@ static bool proc_setargs_raw_unsafe(badge_err_t *ec, process_t *process, int arg
 // Clean up: the housekeeping task.
 static void clean_up_from_housekeeping(int taskno, void *arg) {
     (void)taskno;
-    proc_delete((pid_t)arg);
+    mutex_acquire_shared(NULL, &proc_mtx, TIMESTAMP_US_MAX);
+    process_t *proc = proc_get_unsafe((int)arg);
+
+    // Delete run-time resources.
+    proc_delete_runtime_raw(proc);
+    if (!proc->parent) {
+        // Init process during shutdown; delete right away.
+        mutex_release_shared(NULL, &proc_mtx);
+        proc_delete((int)arg);
+        return;
+    }
+
+    // Check whether parent ignores SIGCHLD.
+    mutex_acquire_shared(NULL, &proc->parent->mtx, TIMESTAMP_US_MAX);
+    bool ignored = proc->parent->sighandlers[SIGCHLD] == SIG_IGN;
+    mutex_release_shared(NULL, &proc->parent->mtx);
+
+    if (ignored) {
+        // Parent process ignores SIGCHLD; delete right away.
+        mutex_release_shared(NULL, &proc_mtx);
+        proc_delete((int)arg);
+    } else {
+        // Signal parent process.
+        atomic_fetch_or(&proc->flags, PROC_STATECHG);
+        proc_raise_signal_raw(NULL, proc->parent, SIGCHLD);
+        mutex_release_shared(NULL, &proc_mtx);
+    }
 }
 
 // Kill a process from one of its own threads.
@@ -58,9 +84,9 @@ void proc_exit_self(int code) {
     // Mark this process as exiting.
     sched_thread_t *thread  = sched_get_current_thread();
     process_t      *process = thread->process;
-    assert_always(mutex_acquire(NULL, &process->mtx, PROC_MTX_TIMEOUT));
-    process->flags     |= PROC_EXITING;
-    process->exit_code  = code;
+    mutex_acquire(NULL, &process->mtx, TIMESTAMP_US_MAX);
+    atomic_fetch_or(&process->flags, PROC_EXITING);
+    process->state_code = code;
     mutex_release(NULL, &process->mtx);
 
     // Add deleting runtime to the housekeeping list.
@@ -78,7 +104,9 @@ process_t *proc_create_raw(badge_err_t *ec, pid_t parentpid, char const *binary,
     // Get a new PID.
     mutex_acquire(NULL, &proc_mtx, TIMESTAMP_US_MAX);
     process_t *parent = proc_get_unsafe(parentpid);
-    if (!parent && parentpid > 0) {
+    if (pid_counter == 1) {
+        assert_dev_drop(parentpid <= 0);
+    } else if (!parent) {
         mutex_release(NULL, &proc_mtx);
         badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOTFOUND);
         return NULL;
@@ -507,7 +535,7 @@ bool proc_signals_pending_raw(process_t *process) {
 
 // Raise a signal to a process' main thread or a specified thread, while suspending it's other threads.
 void proc_raise_signal_raw(badge_err_t *ec, process_t *process, int signum) {
-    assert_always(mutex_acquire(NULL, &process->mtx, PROC_MTX_TIMEOUT));
+    mutex_acquire(NULL, &process->mtx, TIMESTAMP_US_MAX);
     sigpending_t *node = malloc(sizeof(sigpending_t));
     if (!node) {
         badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOMEM);
@@ -523,7 +551,7 @@ void proc_raise_signal_raw(badge_err_t *ec, process_t *process, int signum) {
 
 // Suspend all threads for a process except the current.
 void proc_suspend(process_t *process, sched_thread_t *current) {
-    assert_always(mutex_acquire(NULL, &process->mtx, PROC_MTX_TIMEOUT));
+    mutex_acquire(NULL, &process->mtx, TIMESTAMP_US_MAX);
     for (size_t i = 0; i < process->threads_len; i++) {
         if (process->threads[i] != current) {
             sched_suspend_thread(NULL, process->threads[i]);
@@ -534,7 +562,7 @@ void proc_suspend(process_t *process, sched_thread_t *current) {
 
 // Resume all threads for a process.
 void proc_resume(process_t *process) {
-    assert_always(mutex_acquire(NULL, &process->mtx, PROC_MTX_TIMEOUT));
+    mutex_acquire(NULL, &process->mtx, TIMESTAMP_US_MAX);
     for (size_t i = 0; i < process->threads_len; i++) {
         sched_resume_thread(NULL, process->threads[i]);
     }
@@ -543,7 +571,7 @@ void proc_resume(process_t *process) {
 
 // Release all process runtime resources (threads, memory, files, etc.).
 // Does not remove args, exit code, etc.
-void proc_delete_runtime(process_t *process) {
+void proc_delete_runtime_raw(process_t *process) {
     // This may not be run from one of the process' threads because it kills all of them.
     for (size_t i = 0; i < process->threads_len; i++) {
         assert_dev_drop(sched_get_current_thread() != process->threads[i]);
@@ -556,7 +584,7 @@ void proc_delete_runtime(process_t *process) {
     }
 
     // Set the exiting flag so any return to user-mode kills the thread.
-    assert_always(mutex_acquire(NULL, &process->mtx, PROC_MTX_TIMEOUT));
+    mutex_acquire(NULL, &process->mtx, TIMESTAMP_US_MAX);
     if (atomic_load(&process->flags) & PROC_EXITED) {
         // Already exited, return now.
         mutex_release(NULL, &process->mtx);
@@ -582,6 +610,13 @@ void proc_delete_runtime(process_t *process) {
         sched_yield();
     }
 
+    // Adopt all children to init.
+    if (process->pid != 1) {
+        process_t *init = procs[0];
+        assert_dev_drop(init->pid == 1);
+        dlist_concat(&init->children, &process->children);
+    }
+
     // Destroy all threads.
     for (size_t i = 0; i < process->threads_len; i++) {
         free((void *)process->threads[i]->kernel_stack_bottom);
@@ -600,7 +635,7 @@ void proc_delete_runtime(process_t *process) {
     // Mark the process as exited.
     process->flags |= PROC_EXITED;
     process->flags &= ~PROC_EXITING & ~PROC_RUNNING;
-    logkf(LOG_INFO, "Process %{d} stopped with code %{d}", process->pid, process->exit_code);
+    logkf(LOG_INFO, "Process %{d} stopped with code %{d}", process->pid, process->state_code);
     mutex_release(NULL, &process->mtx);
 }
 
@@ -625,7 +660,7 @@ void proc_delete(pid_t pid) {
     process_t *handle = procs[res.index];
 
     // Stop the possibly running process and release all run-time resources.
-    proc_delete_runtime(handle);
+    proc_delete_runtime_raw(handle);
 
     // Release kernel memory allocated to process.
     memprotect_destroy(&handle->memmap.mpu_ctx);

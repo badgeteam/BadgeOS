@@ -4,12 +4,13 @@
 #include "process/sighandler.h"
 
 #include "backtrace.h"
+#include "cpu/isr.h"
 #include "interrupt.h"
 #include "malloc.h"
 #include "process/internal.h"
 #include "process/types.h"
 #include "scheduler/cpu.h"
-#include "signal.h"
+#include "sys/wait.h"
 
 // Signal name table.
 char const *signames[SIG_COUNT] = {
@@ -28,14 +29,18 @@ static void run_sighandler(int signum) {
     sched_thread_t  *thread = sched_get_current_thread_unsafe();
     process_t *const proc   = thread->process;
     // Check for signal handler.
-    if (proc->sighandlers[signum] == SIG_DFL && (SIG_DFL_KILL_MASK >> signum) & 1) {
-        proc_exit_self(-1);
-        // Log the occasion.
-        logkf(LOG_ERROR, "Process %{d} received %{cs}", proc->pid, signames[signum]);
-        // Print backtrace of the calling thread.
-        backtrace_from_ptr((void *)thread->user_isr_ctx.regs.s0);
-        isr_ctx_dump(&thread->user_isr_ctx);
-
+    if (proc->sighandlers[signum] == SIG_DFL) {
+        if ((SIG_DFL_KILL_MASK >> signum) & 1) {
+            // Process didn't catch a signal that kills it.
+            mutex_acquire(NULL, &log_mtx, TIMESTAMP_US_MAX);
+            logkf_from_isr(LOG_ERROR, "Process %{d} received %{cs}", proc->pid, signames[signum]);
+            // Print backtrace of the calling thread.
+            backtrace_from_ptr((void *)thread->user_isr_ctx.regs.s0);
+            isr_ctx_dump(&thread->user_isr_ctx);
+            mutex_release(NULL, &log_mtx);
+            // Finally, kill the process.
+            proc_exit_self(W_SIGNALLED(signum));
+        }
     } else if (proc->sighandlers[signum]) {
         sched_signal_enter(proc->sighandlers[signum], proc->sighandlers[0], signum);
     }
@@ -45,7 +50,7 @@ static void run_sighandler(int signum) {
 // Called in the kernel side of a used thread when a signal might be queued.
 void proc_signal_handler() {
     process_t *const proc = proc_current();
-    assert_dev_drop(mutex_acquire(NULL, &proc->mtx, PROC_MTX_TIMEOUT));
+    mutex_acquire(NULL, &proc->mtx, TIMESTAMP_US_MAX);
     if (proc->sigpending.len) {
         // Pop the first pending signal and run its handler.
         sigpending_t *node = (sigpending_t *)dlist_pop_front(&proc->sigpending);
@@ -70,10 +75,9 @@ static void trap_signal_handler(int signum) {
     int              current = sched_is_sighandler();
     if (current) {
         // If the thread is still running a signal handler, terminate the process.
-        proc_exit_self(-1);
-        // Log the occasion.
+        mutex_acquire(NULL, &log_mtx, TIMESTAMP_US_MAX);
         if (current > 0 && current < SIG_COUNT && signames[current]) {
-            logkf(
+            logkf_from_isr(
                 LOG_ERROR,
                 "Process %{d} received %{cs} while handling %{cs}",
                 proc->pid,
@@ -81,7 +85,7 @@ static void trap_signal_handler(int signum) {
                 signames[current]
             );
         } else {
-            logkf(
+            logkf_from_isr(
                 LOG_ERROR,
                 "Process %{d} received %{cs} while handling Signal #%{d}",
                 proc->pid,
@@ -92,6 +96,9 @@ static void trap_signal_handler(int signum) {
         // Print backtrace of the calling thread.
         backtrace_from_ptr((void *)thread->user_isr_ctx.regs.s0);
         isr_ctx_dump(&thread->user_isr_ctx);
+        mutex_release(NULL, &log_mtx);
+        // Finally, kill the process.
+        proc_exit_self(W_SIGNALLED(signum));
 
     } else {
         // If the thread isn't running a signal handler, run the appropriate one.

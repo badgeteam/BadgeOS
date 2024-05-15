@@ -40,6 +40,7 @@ SYSCALL_HANDLER_SIGNATURE {
         case SYSCALL_PROC_PSTART: retval = syscall_proc_pstart(a0); break;
         case SYSCALL_PROC_SIGHANDLER: retval = (size_t)syscall_proc_sighandler(a0, (void *)a1); break;
         case SYSCALL_PROC_SIGRET: syscall_proc_sigret(); break;
+        case SYSCALL_PROC_WAITPID: retval = syscall_proc_waitpid(a0, (int *)a1, a2); break;
         case SYSCALL_FS_OPEN: retval = syscall_fs_open((char const *)a0, a1, a2); break;
         case SYSCALL_FS_CLOSE: retval = syscall_fs_close(a0); break;
         case SYSCALL_FS_READ: retval = syscall_fs_read(a0, (void *)a1, a2); break;
@@ -54,7 +55,7 @@ SYSCALL_HANDLER_SIGNATURE {
             isr_global_disable();
             sched_lower_from_isr();
             isr_context_switch();
-            return;
+            __builtin_unreachable();
     }
 
     syscall_return(retval);

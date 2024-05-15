@@ -4,13 +4,16 @@
 #include "process/syscall_impl.h"
 
 #include "badge_strings.h"
+#include "cpu/isr.h"
+#include "errno.h"
+#include "interrupt.h"
 #include "process/internal.h"
 #include "process/sighandler.h"
 #include "process/types.h"
 #include "scheduler/cpu.h"
 #include "signal.h"
+#include "sys/wait.h"
 #include "usercopy.h"
-
 
 
 // Map a new range of memory at an arbitrary virtual address.
@@ -49,7 +52,7 @@ bool syscall_mem_dealloc(void *address) {
 // Sycall: Exit the process; exit code can be read by parent process.
 // When this system call returns, the thread will be suspended awaiting process termination.
 void syscall_proc_exit(int code) {
-    proc_exit_self(code);
+    proc_exit_self(W_EXITED(code & 255));
 }
 
 // Get the command-line arguments (i.e. argc+argv) of a process (or pid 0 for self).
@@ -140,5 +143,69 @@ void syscall_proc_sigret() {
     if (!sched_is_sighandler()) {
         proc_sigsys_handler();
     }
-    sched_signal_exit();
+    if (!sched_signal_exit()) {
+        proc_sigsegv_handler();
+    }
+    irq_enable(false);
+    sched_lower_from_isr();
+    isr_context_switch();
+    __builtin_unreachable();
+}
+
+// Get child process status update.
+int syscall_proc_waitpid(int pid, int *wstatus, int options) {
+    process_t *proc = proc_current();
+    // Check memory ownership.
+    if (wstatus && (!(proc_map_contains_raw(proc, (size_t)wstatus, sizeof(int)) & MEMPROTECT_FLAG_W))) {
+        proc_sigsegv_handler();
+    } else if ((size_t)wstatus % sizeof(int)) {
+        proc_sigsegv_handler();
+    }
+
+    while (!(options & WNOHANG)) {
+        mutex_acquire_shared(NULL, &proc->mtx, TIMESTAMP_US_MAX);
+        process_t *node     = (process_t *)proc->children.head;
+        bool       eligible = false;
+        while (node) {
+            // Check whether child matches PID.
+            bool node_eligible = false;
+            if (pid == -1 || pid == 0) {
+                node_eligible = true;
+            } else if (pid > 0) {
+                node_eligible = node->pid == pid;
+            }
+            // Check whether node matches the filters.
+            bool node_matches = node_eligible;
+            if (WIFCONTINUED(node->state_code)) {
+                node_matches = options & WCONTINUED;
+            } else if (WIFSTOPPED(node->state_code)) {
+                node_matches = options & WUNTRACED;
+            }
+            // Try to claim state change from child.
+            if (node_matches && (atomic_fetch_and(&node->flags, ~PROC_STATECHG) & PROC_STATECHG)) {
+                if (wstatus) {
+                    *wstatus = node->state_code;
+                }
+                int  pid    = node->pid;
+                bool exited = node->flags & PROC_EXITED;
+                mutex_release_shared(NULL, &proc->mtx);
+                if (exited && !(options & WNOWAIT)) {
+                    proc_delete(pid);
+                }
+                return pid;
+            }
+            // Not found; next node.
+            node      = (process_t *)node->node.next;
+            eligible |= node_eligible;
+        }
+        mutex_release_shared(NULL, &proc->mtx);
+        if (!eligible) {
+            // No children with matchind PIDs exist.
+            return -ECHILD;
+        }
+        sched_yield();
+    }
+
+    // Nothing found in non-blocking wait.
+    return 0;
 }

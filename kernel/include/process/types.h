@@ -18,8 +18,6 @@
 
 
 
-#define PROC_MTX_TIMEOUT 50000
-
 // A memory map entry.
 typedef struct {
     // Base address of the region.
@@ -97,5 +95,5 @@ typedef struct process_t {
     // First index is for signal handler returns.
     size_t           sighandlers[SIG_COUNT];
     // Exit code if applicable.
-    int              exit_code;
+    int              state_code;
 } process_t;

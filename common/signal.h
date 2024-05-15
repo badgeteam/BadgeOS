@@ -43,10 +43,11 @@
 // Ignore this signal.
 #define SIG_IGN ((size_t)0)
 // Assign the default action to this signal.
-#define SIG_DFL ((size_t)-1)
+#define SIG_DFL SIZE_MAX
 // Bitmask of signals that kill the process by default.
 #define SIG_DFL_KILL_MASK                                                                                              \
-    ((1 << SIGHUP) | (1 << SIGSEGV) | (1 << SIGILL) | (1 << SIGTRAP) | (1 << SIGTERM) | (1 << SIGKILL) | (1 << SIGABRT))
+    ((1llu << SIGHUP) | (1llu << SIGSEGV) | (1llu << SIGILL) | (1llu << SIGTRAP) | (1llu << SIGTERM) |                 \
+     (1llu << SIGKILL) | (1llu << SIGABRT) | (1llu << SIGSYS))
 // Signal name table.
 extern char const *signames[SIG_COUNT];
 

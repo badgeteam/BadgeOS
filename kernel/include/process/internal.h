@@ -18,7 +18,7 @@ void proc_suspend(process_t *process, sched_thread_t *current);
 void proc_resume(process_t *process);
 // Release all process runtime resources (threads, memory, files, etc.).
 // Does not remove args, exit code, etc.
-void proc_delete_runtime(process_t *process);
+void proc_delete_runtime_raw(process_t *process);
 
 // Create a new, empty process.
 process_t *proc_create_raw(badge_err_t *ec, pid_t parent, char const *binary, int argc, char const *const *argv);

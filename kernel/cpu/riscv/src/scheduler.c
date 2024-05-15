@@ -65,13 +65,9 @@ void sched_lower_from_isr() {
 
 // Check whether the current thread is in a signal handler.
 // Returns signal number, or 0 if not in a signal handler.
-int sched_is_sighandler() {
+bool sched_is_sighandler() {
     sched_thread_t *thread = sched_get_current_thread();
-    if (thread->flags & THREAD_SIGHANDLER) {
-        return thread->kernel_isr_ctx.regs.tp;
-    } else {
-        return 0;
-    }
+    return thread->flags & THREAD_SIGHANDLER;
 }
 
 // Enters a signal handler in the current thread.
@@ -90,7 +86,7 @@ bool sched_signal_enter(size_t handler_vaddr, size_t return_vaddr, int signum) {
 
     // Save context to user's stack.
     // TODO: Enable SUM bit for S-mode kernel.
-    long *stackptr = (long *)usp;
+    long *stackptr = (long *)thread->user_isr_ctx.regs.sp;
     stackptr[0]    = thread->user_isr_ctx.regs.t0;
     stackptr[1]    = thread->user_isr_ctx.regs.t1;
     stackptr[2]    = thread->user_isr_ctx.regs.t2;
@@ -118,8 +114,7 @@ bool sched_signal_enter(size_t handler_vaddr, size_t return_vaddr, int signum) {
     thread->user_isr_ctx.regs.a0 = signum;
 
     // Successfully entered signal handler.
-    thread->flags                  |= THREAD_SIGHANDLER;
-    thread->kernel_isr_ctx.regs.tp  = signum;
+    thread->flags |= THREAD_SIGHANDLER;
     return true;
 }
 
@@ -139,7 +134,7 @@ bool sched_signal_exit() {
 
     // Restore user's state.
     // TODO: Enable SUM bit for S-mode kernel.
-    long *stackptr               = (long *)usp;
+    long *stackptr               = (long *)thread->user_isr_ctx.regs.sp;
     thread->user_isr_ctx.regs.t0 = stackptr[0];
     thread->user_isr_ctx.regs.t1 = stackptr[1];
     thread->user_isr_ctx.regs.t2 = stackptr[2];
@@ -164,7 +159,6 @@ bool sched_signal_exit() {
     thread->user_isr_ctx.regs.sp += usize;
 
     // Successfully returned from signal handler.
-    thread->flags |= THREAD_SIGHANDLER;
     return true;
 }
 

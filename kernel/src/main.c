@@ -150,7 +150,8 @@ static void userland_init() {
     logk(LOG_INFO, "Kernel initialized");
     logk(LOG_INFO, "Starting init process");
 
-    pid_t pid = proc_create(&ec, -1, "/sbin/init", 1, &"init");
+    char const *initbin = "/sbin/init";
+    pid_t       pid     = proc_create(&ec, -1, "/sbin/init", 1, &initbin);
     badge_err_assert_always(&ec);
     assert_dev_drop(pid == 1);
     proc_start(&ec, pid);

@@ -49,6 +49,7 @@ set(common_compiler_flags
     -O2                                # Optimize the code.
     -ggdb                              # Generate debug information in default extended format.
     -Werror=return-type                # Error when a function doesn't return a value, but declares to do so.
+    -Werror=implicit-fallthrough
     -Wall -Wextra                      # Ramp up warning level.
     -std=gnu11                         # We use the C11 standard
     -DBADGEROS_KERNEL                  # Tell the code we're building for the kernel

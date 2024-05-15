@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include <signal.h>
+#include <sys/wait.h>
 
 
 
@@ -19,9 +20,14 @@ void print(char const *message) {
     syscall_temp_write(message, cstr_length(message));
 }
 
-void sigtrap_handler(int signum) {
-    print("Whoops, SIGTRAP ;)\n");
-    syscall_proc_exit(2);
+bool volatile has_child_exploded = false;
+void child_explosion(int signum) {
+    int status;
+    syscall_proc_waitpid(-1, &status, 0);
+    if (WIFEXITED(status)) {
+        print("I noticed, that the child exited.\n");
+        has_child_exploded = true;
+    }
 }
 
 
@@ -41,24 +47,23 @@ int main(int argc, char **argv) {
     else
         print("No read :c\n");
 
-    // Memory allocation test.
-    int volatile *mem = syscall_mem_alloc(0, 32, 0, MEMFLAGS_RW);
-    *mem              = 3;
-    syscall_mem_dealloc(mem);
-
     // Start child process, ok.
     char const *binary = "/sbin/test";
     int         pid    = syscall_proc_pcreate(binary, 1, &binary);
-    if (pid < 0)
+    if (pid <= 0)
         print("No pcreate :c\n");
+    syscall_proc_sighandler(SIGCHLD, child_explosion);
     bool started = syscall_proc_pstart(pid);
     if (!started)
         print("No pstart :c\n");
 
-    // SIGTRAP test.
-    print("Time for trolling\n");
-    syscall_proc_sighandler(SIGTRAP, sigtrap_handler);
-    asm("ebreak");
+    // Wait for child to exit.
+    while (!has_child_exploded) {
+        syscall_thread_yield();
+    }
+
+    // Gracefull shutdown.
+    syscall_sys_shutdown(false);
 
     return 0;
 }

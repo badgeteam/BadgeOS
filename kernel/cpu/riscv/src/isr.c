@@ -183,11 +183,15 @@ void riscv_trap_handler() {
 
 // Return a value from the syscall handler.
 void syscall_return(long long value) {
+    sched_thread_t *thread  = isr_ctx_get()->thread;
+    isr_ctx_t      *usr     = &thread->user_isr_ctx;
+    usr->regs.a0            = value;
+    usr->regs.a1            = value >> 32;
+    usr->regs.pc           += 4;
+    if (proc_signals_pending_raw(thread->process)) {
+        proc_signal_handler();
+    }
     irq_enable(false);
-    isr_ctx_t *usr  = &isr_ctx_get()->thread->user_isr_ctx;
-    usr->regs.a0    = value;
-    usr->regs.a1    = value >> 32;
-    usr->regs.pc   += 4;
     sched_lower_from_isr();
     isr_context_switch();
     __builtin_unreachable();
