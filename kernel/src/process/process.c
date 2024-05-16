@@ -241,6 +241,7 @@ static bool proc_setargs_raw_unsafe(badge_err_t *ec, process_t *process, int arg
     *(char **)(mem + sizeof(size_t) * argc) = NULL;
     // Update argv size.
     process->argv_size                      = required;
+    process->argv                           = (char **)mem;
 
     badge_err_set_ok(ec);
     return true;

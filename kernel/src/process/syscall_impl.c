@@ -156,9 +156,8 @@ void syscall_proc_sigret() {
 int syscall_proc_waitpid(int pid, int *wstatus, int options) {
     process_t *proc = proc_current();
     // Check memory ownership.
-    if (wstatus && (!(proc_map_contains_raw(proc, (size_t)wstatus, sizeof(int)) & MEMPROTECT_FLAG_W))) {
-        proc_sigsegv_handler();
-    } else if ((size_t)wstatus % sizeof(int)) {
+    if ((size_t)wstatus % sizeof(int) ||
+        (wstatus && (!(proc_map_contains_raw(proc, (size_t)wstatus, sizeof(int)) & MEMPROTECT_FLAG_W)))) {
         proc_sigsegv_handler();
     }
 

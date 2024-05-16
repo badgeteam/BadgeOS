@@ -75,6 +75,8 @@ void riscv_trap_handler() {
 
     if (!kctx->is_kernel_thread) {
         switch (trapno) {
+            default: break;
+
             case RISCV_TRAP_U_ECALL:
                 // ECALL from U-mode goes to system call handler.
                 sched_raise_from_isr(kctx->thread, true, syscall_handler);
