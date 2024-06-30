@@ -9,6 +9,9 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
+#define STDLIB_H
+#define _STDLIB_H
+#define __STDLIB_H
 #include "hal/gpio_ll.h"
 #include "soc/gpio_sig_map.h"
 #pragma GCC diagnostic pop
