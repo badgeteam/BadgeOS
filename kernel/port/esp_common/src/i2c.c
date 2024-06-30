@@ -10,9 +10,11 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
+// NOLINTBEGIN
 #define STDLIB_H
 #define _STDLIB_H
 #define __STDLIB_H
+// NOLINTEND
 #include "esp_rom_gpio.h"
 #include "hal/clk_tree_ll.h"
 #include "hal/gpio_hal.h"
@@ -255,8 +257,6 @@ void esp_i2c_isr() {
 }
 
 
-void i2c_master_init(badge_err_t *ec, int i2c_num, int sda_pin, int scl_pin, int32_t bitrate)
-    __attribute__((__optimize__("-O1")));
 
 // Initialises I²C peripheral i2c_num in slave mode with SDA pin `sda_pin`, SCL pin `scl_pin` and clock speed/bitrate
 // bitrate. When initialised as an I²C master, the modes of the SDA and SCL pins are changed automatically. This
@@ -268,7 +268,7 @@ void i2c_master_init(badge_err_t *ec, int i2c_num, int sda_pin, int scl_pin, int
         badge_err_set(ec, ELOC_I2C, ECAUSE_RANGE);
         return;
     }
-    gpio_hal_context_t HAL = {&GPIO};
+    gpio_hal_context_t hal = {&GPIO};
 
     i2c_ctx[i2c_num].sda_pin   = sda_pin;
     i2c_ctx[i2c_num].scl_pin   = scl_pin;
@@ -279,14 +279,14 @@ void i2c_master_init(badge_err_t *ec, int i2c_num, int sda_pin, int scl_pin, int
     gpio_ll_set_level(&GPIO, sda_pin, true);
     io_pull(NULL, sda_pin, IO_PULL_NONE);
     gpio_ll_od_enable(&GPIO, sda_pin);
-    gpio_hal_func_sel(&HAL, scl_pin, PIN_FUNC_GPIO);
+    gpio_hal_func_sel(&hal, scl_pin, PIN_FUNC_GPIO);
     esp_rom_gpio_connect_out_signal(sda_pin, i2c_sigtab[i2c_num].sda_out_sig, false, false);
     esp_rom_gpio_connect_in_signal(sda_pin, i2c_sigtab[i2c_num].sda_in_sig, false);
 
     gpio_ll_set_level(&GPIO, scl_pin, true);
     io_pull(NULL, scl_pin, IO_PULL_NONE);
     gpio_ll_od_enable(&GPIO, scl_pin);
-    gpio_hal_func_sel(&HAL, scl_pin, PIN_FUNC_GPIO);
+    gpio_hal_func_sel(&hal, scl_pin, PIN_FUNC_GPIO);
     esp_rom_gpio_connect_out_signal(scl_pin, i2c_sigtab[i2c_num].scl_out_sig, false, false);
     esp_rom_gpio_connect_in_signal(scl_pin, i2c_sigtab[i2c_num].scl_in_sig, false);
 
