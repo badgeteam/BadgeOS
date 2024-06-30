@@ -8,6 +8,7 @@
 #pragma GCC optimize("O2")
 
 #include <stdbool.h>
+#include <stdint.h>
 
 
 typedef int          si_t __attribute__((mode(SI)));
@@ -157,6 +158,54 @@ int __mulsi3(int a, int b) {
 FAKE_OPER(di_t, __muldi3, *)
 #ifdef do_ti_math
 FAKE_OPER(ti_t, __multi3, *)
+#endif
+
+// The `__clz*` count leading zero functions count how many zeroes are present, starting at the MSB.
+// They first convert a number into a bitmask where only bit above the most significant set bit is set.
+// This is then multiplied with a de Bruijn sequence to get a unique index in the most significant bits.
+// This index is then used to read from a hash table that uniquely identifies how many leading zeroes exist.
+
+int __clzsi2(uint32_t a) __attribute__((weak));
+int __clzsi2(uint32_t a) {
+    static uint8_t const hash_table[32] = {
+        0, 31, 9, 30, 3, 8,  13, 29, 2,  5,  7,  21, 12, 24, 28, 19,
+        1, 10, 4, 14, 6, 22, 25, 20, 11, 15, 23, 26, 16, 27, 17, 18,
+    };
+    for (uint32_t i = 1; i < 32; i *= 2) {
+        a |= a >> i;
+    }
+    a++;
+    return hash_table[(a * 0x076be629) >> 27];
+}
+int __clzdi2(uint64_t a) __attribute__((weak));
+int __clzdi2(uint64_t a) {
+    static uint8_t const hash_table[64] = {
+        0,  63, 62, 57, 61, 51, 56, 45, 60, 39, 50, 36, 55, 30, 44, 24, 59, 47, 38, 26, 49, 18,
+        35, 16, 54, 33, 29, 10, 43, 14, 23, 7,  1,  58, 52, 46, 40, 37, 31, 25, 48, 27, 19, 17,
+        34, 11, 15, 8,  2,  53, 41, 32, 28, 20, 12, 9,  3,  42, 21, 13, 4,  22, 5,  6,
+    };
+    for (uint64_t i = 1; i < 64; i *= 2) {
+        a |= a >> i;
+    }
+    a++;
+    return hash_table[(a * 0x0218a392cd3d5dbf) >> 58];
+}
+#ifdef do_ti_math
+int __clzti2(__uint128_t a) {
+    static uint8_t const hash_table[128] = {
+        0,   127, 126, 120, 125, 113, 119, 106, 124, 99,  112, 92,  118, 85, 105, 78, 123, 95, 98,  71, 111, 64,
+        91,  57,  117, 68,  84,  50,  104, 43,  77,  36,  122, 108, 94,  80, 97,  59, 70,  38, 110, 61, 63,  29,
+        90,  27,  56,  22,  116, 88,  67,  46,  83,  25,  49,  15,  103, 54, 42,  12, 76,  20, 35,  8,  1,   121,
+        114, 107, 100, 93,  86,  79,  96,  72,  65,  58,  69,  51,  44,  37, 109, 81, 60,  39, 62,  30, 28,  23,
+        89,  47,  26,  16,  55,  13,  21,  9,   2,   115, 101, 87,  73,  66, 52,  45, 82,  40, 31,  24, 48,  17,
+        14,  10,  3,   102, 74,  53,  41,  32,  18,  11,  4,   75,  33,  19, 5,   34, 6,   7,
+    };
+    for (__uint128_t i = 1; i < 128; i *= 2) {
+        a |= a >> i;
+    }
+    a++;
+    return hash_table[(a * 0x01061438916347932a5cd9d3ead7b77f) >> 121];
+}
 #endif
 
 // NOLINTEND

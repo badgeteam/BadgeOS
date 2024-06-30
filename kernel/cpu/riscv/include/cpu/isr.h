@@ -32,17 +32,12 @@
 extern uint32_t riscv_interrupt_vector_table[32];
 // Callback from ASM to platform-specific interrupt handler.
 extern void     riscv_interrupt_handler();
-// Signature for system call handler.
-#define SYSCALL_HANDLER_SIGNATURE                                                                                      \
-    void syscall_handler(long a0, long a1, long a2, long a3, long a4, long a5, long a6, long sysnum)
-// Suppress unused arguments warning for syscall implementation.
-#define SYSCALL_HANDLER_IGNORE_UNUSED (void)a0, (void)a1, (void)a2, (void)a3, (void)a4, (void)a5, (void)a6, (void)sysnum
-// Callback from ASM to syscall implementation.
-extern SYSCALL_HANDLER_SIGNATURE;
+// ASM system call wrapper function.
+extern void     riscv_syscall_wrapper();
 // Callback from ASM on non-syscall trap.
-extern void riscv_trap_handler();
+extern void     riscv_trap_handler();
 // Return a value from the syscall handler.
-extern void syscall_return(long long value) __attribute__((noreturn));
+extern void     syscall_return(long long value) __attribute__((noreturn));
 
 // Disable interrupts and return whether they were enabled.
 static inline bool isr_global_disable() {

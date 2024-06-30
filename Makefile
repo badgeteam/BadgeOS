@@ -4,7 +4,7 @@
 MAKEFLAGS += --silent
 SHELL    := /usr/bin/env bash
 
-.PHONY: all prepare openocd gdb flash monitor clean-all clean build clang-format-check clang-tidy-check
+.PHONY: all prepare openocd gdb flash monitor clean build clang-format-check clang-tidy-check
 
 all: build
 
@@ -17,10 +17,9 @@ build:
 	$(MAKE) -C files build
 	$(MAKE) -C kernel build
 
-clean-all: clean
 clean:
-	$(MAKE) -C files clean-all
-	$(MAKE) -C kernel clean-all
+	$(MAKE) -C files clean
+	$(MAKE) -C kernel clean
 
 openocd:
 	$(MAKE) -C kernel openocd

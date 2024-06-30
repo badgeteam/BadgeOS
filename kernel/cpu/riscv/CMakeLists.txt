@@ -8,6 +8,7 @@ set(cpu_src
     ${CMAKE_CURRENT_LIST_DIR}/src/isr.S
     ${CMAKE_CURRENT_LIST_DIR}/src/isr_ctx.S
     ${CMAKE_CURRENT_LIST_DIR}/src/isr_noexc.S
+    ${CMAKE_CURRENT_LIST_DIR}/src/syscall.S
 
     ${CMAKE_CURRENT_LIST_DIR}/src/backtrace.c
     ${CMAKE_CURRENT_LIST_DIR}/src/isr.c

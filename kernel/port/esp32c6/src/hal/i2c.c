@@ -5,6 +5,7 @@
 
 #include "hal/gpio.h"
 #include "port/clkconfig.h"
+#include "scheduler/scheduler.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/gpio_struct.h"
 #include "soc/i2c_struct.h"
@@ -38,6 +39,12 @@ typedef union {
 #define I2C_NACK 1
 
 
+
+// Returns the amount of I²C peripherals present.
+// Cannot produce an error.
+int i2c_count() {
+    return 1;
+}
 
 // Load commands into the command buffer.
 static void i2c_master_load_comd(i2c_comd_val_t *comd, size_t count) {
@@ -95,10 +102,12 @@ void i2c_master_init(badge_err_t *ec, int i2c_num, int sda_pin, int scl_pin, int
     }
 
     // Clock configuration.
+    clkconfig_i2c0(bitrate * 10, true, true);
     clkconfig_i2c0(bitrate * 10, true, false);
 
     // I2C master configuration.
     I2C0.ctr = (i2c_ctr_reg_t){
+        .fsm_rst       = true,
         .sda_force_out = true,
         .scl_force_out = true,
         .ms_mode       = true,
@@ -124,8 +133,8 @@ void i2c_master_init(badge_err_t *ec, int i2c_num, int sda_pin, int scl_pin, int
         .time_out_value = 16,
         .time_out_en    = true,
     };
-    I2C0.scl_st_time_out.val      = 0x10;
-    I2C0.scl_main_st_time_out.val = 0x10;
+    I2C0.scl_st_time_out.val      = 23;
+    I2C0.scl_main_st_time_out.val = 23;
 
     I2C0.sda_hold.sda_hold_time     = 30;
     I2C0.sda_sample.sda_sample_time = 30;
@@ -141,10 +150,12 @@ void i2c_master_init(badge_err_t *ec, int i2c_num, int sda_pin, int scl_pin, int
     I2C0.ctr.conf_upgate = true;
 
     // Make GPIO open-drain.
-    GPIO.pin[sda_pin]    = (gpio_pin_reg_t){.pad_driver = true};
-    GPIO.pin[scl_pin]    = (gpio_pin_reg_t){.pad_driver = true};
+    timestamp_us_t time = time_us();
+    while (time_us() < time + 10000) sched_yield();
     IO_MUX.gpio[sda_pin] = (io_mux_gpio_t){.mcu_sel = 1, .fun_ie = true, .mcu_ie = true};
     IO_MUX.gpio[scl_pin] = (io_mux_gpio_t){.mcu_sel = 1, .fun_ie = true, .mcu_ie = true};
+    GPIO.pin[sda_pin]    = (gpio_pin_reg_t){.pad_driver = true};
+    GPIO.pin[scl_pin]    = (gpio_pin_reg_t){.pad_driver = true};
 
     // GPIO matrix configuration.
     GPIO.func_out_sel_cfg[sda_pin] = (gpio_func_out_sel_cfg_reg_t){
@@ -201,7 +212,7 @@ size_t i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, void *ra
         // Address.
         {
             .op_code      = I2C_OPC_WRITE,
-            .ack_check_en = true,
+            .ack_check_en = 0, // true,
             .ack_exp      = I2C_ACK,
             .ack_value    = I2C_ACK,
             .byte_num     = 1 + addr_10bit,
@@ -230,8 +241,7 @@ size_t i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, void *ra
 
     // Wait for transaction to finish.
     timestamp_us_t to = time_us() + 10000;
-    while (I2C0.sr.bus_busy && time_us() < to)
-        ;
+    while (I2C0.sr.bus_busy && time_us() < to);
 
     for (size_t i = 0; i < len; i++) {
         buf[i] = I2C0.data.fifo_rdata;
@@ -252,6 +262,8 @@ size_t i2c_master_write_to(badge_err_t *ec, int i2c_num, int slave_id, void cons
     }
 
     // Put address in the FIFO.
+    logkf(LOG_DEBUG, "I2C main state: %{u32;d}", I2C0.sr.scl_main_state_last);
+    logkf(LOG_DEBUG, "I2C SCL  state: %{u32;d}", I2C0.sr.scl_state_last);
     i2c_clear_fifo(true, true);
     bool addr_10bit = i2c_master_queue_addr(slave_id, false);
 
@@ -264,7 +276,7 @@ size_t i2c_master_write_to(badge_err_t *ec, int i2c_num, int slave_id, void cons
         // Address.
         {
             .op_code      = I2C_OPC_WRITE,
-            .ack_check_en = true,
+            .ack_check_en = 0, // true,
             .ack_exp      = I2C_ACK,
             .ack_value    = I2C_ACK,
             .byte_num     = 1 + addr_10bit,
@@ -304,8 +316,7 @@ size_t i2c_master_write_to(badge_err_t *ec, int i2c_num, int slave_id, void cons
     I2C0.ctr.trans_start = true;
 
     // Wait for transaction to finish.
-    while (I2C0.sr.bus_busy)
-        ;
+    while (I2C0.sr.bus_busy);
 
     return 0;
 }

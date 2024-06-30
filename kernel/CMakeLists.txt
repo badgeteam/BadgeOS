@@ -5,44 +5,21 @@ cmake_minimum_required(VERSION 3.10.0)
 
 set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY")
 
-# The target platform
-if(NOT DEFINED ENV{BADGEROS_PORT})
-    set(BADGEROS_PORT esp32c6)
-else()
-    set(BADGEROS_PORT $ENV{BADGEROS_PORT})
-endif()
-
 # Set the RAMFS root
 if(NOT DEFINED BADGER_RAMFS_ROOT)
     set(BADGER_RAMFS_ROOT ${CMAKE_CURRENT_LIST_DIR}/root)
 endif()
 
 # Set the C compiler
-if(DEFINED CMAKE_C_COMPILER)
-    message("Using compiler '${CMAKE_C_COMPILER}' from environment")
-elseif(DEFINED ENV{CMAKE_C_COMPILER})
-    set(CMAKE_C_COMPILER $ENV{CMAKE_C_COMPILER})
-    message("Using compiler '${CMAKE_C_COMPILER}' from environment")
-else()
-    find_program(CMAKE_C_COMPILER NAMES riscv32-badgeros-linux-gnu-gcc riscv32-unknown-linux-gnu-gcc riscv32-linux-gnu-gcc riscv64-unknown-linux-gnu-gcc riscv64-linux-gnu-gcc REQUIRED)
-    message("Detected RISC-V C compiler as '${CMAKE_C_COMPILER}'")
-endif()
-
-# Determine the compiler prefix
-get_filename_component(compiler_name "${CMAKE_C_COMPILER}" NAME)
-string(REGEX MATCH "^([A-Za-z0-9_]+\-)*" BADGER_COMPILER_PREFIX "${compiler_name}")
-find_program(BADGER_OBJCOPY NAMES "${BADGER_COMPILER_PREFIX}objcopy" REQUIRED)
-find_program(BADGER_OBJDUMP NAMES "${BADGER_COMPILER_PREFIX}objdump" REQUIRED)
+include(../common/compiler.cmake)
 
 # Include port-specific.
 include(port/${BADGEROS_PORT}/CMakeLists.txt)
 include(cpu/riscv/CMakeLists.txt)
 
-# LTO is disabled due to GCC bugs inserting calls to memcpy everywhere
 set(common_compiler_flags
     -ffreestanding                     # We do not compile against an OS.
     -static -fno-pic                   # Disable PIC
-    -fno-exceptions
     -march=${target_arch}              # Selects the target CPU.
     -mabi=${target_abi}                # Selects target ABI
     -nodefaultlibs -nostdlib           # Do not link any default libraries like libgcc or libc.
@@ -74,7 +51,7 @@ endif()
 
 # we must pass the same options to GCC and LD when using LTO, as the linker will actually do the codegen
 add_compile_options(${common_compiler_flags} ${cpu_flags} ${port_flags})
-add_link_options(${common_compiler_flags} ${cpu_link} ${port_link} -nostartfiles)
+add_link_options(${common_compiler_flags} ${cpu_link} ${port_link} -Wl,--gc-sections -nostartfiles)
 
 # For IDE users.
 set(CMAKE_EXPORT_COMPILE_COMMANDS true)
@@ -102,16 +79,19 @@ add_executable(${target}
     # ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/vfs_fat.c
     ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/vfs_ramfs.c
     ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/vfs_internal.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/loading/kbelfx.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/process/process.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/process/sighandler.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/process/syscall_impl.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/housekeeping.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/main.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/hal/syscall_impl.c
     ${CMAKE_CURRENT_LIST_DIR}/src/malloc/malloc.c
     ${CMAKE_CURRENT_LIST_DIR}/src/malloc/static-buddy.c
     ${CMAKE_CURRENT_LIST_DIR}/src/malloc/slab-alloc.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/scheduler.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/process/kbelfx.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/process/process.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/process/sighandler.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/process/syscall_impl.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/process/syscall_util.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/scheduler/scheduler.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/scheduler/syscall_impl.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/housekeeping.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/main.c
     ${CMAKE_CURRENT_LIST_DIR}/src/syscall.c
     ${cpu_src}
     ${port_src}
@@ -120,19 +100,22 @@ target_include_directories(${target} PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/include
     ${CMAKE_CURRENT_LIST_DIR}/src/malloc
     ${CMAKE_CURRENT_LIST_DIR}/include/badgelib
-    ${CMAKE_CURRENT_LIST_DIR}/../common
+    ${CMAKE_CURRENT_LIST_DIR}/../common/include
+    ${CMAKE_CURRENT_LIST_DIR}/../common/badgelib
     ${cpu_include}
     ${port_include}
 )
 
 # Add libraries.
-add_subdirectory(../lib/kbelf ${CMAKE_BINARY_DIR}/kbelf)
+add_subdirectory(lib/kbelf)
 target_compile_options(kbelf PRIVATE
     -include ${CMAKE_CURRENT_LIST_DIR}/include/loading/kbelf_pre.h
 )
 target_include_directories(kbelf PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/include
     ${CMAKE_CURRENT_LIST_DIR}/include/badgelib
+    ${CMAKE_CURRENT_LIST_DIR}/../common/include
+    ${CMAKE_CURRENT_LIST_DIR}/../common/badgelib
     ${cpu_include}
     ${port_include}
 )

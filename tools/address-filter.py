@@ -8,7 +8,7 @@ file_name = "build/badger-os.elf"
 if len(sys.argv) > 1:
     file_name = sys.argv[1]
 
-matcher = re.compile("(0x[0-9A-Za-z]{8})")
+matcher = re.compile("(0x[0-9A-Fa-f]{8})")
 
 
 def runAndCapture(cmd):

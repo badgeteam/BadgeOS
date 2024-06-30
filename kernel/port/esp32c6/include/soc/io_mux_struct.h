@@ -1,6 +1,8 @@
 
 // SPDX-License-Identifier: MIT
 
+#pragma once
+
 #include <stdint.h>
 
 // I2S output clock selection.
@@ -33,8 +35,8 @@ typedef union {
 } io_mux_gpio_t;
 
 typedef struct io_mux_t {
-    volatile io_mux_clk_t  clk;
-    volatile io_mux_gpio_t gpio[31];
+    io_mux_clk_t volatile clk;
+    io_mux_gpio_t volatile gpio[31];
 } io_mux_t;
 
 extern io_mux_t IO_MUX;

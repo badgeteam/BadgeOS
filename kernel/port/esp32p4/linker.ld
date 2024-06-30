@@ -27,6 +27,7 @@ SECTIONS
 	/* Import hardware addresses. */
 INCLUDE esp32p4.peripherals.ld
 INCLUDE esp32p4.rom.ld
+INCLUDE esp32p4.rom.api.ld
 PROVIDE(CACHE = 0x3FF10000);
 PROVIDE(INTMTX0 = 0x500D6000);
 PROVIDE(INTMTX1 = 0x500D6800);

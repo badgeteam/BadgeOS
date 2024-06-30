@@ -25,6 +25,8 @@ SECTIONS
 
 	/* Import hardware addresses. */
 INCLUDE esp32c6.peripherals.ld
+INCLUDE esp32c6.rom.ld
+INCLUDE esp32c6.rom.api.ld
 PROVIDE(INTPRI = 0x600C5000);
 PROVIDE(PLIC_MX = 0x20001000);
 PROVIDE(PLIC_UX = 0x20001400);

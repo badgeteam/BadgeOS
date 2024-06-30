@@ -10,7 +10,7 @@ BUILDDIR          ?= build
 BADGER_RAMFS_ROOT ?= ../files/root
 BADGEROS_PORT     ?= esp32c6
 
-.PHONY: all clean-tools clean configure build flash monitor test clang-format-check clang-tidy-check openocd gdb
+.PHONY: all clean configure build flash monitor clang-format-check clang-tidy-check openocd gdb
 
 all: build flash monitor
 
@@ -42,7 +42,6 @@ openocd:
 gdb:
 	riscv32-unknown-elf-gdb -x port/$(BADGEROS_PORT)/gdbinit build/badger-os.elf
 
-clean-all: clean
 clean:
 	rm -rf "$(BUILDDIR)"
 

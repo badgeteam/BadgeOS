@@ -649,19 +649,33 @@ pid_t proc_create(badge_err_t *ec, pid_t parent, char const *binary, int argc, c
 }
 
 // Delete a process and release any resources it had.
-void proc_delete(pid_t pid) {
+static bool proc_delete_impl(pid_t pid, bool only_prestart) {
     mutex_acquire(NULL, &proc_mtx, TIMESTAMP_US_MAX);
     process_t         dummy     = {.pid = pid};
     process_t        *dummy_ptr = &dummy;
     array_binsearch_t res       = array_binsearch(procs, sizeof(process_t *), procs_len, &dummy_ptr, proc_sort_pid_cmp);
     if (!res.found) {
         mutex_release(NULL, &proc_mtx);
-        return;
+        return false;
     }
     process_t *handle = procs[res.index];
 
+    // Check for pre-start-ness.
+    if (only_prestart && !(atomic_load(&handle->flags) & PROC_PRESTART)) {
+        mutex_release(NULL, &proc_mtx);
+        return false;
+    }
+
     // Stop the possibly running process and release all run-time resources.
     proc_delete_runtime_raw(handle);
+
+    // Remove from parent's child list.
+    process_t *parent = handle->parent;
+    if (parent) {
+        mutex_acquire(NULL, &parent->mtx, TIMESTAMP_US_MAX);
+        dlist_remove(&parent->children, &handle->node);
+        mutex_release(NULL, &parent->mtx);
+    }
 
     // Release kernel memory allocated to process.
     memprotect_destroy(&handle->memmap.mpu_ctx);
@@ -669,6 +683,18 @@ void proc_delete(pid_t pid) {
     free(handle);
     array_lencap_remove(&procs, sizeof(process_t *), &procs_len, &procs_cap, NULL, res.index);
     mutex_release(NULL, &proc_mtx);
+
+    return true;
+}
+
+// Delete a process only if it hasn't been started yet.
+bool proc_delete_prestart(pid_t pid) {
+    return proc_delete_impl(pid, true);
+}
+
+// Delete a process and release any resources it had.
+void proc_delete(pid_t pid) {
+    proc_delete_impl(pid, false);
 }
 
 // Get the process' flags.

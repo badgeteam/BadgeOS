@@ -94,10 +94,30 @@ void irq_ch_set_isr(int int_irq, isr_t isr) {
 
 // Callback from ASM to platform-specific interrupt handler.
 void riscv_interrupt_handler() {
+    static timestamp_us_t last_time = 0;
+    static unsigned long  count     = 0;
+
     // Get interrupt cause.
-    int mcause;
+    long mcause;
     asm("csrr %0, mcause" : "=r"(mcause));
     mcause &= 31;
+
+    timestamp_us_t now = time_us();
+    if (now > last_time + 1000) {
+        last_time = now;
+        count     = 0;
+    } else if (count < 100) {
+        count++;
+    } else {
+        logk_from_isr(LOG_FATAL, "Interrupt storm detected");
+        logkf_from_isr(LOG_FATAL, "MCAUSE: %{long;x}", mcause);
+        for (int i = 0; i < EXT_IRQ_COUNT; i++) {
+            if (irq_ch_ext_pending(i)) {
+                logkf_from_isr(LOG_FATAL, "Pending: %{d}", i);
+            }
+        }
+        panic_abort();
+    }
 
     // Jump to ISR.
     if (isr_table[mcause]) {
@@ -129,4 +149,16 @@ bool irq_ch_enabled(int int_irq) {
     long mask;
     asm("csrr %0, mie" : "=r"(mask));
     return ((mask) >> int_irq) & 1;
+}
+
+// Query whether an internal interrupt is pending.
+bool irq_ch_pending(int int_irq) {
+    long mask;
+    asm("csrr %0, mip" : "=r"(mask));
+    return ((mask) >> int_irq) & 1;
+}
+
+// Query whether an external interrupt is pending.
+bool irq_ch_ext_pending(int ext_irq) {
+    return (INTMTX.status[ext_irq >> 5] >> (ext_irq & 31)) & 1;
 }
