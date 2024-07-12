@@ -16,6 +16,9 @@ set(cpu_src
     ${CMAKE_CURRENT_LIST_DIR}/src/scheduler.c
     ${CMAKE_CURRENT_LIST_DIR}/src/usercopy.c
 )
+if(DEFINED cpu_multicore)
+    set(cpu_src ${cpu_src} ${CMAKE_CURRENT_LIST_DIR}/src/cpu1_entrypoint.S)
+endif()
 if(DEFINED cpu_riscv_enable_riscv_intc)
     set(cpu_src ${cpu_src} ${CMAKE_CURRENT_LIST_DIR}/src/interrupt/riscv_intc.c)
 endif()

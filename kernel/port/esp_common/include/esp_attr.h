@@ -5,3 +5,4 @@
 #pragma once
 
 #define IRAM_ATTR
+#define FORCE_INLINE_ATTR

@@ -1,6 +1,7 @@
 
 PORT          ?= /dev/ttyUSB1 # HiFive Unmatched USB-UART
 OPENSBI        = $(shell pwd)/lib/opensbi/build/platform/generic/firmware/fw_dynamic.bin
+DRIVE         ?= /dev/null # If user doesn't specify, burn /dev/null instead of anything potentially important
 
 $(OPENSBI):
 	echo Build OpenSBI
@@ -12,7 +13,7 @@ lib/u-boot/u-boot.itb:
 	echo Build U-boot
 	make -C lib/u-boot OPENSBI=$(OPENSBI) CROSS_COMPILE=$(CROSS_COMPILE)
 	
-image: build port/generic/limine.cfg $(OPENSBI) lib/u-boot/u-boot.itb
+$(OUTPUT)/image.hdd: $(OUTPUT)/badger-os.elf port/generic/limine.cfg $(OPENSBI) lib/u-boot/u-boot.itb
 	# Create boot filesystem
 	echo Create EFI filesystem
 	rm -rf $(BUILDDIR)/image.dir
@@ -21,7 +22,7 @@ image: build port/generic/limine.cfg $(OPENSBI) lib/u-boot/u-boot.itb
 	make -C lib/limine
 	cp lib/limine/BOOTRISCV64.EFI $(BUILDDIR)/image.dir/EFI/BOOT/
 	cp port/generic/limine.cfg $(BUILDDIR)/image.dir/boot/
-	cp $(BUILDDIR)/badger-os.elf $(BUILDDIR)/image.dir/boot/
+	cp $(OUTPUT)/badger-os.elf $(BUILDDIR)/image.dir/boot/
 	
 	# Format FAT filesystem
 	echo Create FAT filesystem blob
@@ -32,21 +33,28 @@ image: build port/generic/limine.cfg $(OPENSBI) lib/u-boot/u-boot.itb
 	
 	# Create image
 	echo Create image
-	rm -f $(BUILDDIR)/image.hdd
-	dd if=/dev/zero bs=1M count=64 of=$(BUILDDIR)/image.hdd
+	rm -f $(OUTPUT)/image.hdd
+	dd if=/dev/zero bs=1M count=64 of=$(OUTPUT)/image.hdd
 	# 1M (SPL), 1007K (U-boot), 4M /boot, remainder /root
+	echo pre sgdisk
 	sgdisk -a 1 \
 		--new=1:34:2081    --change-name=1:spl   --typecode=1:5B193300-FC78-40CD-8002-E86C45580B47 \
 		--new=2:2082:4095  --change-name=2:uboot --typecode=2:2E54B353-1271-4842-806F-E436D6AF6985 \
 		--new=3:4096:12287 --change-name=3:boot  --typecode=3:0x0700 \
 		--new=4:12288:-0   --change-name=4:root  --typecode=4:0x8300 \
-		$(BUILDDIR)/image.hdd
+		$(OUTPUT)/image.hdd
+	echo post sgdisk
 	
 	# Copy data onto partitions
 	echo Copy data onto partitions
-	dd if=lib/u-boot/spl/u-boot-spl.bin bs=512 seek=34   of=$(BUILDDIR)/image.hdd conv=notrunc
-	dd if=lib/u-boot/u-boot.itb         bs=512 seek=2082 of=$(BUILDDIR)/image.hdd conv=notrunc
-	dd if=$(BUILDDIR)/image_bootfs.bin  bs=512 seek=4096 of=$(BUILDDIR)/image.hdd conv=notrunc
+	dd if=lib/u-boot/spl/u-boot-spl.bin bs=512 seek=34   of=$(OUTPUT)/image.hdd conv=notrunc
+	dd if=lib/u-boot/u-boot.itb         bs=512 seek=2082 of=$(OUTPUT)/image.hdd conv=notrunc
+	dd if=$(BUILDDIR)/image_bootfs.bin  bs=512 seek=4096 of=$(OUTPUT)/image.hdd conv=notrunc
+
+image: build $(OUTPUT)/image.hdd
+
+burn: image
+	sudo dd if=$(OUTPUT)/image.hdd of=$(DRIVE) bs=1M
 
 $(BUILDDIR)/cache/OVMF.fd:
 	mkdir -p $(BUILDDIR)/cache
@@ -61,10 +69,10 @@ clean-image:
 .PHONY: qemu
 qemu: $(BUILDDIR)/cache/OVMF.fd image
 	qemu-system-riscv64 -s \
-		-M virt -cpu rv64,sv48=false -m 16G \
+		-M virt,acpi=off -cpu rv64,sv48=false -smp 4 -m 16G \
 		-device ramfb -device qemu-xhci -device usb-kbd \
 		-drive if=pflash,unit=0,format=raw,file=$(BUILDDIR)/cache/OVMF.fd \
 		-device virtio-scsi-pci,id=scsi -device scsi-hd,drive=hd0 \
-		-drive id=hd0,format=raw,file=$(BUILDDIR)/image.hdd \
+		-drive id=hd0,format=raw,file=$(OUTPUT)/image.hdd \
 		-serial mon:stdio -nographic \
 	| ../tools/address-filter.py -L -A $(CROSS_COMPILE)addr2line $(OUTPUT)/badger-os.elf

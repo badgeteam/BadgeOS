@@ -50,8 +50,6 @@ void mmu_init() {
     mmu_levels     = satp.mode - RISCV_SATP_SV39 + 3;
     mmu_half_size  = 1LLU << (11 + 9 * mmu_levels);
     mmu_high_vaddr = -mmu_half_size;
-    logkf_from_isr(LOG_DEBUG, "Paging levels:    %{d}", mmu_levels);
-    logkf_from_isr(LOG_DEBUG, "Higher half addr: %{size;x}", mmu_high_vaddr);
 }
 
 // Read a PTE from the page table.

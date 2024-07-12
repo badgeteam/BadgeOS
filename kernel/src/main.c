@@ -13,6 +13,7 @@
 #include "port/port.h"
 #include "process/process.h"
 #include "scheduler/scheduler.h"
+#include "smp.h"
 #include "time.h"
 
 #include <stdatomic.h>
@@ -127,6 +128,9 @@ static void kernel_init() {
     fs_mount(&ec, FS_TYPE_RAMFS, NULL, "/", 0);
     badge_err_assert_always(&ec);
     init_ramfs();
+
+    // Non-booting CPU init.
+    smp_init();
 }
 
 

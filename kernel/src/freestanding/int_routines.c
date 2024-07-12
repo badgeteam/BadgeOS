@@ -161,6 +161,21 @@ FAKE_OPER(di_t, __muldi3, *)
 FAKE_OPER(ti_t, __multi3, *)
 #endif
 
+
+#define BSWP_FUNC(type, name)                                                                                          \
+    type name(type in) {                                                                                               \
+        type out = 0;                                                                                                  \
+        for (unsigned i = 0; i < sizeof(type); i++) {                                                                  \
+            out |= ((in >> (sizeof(type) * 8 - 8 - i * 8)) & 255) << (i * 8);                                          \
+        }                                                                                                              \
+        return out;                                                                                                    \
+    }
+
+BSWP_FUNC(si_t, __bswapsi2)
+BSWP_FUNC(di_t, __bswapdi2)
+BSWP_FUNC(ti_t, __bswapti2)
+
+
 // The `__clz*` count leading zero functions count how many zeroes are present, starting at the MSB.
 // They first convert a number into a bitmask where only bit above the most significant set bit is set.
 // This is then multiplied with a de Bruijn sequence to get a unique index in the most significant bits.

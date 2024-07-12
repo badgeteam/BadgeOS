@@ -14,7 +14,8 @@ set(port_include ${port_include}
     ${CMAKE_CURRENT_LIST_DIR}/esp-idf/components/soc/include/
     ${CMAKE_CURRENT_LIST_DIR}/esp-idf/components/hal/${CONFIG_TARGET}/include/
     ${CMAKE_CURRENT_LIST_DIR}/esp-idf/components/hal/include/
-    ${CMAKE_CURRENT_LIST_DIR}/esp-idf/components/esp_rom/include/${CONFIG_TARGET}/
+    ${CMAKE_CURRENT_LIST_DIR}/esp-idf/components/esp_rom/${CONFIG_TARGET}/include/
+    ${CMAKE_CURRENT_LIST_DIR}/esp-idf/components/esp_rom/${CONFIG_TARGET}/include/${CONFIG_TARGET}/
     ${CMAKE_CURRENT_LIST_DIR}/esp-idf/components/esp_rom/include/
 )
 set(port_link ${port_link}

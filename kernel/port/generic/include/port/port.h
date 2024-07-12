@@ -8,8 +8,6 @@
 
 // Early hardware initialization.
 void port_early_init();
-// Tell port to add other available memory to the pools.
-void port_post_memprotect_init();
 // Full hardware initialization.
 void port_init();
 

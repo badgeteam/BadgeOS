@@ -252,16 +252,6 @@ static int pt_calc_superpage(int max_level, size_t vpn, size_t ppn, size_t max_l
 // Returns true if the top level of the page table was edited.
 static bool pt_map(size_t pt_ppn, int pt_level, size_t vpn, size_t ppn, size_t pages, uint32_t flags) {
     bool top_edit = false;
-    logkf_from_isr(
-        LOG_DEBUG,
-        "pt_map(0x%{size;x}, %{d}, 0x%{size;x}, 0x%{size;x}, 0x%{size;x}, 0x%{size;x}, 0x%{u32;x})",
-        pt_ppn,
-        pt_level,
-        vpn,
-        ppn,
-        pages,
-        flags
-    );
     while (pages) {
         int pte_level     = pt_calc_superpage(pt_level, vpn, ppn, pages);
         top_edit         |= pt_map_1(pt_ppn, pt_level, vpn, ppn, pte_level, flags);
@@ -385,17 +375,9 @@ void memprotect_init() {
     );
 
     // Switch over to new page table.
-    logk_from_isr(LOG_DEBUG, "Switching to BadgerOS-owned page table");
-    riscv_satp_t satp;
-    asm("csrr %0, satp" : "=r"(satp));
-    logkf_from_isr(LOG_DEBUG, "Bootloader root PPN %{size;x}", satp.ppn);
-    logkf_from_isr(LOG_DEBUG, "BadgerOS root PPN %{size;x}", mpu_global_ctx.root_ppn);
     atomic_thread_fence(memory_order_release);
     memprotect_swap_from_isr();
-    logk_from_isr(LOG_DEBUG, "Switch successful");
-
-    // Tell port to add other available memory to the pools.
-    port_post_memprotect_init();
+    logkf_from_isr(LOG_INFO, "Virtual memory initialized, %{d} paging levels", mmu_levels);
 }
 
 // Create a memory protection context.

@@ -65,6 +65,11 @@ image:
 	$(MAKE) -C files build
 	$(MAKE) -C kernel image
 
+.PHONY: burn
+burn:
+	$(MAKE) -C files build
+	$(MAKE) -C kernel burn
+
 .PHONY: monitor
 monitor:
 	$(MAKE) -C kernel monitor

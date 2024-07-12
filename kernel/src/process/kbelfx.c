@@ -94,9 +94,9 @@ bool kbelfx_seg_alloc(kbelf_inst inst, size_t segs_len, kbelf_segment *segs) {
         size_t end = segs[i].vaddr_req + segs[i].size;
         if (end > max_addr)
             max_addr = end;
-        logkf(LOG_DEBUG, "Segment %{size;d}: %{size;x} - %{size;x}", i, start, end);
+        // logkf(LOG_DEBUG, "Segment %{size;d}: %{size;x} - %{size;x}", i, start, end);
     }
-    logkf(LOG_DEBUG, "Require %{size;d} bytes", max_addr - min_addr);
+    // logkf(LOG_DEBUG, "Require %{size;d} bytes", max_addr - min_addr);
 
     size_t vaddr_real = proc_map_raw(NULL, proc, min_addr, max_addr - min_addr, min_align, MEMPROTECT_FLAG_RWX);
     if (!vaddr_real)
@@ -113,7 +113,7 @@ bool kbelfx_seg_alloc(kbelf_inst inst, size_t segs_len, kbelf_segment *segs) {
         segs[i].paddr        = segs[i].vaddr_real;
         segs[i].laddr        = segs[i].vaddr_real;
         segs[i].alloc_cookie = NULL;
-        logkf(LOG_DEBUG, "Segment %{size;x} mapped to %{size;x}", i, segs[i].vaddr_real);
+        // logkf(LOG_DEBUG, "Segment %{size;x} mapped to %{size;x}", i, segs[i].vaddr_real);
     }
     segs[0].alloc_cookie = (void *)vaddr_real;
 
