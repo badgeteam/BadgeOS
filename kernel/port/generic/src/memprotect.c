@@ -3,6 +3,7 @@
 
 #include "memprotect.h"
 
+#include "arrays.h"
 #include "assertions.h"
 #include "badge_strings.h"
 #include "cpu/mmu.h"
@@ -24,6 +25,36 @@ typedef struct {
     // Whether the virtual address is valid.
     bool      vaddr_valid;
 } pt_walk_t;
+
+// Allocable virtual memory area.
+typedef struct {
+    // Base virtual page number.
+    size_t vpn;
+    // Size in pages.
+    size_t pages;
+} vmm_info_t;
+
+// Sort `vmm_info_t` by `vpn`.
+int vmm_info_sort(void const *a, void const *b) {
+    vmm_info_t const *info_a = a;
+    vmm_info_t const *info_b = b;
+    if (info_a->vpn > info_b->vpn) {
+        return 1;
+    } else if (info_a->vpn > info_b->vpn) {
+        return -1;
+    } else {
+        return 0;
+    }
+}
+
+// Allocated VMM ranges that can be freed.
+static size_t      vmm_used_len, vmm_used_cap;
+// Allocated VMM ranges that can be freed.
+static vmm_info_t *vmm_used;
+// Unallocated VMM ranges.
+static size_t      vmm_free_len, vmm_free_cap;
+// Unallocated VMM ranges.
+static vmm_info_t *vmm_free;
 
 
 
@@ -270,7 +301,7 @@ static bool pt_unmap(size_t pt_ppn, int pt_level, size_t vpn, size_t pages) {
     while (pages) {
         int pte_level     = pt_calc_superpage(pt_level, vpn, 0, pages);
         top_edit         |= pt_unmap_1(pt_ppn, pt_level, vpn, pte_level);
-        size_t super_len  = (1LLU << MMU_BITS_PER_LEVEL) << pte_level;
+        size_t super_len  = 1LLU << (MMU_BITS_PER_LEVEL * pte_level);
         vpn              += super_len;
         pages            -= super_len;
     }
@@ -312,12 +343,132 @@ virt2phys_t memprotect_virt2phys(mpu_ctx_t *ctx, size_t vaddr) {
     return (virt2phys_t){0};
 }
 
+// Mark a range of VMM as in use.
+static bool vmm_mark_used(size_t vpn, size_t pages) {
+    // Clamp address range.
+    if (vpn < mmu_high_vpn) {
+        pages -= mmu_high_vpn - vpn;
+        vpn    = mmu_high_vpn;
+    }
+    if (vpn + pages > mmu_high_vpn + mmu_half_size) {
+        pages = mmu_high_vpn + mmu_half_size - vpn;
+    }
+
+    // Look up which entry to cut.
+    array_binsearch_t idx   = array_binsearch(vmm_free, sizeof(vmm_info_t), vmm_free_len, &vpn, vmm_info_sort);
+    vmm_info_t        range = vmm_free[idx.index];
+    assert_dev_drop(idx.found);
+    assert_dev_drop(vpn >= range.vpn);
+    assert_dev_drop(vpn + pages <= range.vpn + range.pages);
+
+    if (range.vpn == vpn && range.pages == pages) {
+        // Remove the entry from free list.
+        array_lencap_remove(&vmm_free, sizeof(vmm_info_t), &vmm_free_len, &vmm_free_cap, NULL, idx.index);
+
+    } else if (vpn > range.vpn && vpn + pages < range.vpn + range.pages) {
+        // Add entry to the free list.
+        vmm_info_t new_ent = {
+            .vpn   = vpn + pages,
+            .pages = range.vpn + range.pages - vpn - pages,
+        };
+        if (!array_lencap_insert(
+                &vmm_free,
+                sizeof(vmm_info_t),
+                &vmm_free_len,
+                &vmm_free_cap,
+                &new_ent,
+                idx.index + 1
+            )) {
+            return false;
+        }
+        // Modify the other one.
+        vmm_free[idx.index] = (vmm_info_t){
+            .vpn   = range.vpn,
+            .pages = vpn - range.vpn,
+        };
+
+    } else if (vpn > range.vpn) {
+        // Modify the entry.
+        vmm_free[idx.index].pages = vpn - range.vpn;
+
+    } else /* vpn + pages < range.vpn + range.pages */ {
+        // Modify the entry.
+        vmm_free[idx.index].vpn   = vpn + pages;
+        vmm_free[idx.index].pages = range.vpn + range.pages - vpn - pages;
+    }
+
+    // Add to the used list.
+    return true;
+}
+
+// Alloc vaddr mutex.
+static mutex_t vmm_mtx = MUTEX_T_INIT;
+
+// Allocare a kernel virtual address to a certain physical address.
+size_t memprotect_alloc_vaddr(size_t len) {
+    mutex_acquire(NULL, &vmm_mtx, TIMESTAMP_US_MAX);
+    size_t pages = (len - 1) / MEMMAP_PAGE_SIZE + 3;
+    size_t i;
+    for (i = 0; i < vmm_free_len; i++) {
+        if (vmm_free[i].pages >= pages) {
+            break;
+        }
+    }
+    if (i >= vmm_free_len) {
+        mutex_release(NULL, &vmm_mtx);
+        return 0;
+    }
+    vmm_info_t range      = vmm_free[i];
+    vmm_info_t used_range = {
+        .vpn   = range.vpn,
+        .pages = pages,
+    };
+    if (!array_lencap_sorted_insert(
+            &vmm_used,
+            sizeof(vmm_info_t),
+            &vmm_used_len,
+            &vmm_used_cap,
+            &used_range,
+            vmm_info_sort
+        )) {
+        mutex_release(NULL, &vmm_mtx);
+        return 0;
+    }
+    if (vmm_free[i].pages > pages) {
+        vmm_free[i].vpn   += pages;
+        vmm_free[i].pages -= pages;
+    } else {
+        array_lencap_remove(&vmm_free, sizeof(vmm_info_t), &vmm_free_len, &vmm_free_cap, NULL, i);
+    }
+    mutex_release(NULL, &vmm_mtx);
+    logkf(LOG_DEBUG, "memprotect_alloc_vaddr(0x%{size;x}) = 0x%{size;x}", len, (range.vpn + 1) * MEMMAP_PAGE_SIZE);
+    return (range.vpn + 1) * MEMMAP_PAGE_SIZE;
+}
+
+// Free a virtual address range allocated with `memprotect_alloc_vaddr`.
+void memprotect_free_vaddr(size_t vaddr) {
+    logkf(LOG_DEBUG, "memprotect_free_vaddr(0x%{size;x})", vaddr);
+    assert_always(vaddr % MEMMAP_PAGE_SIZE == 0);
+    size_t vpn = vaddr / MEMMAP_PAGE_SIZE - 1;
+    mutex_acquire(NULL, &vmm_mtx, TIMESTAMP_US_MAX);
+
+    // Look up the in-use entry.
+    array_binsearch_t res = array_binsearch(vmm_used, sizeof(vmm_info_t), vmm_used_len, &vpn, vmm_info_sort);
+    assert_always(res.found);
+    vmm_info_t range;
+    array_lencap_remove(&vmm_used, sizeof(vmm_info_t), &vmm_used_len, &vmm_used_cap, &range, res.index);
+    assert_always(range.vpn == vpn);
+
+    logk(LOG_WARN, "TODO: memprotect_free_vaddr");
+
+    mutex_release(NULL, &vmm_mtx);
+}
 
 
 // Initialise memory protection driver.
-void memprotect_init() {
+void memprotect_early_init() {
     // Initialize MMU driver.
-    mmu_init();
+    mmu_early_init();
 
     // Allocate global page table.
     mpu_global_ctx.root_ppn = phys_page_alloc(1, false);
@@ -380,6 +531,27 @@ void memprotect_init() {
     logkf_from_isr(LOG_INFO, "Virtual memory initialized, %{d} paging levels", mmu_levels);
 }
 
+// Initialise memory protection driver.
+void memprotect_init() {
+    // Mark entire space as free.
+    vmm_info_t mem;
+    mem.vpn      = mmu_high_vpn;
+    mem.pages    = mmu_half_pages;
+    vmm_free     = malloc(sizeof(vmm_info_t));
+    vmm_free[0]  = mem;
+    vmm_free_len = 1;
+    vmm_free_cap = 1;
+
+    // Remove HHDM and kernel from free area.
+    assert_always(vmm_mark_used(memprotect_kernel_vpn - 1, memprotect_kernel_pages + 2));
+    assert_always(vmm_mark_used(mmu_hhdm_vpn - 1, memprotect_hhdm_pages + 2));
+
+    // Run other MMU init code.
+    mmu_init();
+}
+
+
+
 // Create a memory protection context.
 void memprotect_create(mpu_ctx_t *ctx) {
     ctx->node     = DLIST_NODE_EMPTY;
@@ -421,6 +593,9 @@ void memprotect_impl(mpu_ctx_t *ctx, size_t vpn, size_t ppn, size_t pages, uint3
             node = node->next;
         }
     }
+
+    // Perform VMEM fence.
+    mmu_vmem_fence();
 }
 
 // Add a memory protection region for user memory.
@@ -451,7 +626,7 @@ bool memprotect_k(size_t vaddr, size_t paddr, size_t length, uint32_t flags) {
     vaddr  /= MMU_PAGE_SIZE;
     paddr  /= MMU_PAGE_SIZE;
     length /= MMU_PAGE_SIZE;
-    if (vaddr + length > mmu_half_pages) {
+    if (vaddr < mmu_high_vpn || vaddr + length > mmu_high_vpn + mmu_half_pages) {
         // Out of bounds.
         return false;
     }

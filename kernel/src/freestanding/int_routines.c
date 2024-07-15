@@ -163,12 +163,20 @@ FAKE_OPER(ti_t, __multi3, *)
 
 
 #define BSWP_FUNC(type, name)                                                                                          \
-    type name(type in) {                                                                                               \
-        type out = 0;                                                                                                  \
+    type name(type a) {                                                                                                \
+        union {                                                                                                        \
+            type packed;                                                                                               \
+            char arr[sizeof(type)];                                                                                    \
+        } in;                                                                                                          \
+        union {                                                                                                        \
+            type packed;                                                                                               \
+            char arr[sizeof(type)];                                                                                    \
+        } out;                                                                                                         \
+        in.packed = a;                                                                                                 \
         for (unsigned i = 0; i < sizeof(type); i++) {                                                                  \
-            out |= ((in >> (sizeof(type) * 8 - 8 - i * 8)) & 255) << (i * 8);                                          \
+            out.arr[sizeof(type) - i - 1] = in.arr[i];                                                                 \
         }                                                                                                              \
-        return out;                                                                                                    \
+        return out.packed;                                                                                             \
     }
 
 BSWP_FUNC(si_t, __bswapsi2)

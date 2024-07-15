@@ -27,11 +27,13 @@ set(common_compiler_flags
     -march=${target_arch}              # Selects the target CPU.
     -mabi=${target_abi}                # Selects target ABI
     -nodefaultlibs                     # Do not link any default libraries like libgcc or libc.
-    -O2                                # Optimize the code.
+    -O0                                # Optimize the code.
     -ggdb                              # Generate debug information in default extended format.
     -Werror=return-type                # Error when a function doesn't return a value, but declares to do so.
     -Werror=implicit-fallthrough
+    -Werror=int-conversion
     -Wall -Wextra                      # Ramp up warning level.
+    -Wno-missing-braces
     -std=gnu11                         # We use the C11 standard
     -DBADGEROS_KERNEL                  # Tell the code we're building for the kernel
     -DBADGEROS_MALLOC_DEBUG_LEVEL=2    # Malloc debug level set to WARN

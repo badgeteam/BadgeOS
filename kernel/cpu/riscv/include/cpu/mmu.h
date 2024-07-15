@@ -114,6 +114,8 @@ extern size_t mmu_half_size;
 extern size_t mmu_hhdm_size;
 // Number of page table levels.
 extern int    mmu_levels;
+// Whether RISC-V Svpbmt is supported.
+extern bool   mmu_svpbmt;
 // Virtual page number offset used for HHDM.
 #define mmu_hhdm_vpn   (mmu_hhdm_vaddr / MMU_PAGE_SIZE)
 // Virtual page number of the higher half.
@@ -123,6 +125,8 @@ extern int    mmu_levels;
 
 
 
+// MMU-specific init code.
+void mmu_early_init();
 // MMU-specific init code.
 void mmu_init();
 
@@ -145,7 +149,12 @@ static inline mmu_pte_t mmu_pte_new_leaf(size_t ppn, uint32_t flags) {
     pte.g         = !!(flags & MEMPROTECT_FLAG_GLOBAL);
     pte.a         = 1;
     pte.d         = 1;
-    pte.ppn       = ppn;
+    if (mmu_svpbmt && flags & MEMPROTECT_FLAG_IO) {
+        pte.pbmt = RISCV_PBMT_IO;
+    } else if (mmu_svpbmt && flags & MEMPROTECT_FLAG_NC) {
+        pte.pbmt = RISCV_PBMT_NC;
+    }
+    pte.ppn = ppn;
     return pte;
 }
 // Create a new internal PTE.
@@ -188,5 +197,6 @@ static inline void mmu_disable_sum() {
 
 // Notify the MMU of global mapping changes.
 static inline void mmu_vmem_fence() {
-    asm("sfence.vma" ::: "memory");
+    asm volatile("fence rw,rw" ::: "memory");
+    asm volatile("sfence.vma" ::: "memory");
 }

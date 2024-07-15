@@ -38,3 +38,6 @@
 
 // Function written in assembly.
 #define NAKED __attribute__((naked))
+
+// Volatile variables.
+#define VOLATILE volatile

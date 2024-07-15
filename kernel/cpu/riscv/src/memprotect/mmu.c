@@ -25,6 +25,8 @@ size_t mmu_half_size;
 size_t mmu_hhdm_size;
 // Number of page table levels.
 int    mmu_levels;
+// Whether RISC-V Svpbmt is supported.
+bool   mmu_svpbmt;
 
 
 
@@ -43,13 +45,33 @@ static inline void pmem_store(size_t paddr, size_t data) {
 
 
 // MMU-specific init code.
-void mmu_init() {
+void mmu_early_init() {
     // Read paging mode from SATP.
     riscv_satp_t satp;
     asm("csrr %0, satp" : "=r"(satp));
     mmu_levels     = satp.mode - RISCV_SATP_SV39 + 3;
     mmu_half_size  = 1LLU << (11 + 9 * mmu_levels);
     mmu_high_vaddr = -mmu_half_size;
+}
+
+// MMU-specific init code.
+void mmu_init() {
+    // Get a dummy page to do testing on.
+    size_t va = memprotect_alloc_vaddr(MMU_PAGE_SIZE);
+    size_t pa = memprotect_kernel_vpn * MMU_PAGE_SIZE;
+    assert_always(va);
+
+    // Check for Svpbmt.
+    mmu_svpbmt = true;
+    assert_always(memprotect_k(va, pa, MMU_PAGE_SIZE, MEMPROTECT_FLAG_R | MEMPROTECT_FLAG_IO));
+    uint8_t dummy;
+    mmu_svpbmt = isr_noexc_copy_u8(&dummy, (uint8_t const *)pa);
+    assert_always(memprotect_k(va, pa, MMU_PAGE_SIZE, 0));
+    if (mmu_svpbmt) {
+        logkf(LOG_INFO, "MMU supports Svpbmt");
+    }
+
+    memprotect_free_vaddr(va);
 }
 
 // Read a PTE from the page table.

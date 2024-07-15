@@ -10,7 +10,7 @@
 #include "port/interrupt.h"
 
 // Initialise memory protection driver.
-void memprotect_init() {
+void memprotect_early_init() {
     // Initialise PMP driver.
     riscv_pmp_init();
 
@@ -79,6 +79,10 @@ void memprotect_init() {
             .lock            = false,
         })
     );
+}
+
+// Initialise memory protection driver.
+void memprotect_init() {
 }
 
 

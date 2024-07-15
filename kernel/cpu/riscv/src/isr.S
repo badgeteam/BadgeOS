@@ -6,6 +6,8 @@
 #include "port/hardware.h"
     .global __global_pointer$
     .global memprotect_swap_from_isr
+    .cfi_sections .debug_frame
+
 
 
 #if __riscv_xlen == 64
@@ -22,28 +24,28 @@
     # Assumes valid `isr_ctx_t *` in CSR scratch.
     .macro isr_entry
 #pragma region
+    .cfi_return_column CSR_EPC
+    .cfi_def_cfa CSR_SCRATCH, 0
+    
     # Save tempregs t0/t1.
     csrrw   t0, CSR_SCRATCH, t0
-    .cfi_def_cfa t0, 0
     ST_REG  t1, isr_ctx_t_scratch1(t0)
-    .cfi_val_offset t0, isr_ctx_t_scratch1
     csrrw   t1, CSR_SCRATCH, t0
-    .cfi_def_cfa CSR_SCRATCH, 0
     ST_REG  t1, isr_ctx_t_scratch0(t0)
-    .cfi_val_offset t1, isr_ctx_t_scratch0
     
     ST_REG  t2, isr_ctx_t_regs+cpu_regs_t_t2(t0)
-    .cfi_val_offset t2, isr_ctx_t_regs+cpu_regs_t_t2
+    .cfi_offset t2, isr_ctx_t_regs+cpu_regs_t_t2
     ST_REG  t3, isr_ctx_t_regs+cpu_regs_t_t3(t0)
-    .cfi_val_offset t3, isr_ctx_t_regs+cpu_regs_t_t3
+    .cfi_offset t3, isr_ctx_t_regs+cpu_regs_t_t3
     
     ST_REG  ra, isr_ctx_t_regs+cpu_regs_t_ra(t0)
+    .cfi_offset ra, isr_ctx_t_regs+cpu_regs_t_ra
     ST_REG  sp, isr_ctx_t_regs+cpu_regs_t_sp(t0)
-    .cfi_val_offset sp, isr_ctx_t_regs+cpu_regs_t_sp
+    .cfi_offset sp, isr_ctx_t_regs+cpu_regs_t_sp
     ST_REG  gp, isr_ctx_t_regs+cpu_regs_t_gp(t0)
-    .cfi_val_offset gp, isr_ctx_t_regs+cpu_regs_t_gp
+    .cfi_offset gp, isr_ctx_t_regs+cpu_regs_t_gp
     ST_REG  tp, isr_ctx_t_regs+cpu_regs_t_tp(t0)
-    .cfi_val_offset tp, isr_ctx_t_regs+cpu_regs_t_tp
+    .cfi_offset tp, isr_ctx_t_regs+cpu_regs_t_tp
     
     # Clear context to switch field.
     ST_REG  x0, isr_ctx_t_ctxswitch(t0)
@@ -51,15 +53,15 @@
     # Move tempregs.
     LD_REG  t1, isr_ctx_t_scratch0(t0)
     ST_REG  t1, isr_ctx_t_regs+cpu_regs_t_t0(t0)
-    .cfi_val_offset t0, isr_ctx_t_regs+cpu_regs_t_t0
+    .cfi_offset t0, isr_ctx_t_regs+cpu_regs_t_t0
     LD_REG  t1, isr_ctx_t_scratch1(t0)
     ST_REG  t1, isr_ctx_t_regs+cpu_regs_t_t1(t0)
-    .cfi_val_offset t1, isr_ctx_t_regs+cpu_regs_t_t1
+    .cfi_offset t1, isr_ctx_t_regs+cpu_regs_t_t1
     
     # Save PC.
     csrr    t1, CSR_EPC
     ST_REG  t1, isr_ctx_t_regs+cpu_regs_t_pc(t0)
-    .cfi_val_offset ra, isr_ctx_t_regs+cpu_regs_t_pc
+    .cfi_offset CSR_EPC, isr_ctx_t_regs+cpu_regs_t_pc
     
 #if !RISCV_M_MODE_KERNEL
     # Save SUM and MXR.
@@ -96,6 +98,7 @@
     # Restore PC.
     LD_REG  t1, isr_ctx_t_regs+cpu_regs_t_pc(t0)
     csrw    CSR_EPC, t1
+    .cfi_restore CSR_EPC
     
 #if !RISCV_M_MODE_KERNEL
     # Restore SUM and MXR.
@@ -107,17 +110,25 @@
     
     # Restore special regs.
     LD_REG  ra, isr_ctx_t_regs+cpu_regs_t_ra(t0)
+    .cfi_restore ra
     LD_REG  sp, isr_ctx_t_regs+cpu_regs_t_sp(t0)
+    .cfi_restore sp
     LD_REG  gp, isr_ctx_t_regs+cpu_regs_t_gp(t0)
+    .cfi_restore gp
     LD_REG  tp, isr_ctx_t_regs+cpu_regs_t_tp(t0)
+    .cfi_restore tp
     
     # Restore tempregs t0-t3.
     LD_REG  t1, isr_ctx_t_regs+cpu_regs_t_t0(t0)
     csrw    CSR_SCRATCH, t1
     LD_REG  t3, isr_ctx_t_regs+cpu_regs_t_t3(t0)
+    .cfi_restore t3
     LD_REG  t2, isr_ctx_t_regs+cpu_regs_t_t2(t0)
+    .cfi_restore t2
     LD_REG  t1, isr_ctx_t_regs+cpu_regs_t_t1(t0)
+    .cfi_restore t1
     csrrw   t0, CSR_SCRATCH, t0
+    .cfi_restore t0
 #pragma endregion
     .endm
 
@@ -172,7 +183,9 @@
     ST_REG  t5,  isr_ctx_t_regs+cpu_regs_t_t5(t0)
     .cfi_offset t5, isr_ctx_t_regs+cpu_regs_t_t5
     ST_REG  t6,  isr_ctx_t_regs+cpu_regs_t_t6(t0)
-    .cfi_offset t6, isr_ctx_t_regs+cpu_regs_t_t6
+    # Toolchain bug: GDB does not understand the backtrace if `t6` is in the CFI info.
+    # This means that if `t6` was in use at the time of trap or ISR, GDB cannot tell.
+    # .cfi_offset t6, isr_ctx_t_regs+cpu_regs_t_t6
 #pragma endregion
     .endm
 
@@ -183,28 +196,51 @@
     .macro restore_all_regs
 #pragma region
     LD_REG  s0,  isr_ctx_t_regs+cpu_regs_t_s0(t0)
+    .cfi_restore s0
     LD_REG  s1,  isr_ctx_t_regs+cpu_regs_t_s1(t0)
+    .cfi_restore s1
     LD_REG  a0,  isr_ctx_t_regs+cpu_regs_t_a0(t0)
+    .cfi_restore a0
     LD_REG  a1,  isr_ctx_t_regs+cpu_regs_t_a1(t0)
+    .cfi_restore a1
     LD_REG  a2,  isr_ctx_t_regs+cpu_regs_t_a2(t0)
+    .cfi_restore a2
     LD_REG  a3,  isr_ctx_t_regs+cpu_regs_t_a3(t0)
+    .cfi_restore a3
     LD_REG  a4,  isr_ctx_t_regs+cpu_regs_t_a4(t0)
+    .cfi_restore a4
     LD_REG  a5,  isr_ctx_t_regs+cpu_regs_t_a5(t0)
+    .cfi_restore a5
     LD_REG  a6,  isr_ctx_t_regs+cpu_regs_t_a6(t0)
+    .cfi_restore a6
     LD_REG  a7,  isr_ctx_t_regs+cpu_regs_t_a7(t0)
+    .cfi_restore a7
     LD_REG  s2,  isr_ctx_t_regs+cpu_regs_t_s2(t0)
+    .cfi_restore s2
     LD_REG  s3,  isr_ctx_t_regs+cpu_regs_t_s3(t0)
+    .cfi_restore s3
     LD_REG  s4,  isr_ctx_t_regs+cpu_regs_t_s4(t0)
+    .cfi_restore s4
     LD_REG  s5,  isr_ctx_t_regs+cpu_regs_t_s5(t0)
+    .cfi_restore s5
     LD_REG  s6,  isr_ctx_t_regs+cpu_regs_t_s6(t0)
+    .cfi_restore s6
     LD_REG  s7,  isr_ctx_t_regs+cpu_regs_t_s7(t0)
+    .cfi_restore s7
     LD_REG  s8,  isr_ctx_t_regs+cpu_regs_t_s8(t0)
+    .cfi_restore s8
     LD_REG  s9,  isr_ctx_t_regs+cpu_regs_t_s9(t0)
+    .cfi_restore s9
     LD_REG  s10, isr_ctx_t_regs+cpu_regs_t_s10(t0)
+    .cfi_restore s10
     LD_REG  s11, isr_ctx_t_regs+cpu_regs_t_s11(t0)
+    .cfi_restore s11
     LD_REG  t4,  isr_ctx_t_regs+cpu_regs_t_t4(t0)
+    .cfi_restore t4
     LD_REG  t5,  isr_ctx_t_regs+cpu_regs_t_t5(t0)
+    .cfi_restore t5
     LD_REG  t6,  isr_ctx_t_regs+cpu_regs_t_t6(t0)
+    # .cfi_restore t6
 #pragma endregion
     .endm
 
@@ -222,7 +258,6 @@
     .cfi_startproc
 isr_context_switch:
     # Check for context switch required.
-    .cfi_def_cfa CSR_SCRATCH, 0
     csrr    t0, CSR_SCRATCH
     LD_REG  t1, isr_ctx_t_ctxswitch(t0)
     bnez    t1, .isr_context_switch_do_switch
@@ -294,12 +329,12 @@ isr_context_switch:
     .text
     .type __trap_asm, %function
     .align 2
-    .cfi_startproc simple
+    .cfi_startproc
 __trap_asm:
     isr_entry
     save_all_regs
     
-    # Construct fake stack frame.
+    # Construct fake stack frame for kernel backtrace.
     csrr    ra, CSR_EPC
     addi    sp, sp, -16
 #if __riscv_xlen == 64
@@ -311,9 +346,6 @@ __trap_asm:
 #endif
     addi    s0, sp, 16
     ST_REG  s0, isr_ctx_t_frameptr(t0)
-    .cfi_def_cfa s0, 0
-    .cfi_val_offset s0, -8
-    .cfi_val_offset ra, -4
     
     # Most of the trap handler is implemented in C.
     jal     riscv_trap_handler
@@ -321,10 +353,6 @@ __trap_asm:
     
     # Discard fake stack frame.
     addi    sp, sp, 16
-    
-    .cfi_def_cfa CSR_STATUS, 0
-    .cfi_val_offset s0, isr_ctx_t_regs+cpu_regs_t_s0
-    .cfi_val_offset ra, isr_ctx_t_regs+cpu_regs_t_ra
     
     # Check for outstanding context switch.
     # If nonnull, context will be switched.
@@ -364,13 +392,13 @@ __trap_asm:
     .text
     .type __isr_asm, %function
     .align 2
-    .cfi_startproc simple
+    .cfi_startproc
 __isr_asm:
     # This is an interrupt; saving all registers is mandatory.
     isr_entry
     save_all_regs
     
-    # Construct fake stack frame.
+    # Construct fake stack frame for kernel backtrace.
     csrr    ra, CSR_EPC
     addi    sp, sp, -16
 #if __riscv_xlen == 64
@@ -382,9 +410,6 @@ __isr_asm:
 #endif
     addi    s0, sp, 16
     ST_REG  s0, isr_ctx_t_frameptr(t0)
-    .cfi_def_cfa s0, 0
-    .cfi_val_offset s0, -8
-    .cfi_val_offset ra, -4
     
     # Most of the interrupt handler is implemented in C.
     jal     riscv_interrupt_handler
@@ -457,3 +482,74 @@ riscv_interrupt_vector_table:
 #endif
     .option pop
 #pragma endregion
+
+
+
+
+#if 1
+.LC0:
+    .string "Hi, Ther."
+    .text
+    .align  1
+    .globl  cfitest
+    .type   cfitest, @function
+cfitest:
+.LFB0:
+    .cfi_startproc
+    addi    sp,sp,-16
+    .cfi_def_cfa_offset 16
+    sd      s0,0(sp)
+    sd      ra,8(sp)
+    .cfi_offset s0, -16
+    .cfi_offset ra, -8
+    addi    s0,sp,16
+    .cfi_def_cfa 8, 0
+    la      a1, .LC0
+    li      a0,3
+    call    logk
+.LVL0:
+    ld      ra,8(sp)
+    .cfi_restore 1
+    ld      s0,0(sp)
+    .cfi_restore 8
+    .cfi_def_cfa 2, 16
+    addi    sp,sp,16
+    .cfi_def_cfa_offset 0
+    jr      ra
+    .cfi_endproc
+.LFE0:
+    .size   cfitest, .-cfitest
+#else
+    .global logk
+    .global cfitest
+    .type cfitest, %function
+cfitest:
+    .cfi_startproc simple
+    addi sp, sp, -16
+    .cfi_def_cfa_offset 16
+    sd   fp, 0(sp)
+    .cfi_offset 8, -16
+    sd   ra, 8(sp)
+    .cfi_offset 1, -8
+    addi fp, sp, 16
+    .cfi_def_cfa 8, 0
+    
+    li   a0, 3  # LOG_INFO
+    la   a1, 1f # The message
+    call logk
+    
+    ld   fp, 0(sp)
+    .cfi_restore 8
+    ld   ra, 8(sp)
+    .cfi_restore 1
+    .cfi_def_cfa 2, 16
+    addi sp, sp, 16
+    .cfi_def_cfa_offset 0
+    ret
+    .cfi_endproc
+    
+    .size cfitest, .-cfitest
+
+    .section ".rodata", "a"
+1:  .ascii "CFI test, O.K.\0"
+#endif

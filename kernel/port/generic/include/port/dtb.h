@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "badge_strings.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -117,6 +119,49 @@ dtb_entity_t dtb_get_prop_l(dtb_handle_t *handle, dtb_entity_t parent_node, char
 // Find a node in the DTB.
 dtb_entity_t dtb_find_node(dtb_handle_t *handle, char const *path);
 
+
+// Read a prop as a single unsigned number.
+uintmax_t dtb_prop_read_uint(dtb_handle_t *handle, dtb_entity_t prop);
+// Read a prop as an array of cells.
+uint32_t  dtb_prop_read_cell(dtb_handle_t *handle, dtb_entity_t prop, uint32_t cell_idx);
+// Read an unsigned number from a prop formatted as cells.
+uintmax_t dtb_prop_read_cells(dtb_handle_t *handle, dtb_entity_t prop, uint32_t cell_idx, uint32_t cell_count);
+
+// Read a prop as a single unsigned number.
+uintmax_t dtb_read_uint_l(dtb_handle_t *handle, dtb_entity_t parent_node, char const *name, size_t name_len);
+// Read a prop as an array of cells.
+uint32_t  dtb_read_cell_l(
+     dtb_handle_t *handle, dtb_entity_t parent_node, char const *name, size_t name_len, uint32_t cell_idx
+ );
+// Read an unsigned number from a prop formatted as cells.
+uintmax_t dtb_read_cells_l(
+    dtb_handle_t *handle,
+    dtb_entity_t  parent_node,
+    char const   *name,
+    size_t        name_len,
+    uint32_t      cell_idx,
+    uint32_t      cell_count
+);
+
+
+
+// Read a prop as a single unsigned number.
+static inline uintmax_t dtb_read_uint(dtb_handle_t *handle, dtb_entity_t parent_node, char const *name) {
+    return dtb_read_uint_l(handle, parent_node, name, cstr_length(name));
+}
+
+// Read a prop as an array of cells.
+static inline uint32_t
+    dtb_read_cell(dtb_handle_t *handle, dtb_entity_t parent_node, char const *name, uint32_t cell_idx) {
+    return dtb_read_cell_l(handle, parent_node, name, cstr_length(name), cell_idx);
+}
+
+// Read an unsigned number from a prop formatted as cells.
+static inline uintmax_t dtb_read_cells(
+    dtb_handle_t *handle, dtb_entity_t parent_node, char const *name, uint32_t cell_idx, uint32_t cell_count
+) {
+    return dtb_read_cells_l(handle, parent_node, name, cstr_length(name), cell_idx, cell_count);
+}
 
 
 // Get a node with a specific name.

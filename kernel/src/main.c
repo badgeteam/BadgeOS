@@ -92,9 +92,11 @@ void basic_runtime_init() {
 
     // Announce that we're alive.
     logk(LOG_INFO, "BadgerOS " CONFIG_TARGET " starting...");
+    extern void cfitest();
+    cfitest();
 
-    // Memory protection initialization.
-    memprotect_init();
+    // Early memory protection initialization.
+    memprotect_early_init();
     // Kernel memory allocator initialization.
     kernel_heap_init();
 
@@ -121,6 +123,8 @@ void basic_runtime_init() {
 // When finished, the non-booting CPUs will be started (method and entrypoints to be determined).
 static void kernel_init() {
     badge_err_t ec = {0};
+    // Memory protection initialization.
+    memprotect_init();
     // Full hardware initialization.
     port_init();
 

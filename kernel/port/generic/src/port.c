@@ -118,9 +118,14 @@ void port_early_init() {
         if (entry->type == LIMINE_MEMMAP_KERNEL_AND_MODULES) {
             kernel_len = entry->length;
         }
-        if (entry->type == LIMINE_MEMMAP_USABLE && entry->length > biggest_pool_size) {
-            biggest_pool_index = i;
-            biggest_pool_size  = entry->length;
+        // Workaround: Limine has a bug where the DTB is in usable, not reclaimable, memory.
+        if ((size_t)dtb_req.response->dtb_ptr - hhdm_req.response->offset < entry->base ||
+            (size_t)dtb_req.response->dtb_ptr - hhdm_req.response->offset >= entry->base + entry->length) {
+            // This second check was always there and just picks the largest candidate.
+            if (entry->type == LIMINE_MEMMAP_USABLE && entry->length > biggest_pool_size) {
+                biggest_pool_index = i;
+                biggest_pool_size  = entry->length;
+            }
         }
         if (entry->type != LIMINE_MEMMAP_BAD_MEMORY && entry->type != LIMINE_MEMMAP_RESERVED) {
             mmu_hhdm_size = entry->base + entry->length;
@@ -155,19 +160,19 @@ void port_early_init() {
         early_pool->base,
         early_pool->base + early_pool->length - 1
     );
-    // init_pool(
-    //     (void *)(early_pool->base + mmu_hhdm_vaddr),
-    //     (void *)(early_pool->base + early_pool->length + mmu_hhdm_vaddr),
-    //     0
-    // );
-
-    // Parse and process DTB.
-    dtdump(dtb_req.response->dtb_ptr);
-    dtparse(dtb_req.response->dtb_ptr);
+    init_pool(
+        (void *)(early_pool->base + mmu_hhdm_vaddr),
+        (void *)(early_pool->base + early_pool->length + mmu_hhdm_vaddr),
+        0
+    );
 }
 
 // Full hardware initialization.
 void port_init() {
+    // Parse and process DTB.
+    // dtdump(dtb_req.response->dtb_ptr);
+    dtparse(dtb_req.response->dtb_ptr);
+
     // Reclaim all reclaimable memory.
     size_t base = 0;
     size_t len  = 0;
@@ -179,7 +184,7 @@ void port_init() {
             continue;
         }
         if (entry->base != base + len) {
-            if (len) {
+            if (len > 16 * MEMMAP_PAGE_SIZE) {
                 logkf_from_isr(LOG_DEBUG, "Adding memory at 0x%{size;x}-0x%{size;x}", base, base + len - 1);
                 init_pool((void *)(base + mmu_hhdm_vaddr), (void *)(base + len + mmu_hhdm_vaddr), 0);
             }
@@ -189,7 +194,7 @@ void port_init() {
             len += entry->length;
         }
     }
-    if (len) {
+    if (len >= 16 * MEMMAP_PAGE_SIZE) {
         logkf_from_isr(LOG_DEBUG, "Adding memory at 0x%{size;x}-0x%{size;x}", base, base + len - 1);
         init_pool((void *)(base + mmu_hhdm_vaddr), (void *)(base + len + mmu_hhdm_vaddr), 0);
     }

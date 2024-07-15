@@ -121,8 +121,10 @@ static inline void isr_ctx_switch_set(isr_ctx_t *switch_to) {
 }
 // Immediately swap the ISR context handle.
 static inline isr_ctx_t *isr_ctx_swap(isr_ctx_t *kctx) {
-    asm("csrrw %0, " CSR_SCRATCH_STR ", %0" : "+r"(kctx));
-    return kctx;
+    isr_ctx_t *old;
+    asm("csrrw %0, " CSR_SCRATCH_STR ", %1" : "=r"(old) : "r"(kctx));
+    kctx->ctxswitch = old->ctxswitch;
+    return old;
 }
 // Print a register dump given isr_ctx_t.
 void isr_ctx_dump(isr_ctx_t const *ctx);

@@ -262,7 +262,7 @@ void free_block(memory_pool_t *pool, buddy_block_t *block) {
 
 void init_pool(void *mem_start, void *mem_end, uint32_t flags) {
     if (memory_pool_num >= MAX_MEMORY_POOLS) {
-        BADGEROS_MALLOC_MSG_ERROR("Out of pools; discarding " FMT_P, mem_start);
+        BADGEROS_MALLOC_MSG_WARN("Out of pools; discarding " FMT_P, mem_start);
         return;
     }
     size_t  total_pages = (mem_end - mem_start) / PAGE_SIZE;
