@@ -104,7 +104,7 @@ bool isr_noexc_run(isr_noexc_t code, isr_catch_t trap_handler, void *cookie) {
     };
 
     // Set up for custom trap handler.
-    bool       ie       = irq_enable(false);
+    bool       ie       = irq_disable();
     isr_ctx_t *kctx     = isr_ctx_get();
     kctx->noexc_cb      = isr_noexc_wrapper;
     kctx->noexc_cookie  = &data;
@@ -123,7 +123,7 @@ bool isr_noexc_run(isr_noexc_t code, isr_catch_t trap_handler, void *cookie) {
 
     kctx->flags &= ~ISR_CTX_FLAG_NOEXC;
 
-    irq_enable(ie);
+    irq_enable_if(ie);
     return data.had_trap;
 }
 

@@ -32,10 +32,10 @@ void time_init() {
 // Sets the alarm time when the next task switch should occur.
 void time_set_next_task_switch(timestamp_us_t timestamp) {
     // TODO: Per-core solution.
-    bool mie = irq_enable(false);
+    bool ie = irq_disable();
     timer_alarm_config(TIMER_SYSTICK_NUM, timestamp, false);
     timer_int_enable(TIMER_SYSTICK_NUM, true);
-    irq_enable(mie);
+    irq_enable_if(ie);
 }
 
 

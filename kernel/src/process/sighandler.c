@@ -93,7 +93,7 @@ void proc_signal_handler() {
     } else {
         mutex_release(NULL, &proc->mtx);
     }
-    irq_enable(false);
+    irq_disable();
     sched_lower_from_isr();
     isr_context_switch();
     __builtin_unreachable();
@@ -140,7 +140,7 @@ static void trap_signal_handler(int signum, uint64_t cause) {
         // If the thread isn't running a signal handler, run the appropriate one.
         run_sighandler(signum, cause);
     }
-    irq_enable(false);
+    irq_disable();
     sched_lower_from_isr();
     isr_context_switch();
     __builtin_unreachable();

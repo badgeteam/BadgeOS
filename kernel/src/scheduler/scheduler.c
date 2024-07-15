@@ -15,15 +15,9 @@
 #include "scheduler/cpu.h"
 #include "scheduler/isr.h"
 #include "scheduler/types.h"
+#include "smp.h"
 
 
-
-// TODO: Replace this dummy `smp_cur_cpu()` when `generic` branch is merged.
-int smp_cur_cpu() {
-    return 0;
-}
-// TODO: Replace this dummy `smp_count` when `generic` branch is merged.
-static int smp_count = 1;
 
 // CPU-local scheduler structs.
 static sched_cpulocal_t *cpu_ctx;
@@ -173,7 +167,7 @@ static void sched_housekeeping(int taskno, void *arg) {
     assert_dev_keep(mutex_acquire(NULL, &threads_mtx, TIMESTAMP_US_MAX));
 
     // Get list of dead threads.
-    irq_enable(false);
+    irq_disable();
     assert_dev_keep(mutex_acquire_from_isr(NULL, &unused_mtx, TIMESTAMP_US_MAX));
     dlist_t         tmp  = DLIST_EMPTY;
     sched_thread_t *node = (void *)dead_threads.head;
@@ -186,7 +180,7 @@ static void sched_housekeeping(int taskno, void *arg) {
         node = next;
     }
     assert_dev_keep(mutex_release_from_isr(NULL, &unused_mtx));
-    irq_enable(true);
+    irq_enable();
 
     // Clean up all dead threads.
     while (tmp.len) {
@@ -403,14 +397,14 @@ static void thread_resume_impl(badge_err_t *ec, tid_t tid, bool now) {
     sched_thread_t *thread = find_thread(tid);
     if (thread) {
         int setfl = (now * THREAD_STARTNOW) | THREAD_RUNNING;
-        irq_enable(false);
+        irq_disable();
         if (!(atomic_fetch_or(&thread->flags, setfl) & THREAD_RUNNING)) {
             if (dlist_contains(&cpu_ctx[smp_cur_cpu()].queue, &thread->node)) {
                 logk(LOG_FATAL, "NOOOOOOOOOOO!!!!!!!!!!!!");
             }
             thread_handoff(thread, smp_cur_cpu(), true);
         }
-        irq_enable(true);
+        irq_enable();
         badge_err_set_ok(ec);
     } else {
         badge_err_set(ec, ELOC_THREADS, ECAUSE_NOTFOUND);
@@ -452,9 +446,9 @@ tid_t sched_current_tid() {
 
 // Returns the current thread struct.
 sched_thread_t *sched_current_thread() {
-    irq_enable(false);
+    irq_disable();
     sched_thread_t *thread = isr_ctx_get()->thread;
-    irq_enable(true);
+    irq_enable();
     return thread;
 }
 
@@ -475,7 +469,7 @@ sched_thread_t *sched_get_thread(tid_t tid) {
 // Explicitly yield to the scheduler; the scheduler may run other threads without waiting for preemption.
 // Use this function to reduce the CPU time used by a thread.
 void sched_yield() {
-    irq_enable(false);
+    irq_disable();
     sched_request_switch_from_isr();
     isr_context_switch();
 }
@@ -483,7 +477,7 @@ void sched_yield() {
 // Exits the current thread.
 // If the thread is detached, resources will be cleaned up.
 void thread_exit(int code) {
-    irq_enable(false);
+    irq_disable();
     sched_thread_t *thread = isr_ctx_get()->thread;
     thread->exit_code      = code;
     atomic_fetch_or(&thread->flags, THREAD_EXITING);

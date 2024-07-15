@@ -148,7 +148,7 @@ void *syscall_proc_sighandler(int signum, void *newhandler) {
 void syscall_proc_sigret() {
     sigsys_assert(sched_is_sighandler());
     sigsegv_assert(sched_signal_exit(), 0);
-    irq_enable(false);
+    irq_disable();
     sched_lower_from_isr();
     isr_context_switch();
     __builtin_unreachable();

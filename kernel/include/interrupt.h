@@ -32,8 +32,14 @@ bool irq_ch_pending(int int_irq);
 // Set the interrupt service routine for an interrupt on this CPU.
 void irq_ch_set_isr(int int_irq, isr_t isr);
 
-// Globally enable/disable interrupts on this CPU.
+// Enable interrupts if a condition is met.
+static inline void irq_enable_if(bool enable);
+// Disable interrupts if a condition is met.
+static inline void irq_disable_if(bool disable);
+// Enable interrupts.
+static inline void irq_enable();
+// Disable interrupts.
 // Returns whether interrupts were enabled.
-static inline bool irq_enable(bool enable);
+static inline bool irq_disable();
 // Query whether interrupts are enabled on this CPU.
-static inline bool irq_enabled();
+static inline bool irq_is_enabled();

@@ -94,7 +94,7 @@ void memprotect_swap_from_isr() {
 // Swap in memory protections for a given context.
 void memprotect_swap(mpu_ctx_t *mpu) {
     mpu               = mpu ?: &mpu_global_ctx;
-    bool         ie   = irq_enable(false);
+    bool         ie   = irq_disable();
     riscv_satp_t satp = {
         .ppn  = mpu->root_ppn,
         .asid = 0,
@@ -102,5 +102,5 @@ void memprotect_swap(mpu_ctx_t *mpu) {
     };
     asm("csrw satp, %0; sfence.vma" ::"r"(satp));
     isr_ctx_get()->mpu_ctx = mpu;
-    irq_enable(ie);
+    irq_enable_if(ie);
 }

@@ -49,7 +49,7 @@ enum { TRAPNAMES_LEN = sizeof(trapnames) / sizeof(trapnames[0]) };
 // Kill a process from a trap / ISR.
 static void kill_proc_on_trap() {
     proc_exit_self(-1);
-    isr_global_disable();
+    irq_disable();
     sched_lower_from_isr();
     isr_context_switch();
     __builtin_unreachable();
@@ -221,7 +221,7 @@ void syscall_return(long long value) {
     if (proc_signals_pending_raw(thread->process)) {
         proc_signal_handler();
     }
-    irq_enable(false);
+    irq_disable();
     sched_lower_from_isr();
     isr_context_switch();
     __builtin_unreachable();

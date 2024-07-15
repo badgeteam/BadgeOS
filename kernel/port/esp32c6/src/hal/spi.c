@@ -40,7 +40,7 @@ static void spi_isr(void) {
 
 static void spi_int_config(bool enable, int channel) {
     // Disable interrupts before changing interrupt settings.
-    bool mie = irq_enable(false);
+    bool ie = irq_disable();
 
     if (enable) {
         irq_ch_route(EXT_IRQ_GPSPI2_INTR, channel);
@@ -52,7 +52,7 @@ static void spi_int_config(bool enable, int channel) {
 
     // Re-enable interrupts.
     asm volatile("fence");
-    irq_enable(mie);
+    irq_enable_if(ie);
 }
 
 
