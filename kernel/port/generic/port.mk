@@ -69,7 +69,7 @@ clean-image:
 .PHONY: qemu
 qemu: $(BUILDDIR)/cache/OVMF.fd image
 	qemu-system-riscv64 -s \
-		-M virt,acpi=off -cpu rv64,sv48=false -smp 1 -m 1G \
+		-M virt,acpi=off -cpu rv64,sv48=false -smp 2 -m 4G \
 		-device pcie-root-port,bus=pcie.0,id=pcisw0 \
 		-device qemu-xhci,bus=pcisw0 -device usb-kbd \
 		-drive if=pflash,unit=0,format=raw,file=$(BUILDDIR)/cache/OVMF.fd \

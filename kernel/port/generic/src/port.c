@@ -79,8 +79,6 @@ void port_early_init() {
         panic_poweroff();
     }
 
-    logkf_from_isr(LOG_DEBUG, "DTB address: %{size;x}", dtb_req.response->dtb_ptr);
-
     // Print memory map.
     struct limine_memmap_response *mem     = mm_req.response;
     char const *const              types[] = {
@@ -155,7 +153,7 @@ void port_early_init() {
     early_alloc_index                      = biggest_pool_index;
     struct limine_memmap_entry *early_pool = mem->entries[biggest_pool_index];
     logkf_from_isr(
-        LOG_DEBUG,
+        LOG_INFO,
         "Early pool at 0x%{size;x}-0x%{size;x}",
         early_pool->base,
         early_pool->base + early_pool->length - 1

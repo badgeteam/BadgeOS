@@ -133,8 +133,7 @@ static void kernel_init() {
     badge_err_assert_always(&ec);
     init_ramfs();
 
-    // Non-booting CPU init.
-    smp_init();
+    // TODO: Non-booting CPU init.
 }
 
 

@@ -30,6 +30,10 @@ SECTIONS
     __start_rodata = .;
     .rodata : {
         *(.rodata .rodata.* .srodata .srodata.*)
+        . = ALIGN(16);
+        __start_drivers = .;
+        KEEP(*(.drivers .drivers.*))
+        __stop_drivers = .;
     } :rodata
     .dynstr : { *(.dynstr) } :rodata
     .dynsym : { *(.dynsym) } :rodata

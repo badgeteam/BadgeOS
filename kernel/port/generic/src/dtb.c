@@ -3,6 +3,7 @@
 
 #include "port/dtb.h"
 
+#include "arrays.h"
 #include "assertions.h"
 #include "badge_strings.h"
 #include "log.h"
@@ -16,11 +17,19 @@
 #endif
 
 
+
+// Sort phandles by index.
+static int phandle_cmp(void const *a, void const *b) {
+    uint32_t const *phandle_a = a;
+    uint32_t const *phandle_b = b;
+    return *phandle_a - *phandle_b;
+}
+
 // Interpret the DTB header and prepare for reading.
 dtb_handle_t dtb_open(void *dtb_ptr) {
-    dtb_header_t *hdr    = dtb_ptr;
+    dtb_header_t *hdr    = (dtb_header_t *)dtb_ptr;
     dtb_handle_t  handle = {0};
-    handle.dtb_hdr       = dtb_ptr;
+    handle.dtb_hdr       = hdr;
 
     logkf_from_isr(LOG_DEBUG, "DTB pointer:   0x%{size;x}", dtb_ptr);
 
@@ -33,10 +42,48 @@ dtb_handle_t dtb_open(void *dtb_ptr) {
     handle.string_blk = (char *)dtb_ptr + hdr->off_dt_strings;
     handle.struct_blk = (uint32_t *)((char *)dtb_ptr + hdr->off_dt_struct);
 
-    logkf_from_isr(LOG_DEBUG, "String offset: 0x%{u32;x}", hdr->off_dt_strings);
-    logkf_from_isr(LOG_DEBUG, "Struct offset: 0x%{u32;x}", hdr->off_dt_struct);
-    logkf_from_isr(LOG_DEBUG, "String block:  0x%{size;x}", handle.string_blk);
-    logkf_from_isr(LOG_DEBUG, "Struct block:  0x%{size;x}", handle.struct_blk);
+    // Walk the DTB for phandles.
+    size_t       phandles_cap = 0;
+    size_t       parents_cap  = 0;
+    dtb_entity_t ent          = dtb_root_node(&handle);
+    do {
+        if (ent.is_node) {
+            dtb_entity_t phandle = dtb_get_prop(&handle, ent, "phandle");
+            if (phandle.valid && phandle.prop_len == 4) {
+                // Write phandle entry.
+                dtb_phandle_t new_ent = {
+                    .phandle = dtb_prop_read_cell(&handle, phandle, 0),
+                    .depth   = ent.depth,
+                    .name    = ent.name,
+                    .content = ent.content,
+                };
+                array_lencap_sorted_insert(
+                    &handle.phandles,
+                    sizeof(dtb_phandle_t),
+                    &handle.phandles_len,
+                    &phandles_cap,
+                    &new_ent,
+                    phandle_cmp
+                );
+            }
+
+            // Write beginning of parent entry.
+            dtb_parent_t new_ent = {
+                .depth   = ent.depth,
+                .name    = ent.name,
+                .content = ent.content,
+            };
+            array_lencap_insert(
+                &handle.parents,
+                sizeof(dtb_parent_t),
+                &handle.parents_len,
+                &parents_cap,
+                &new_ent,
+                handle.parents_len
+            );
+        }
+        ent = dtb_walk_next(&handle, ent);
+    } while (ent.valid);
 
     return handle;
 }
@@ -172,6 +219,42 @@ dtb_entity_t dtb_next_prop(dtb_handle_t *handle, dtb_entity_t from) {
     };
 }
 
+// Walk to the next node or prop in the DTB.
+dtb_entity_t dtb_walk_next(dtb_handle_t *handle, dtb_entity_t from) {
+    if (!from.valid) {
+        return (dtb_entity_t){0};
+    }
+    uint8_t  depth = from.depth;
+    uint32_t i     = from.is_node ? from.content : from.content + (from.prop_len + 3) / 4;
+    while (true) {
+        uint32_t token = be32toh(handle->struct_blk[i]);
+        if (token == FDT_PROP) {
+            return (dtb_entity_t){
+                .valid    = true,
+                .is_node  = false,
+                .depth    = depth + from.is_node,
+                .content  = i + 3,
+                .prop_len = be32toh(handle->struct_blk[i + 1]),
+                .name     = handle->string_blk + be32toh(handle->struct_blk[i + 2]),
+            };
+        } else if (token == FDT_BEGIN_NODE) {
+            size_t name_len = cstr_length((char *)(handle->struct_blk + i + 1));
+            return (dtb_entity_t){
+                .valid   = true,
+                .is_node = true,
+                .depth   = depth + from.is_node,
+                .content = i + name_len / 4 + 2,
+                .name    = (char *)(handle->struct_blk + i + 1),
+            };
+        } else if (token == FDT_END_NODE) {
+            depth--;
+        } else if (token != FDT_NOP) {
+            return (dtb_entity_t){0};
+        }
+        i++;
+    }
+}
+
 
 // Get a node with a specific name.
 dtb_entity_t dtb_get_node_l(dtb_handle_t *handle, dtb_entity_t parent_node, char const *name, size_t name_len) {
@@ -194,12 +277,44 @@ dtb_entity_t dtb_get_prop_l(dtb_handle_t *handle, dtb_entity_t parent_node, char
 
 // Find a node in the DTB.
 dtb_entity_t dtb_find_node(dtb_handle_t *handle, char const *path) {
-    dtb_entity_t node = dtb_root_node(handle);
-    while (true) {
-        while (path[0] == '/') {
-            path++;
-        }
+    // TODO.
+    return (dtb_entity_t){0};
+}
+
+
+// Find the immediate parent node of a node or prop.
+dtb_entity_t dtb_find_parent(dtb_handle_t *handle, dtb_entity_t ent) {
+    if (!ent.valid) {
+        return (dtb_entity_t){0};
     }
+    dtb_entity_t parent = dtb_root_node(handle);
+    dtb_entity_t cur    = dtb_walk_next(handle, parent);
+    while (cur.valid) {
+        if (cur.content == ent.content) {
+            return parent;
+        } else if (cur.is_node) {
+            parent = cur;
+        }
+        cur = dtb_walk_next(handle, cur);
+    }
+    return (dtb_entity_t){0};
+}
+
+// Get a DTB node by phandle.
+dtb_entity_t dtb_phandle_node(dtb_handle_t *handle, uint32_t phandle) {
+    array_binsearch_t res =
+        array_binsearch(handle->phandles, sizeof(dtb_phandle_t), handle->phandles_len, &phandle, phandle_cmp);
+    if (!res.found) {
+        return (dtb_entity_t){0};
+    }
+    dtb_phandle_t ent = handle->phandles[res.index];
+    return (dtb_entity_t){
+        .valid   = true,
+        .is_node = true,
+        .depth   = ent.depth,
+        .content = ent.content,
+        .name    = ent.name,
+    };
 }
 
 
@@ -232,6 +347,21 @@ uintmax_t dtb_prop_read_cells(dtb_handle_t *handle, dtb_entity_t prop, uint32_t 
         data  |= be32toh(handle->struct_blk[prop.content + cell_idx + i]);
     }
     return data;
+}
+
+// Get raw prop contents.
+void const *dtb_prop_content(dtb_handle_t *handle, dtb_entity_t prop, uint32_t *len_out) {
+    if (!prop.valid) {
+        if (len_out) {
+            *len_out = 0;
+        }
+        return 0;
+    } else {
+        if (len_out) {
+            *len_out = prop.prop_len;
+        }
+        return (void const *)(handle->struct_blk + prop.content);
+    }
 }
 
 

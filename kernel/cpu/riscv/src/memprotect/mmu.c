@@ -4,6 +4,7 @@
 #include "cpu/mmu.h"
 
 #include "assertions.h"
+#include "badge_strings.h"
 #include "cpu/panic.h"
 #include "interrupt.h"
 #include "isr_ctx.h"
@@ -43,6 +44,19 @@ static inline void pmem_store(size_t paddr, size_t data) {
 }
 
 
+
+// Whether a certain DTB MMU type is supported.
+bool mmu_dtb_supported(char const *type) {
+    if (cstr_equals(type, "riscv,sv39")) {
+        return mmu_levels <= 3;
+    } else if (cstr_equals(type, "riscv,sv48")) {
+        return mmu_levels <= 4;
+    } else if (cstr_equals(type, "riscv,sv57")) {
+        return mmu_levels <= 5;
+    } else {
+        return false;
+    }
+}
 
 // MMU-specific init code.
 void mmu_early_init() {

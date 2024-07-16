@@ -125,6 +125,9 @@ extern bool   mmu_svpbmt;
 
 
 
+// Whether a certain DTB MMU type is supported.
+bool mmu_dtb_supported(char const *type);
+
 // MMU-specific init code.
 void mmu_early_init();
 // MMU-specific init code.

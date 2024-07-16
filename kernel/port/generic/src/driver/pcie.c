@@ -160,14 +160,14 @@ static void
 
 
 // Driver for normal no-nonsense PCIe.
-driver_t const pcie_driver = {
+DRIVER_DECL(pcie_driver) = {
     .dtb_supports_len = 1,
     .dtb_supports     = (char const *[]){"pci-host-ecam-generic"},
     .dtbinit          = pcie_driver_dtbinit,
 };
 
 // Driver for the factually stupid incoherent SiFive FU740 proprietary nonsense PCIe.
-driver_t const pcie_fu740_driver = {
+DRIVER_DECL(pcie_fu740_driver) = {
     .dtb_supports_len = 1,
     .dtb_supports     = (char const *[]){"sifive,fu740-pcie"},
     .dtbinit          = pcie_fu740_driver_dtbinit,

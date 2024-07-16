@@ -8,6 +8,7 @@
 #include "driver.h"
 #include "port/dtb.h"
 #include "rawprint.h"
+#include "smp.h"
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #define htobe32(x) __builtin_bswap32(x)
@@ -20,17 +21,18 @@
 
 
 // Check if we have a driver for some compat string.
-static void check_drivers(
+static bool check_drivers(
     dtb_handle_t *handle, dtb_entity_t node, uint32_t addr_cells, uint32_t size_cells, char const *compat_str
 ) {
-    for (size_t i = 0; i < drivers_len; i++) {
-        for (size_t j = 0; j < drivers[i]->dtb_supports_len; j++) {
-            if (cstr_equals(compat_str, drivers[i]->dtb_supports[j])) {
-                drivers[i]->dtbinit(handle, node, addr_cells, size_cells);
-                return;
+    for (driver_t const *driver = start_drivers; driver != stop_drivers; driver++) {
+        for (size_t j = 0; j < driver->dtb_supports_len; j++) {
+            if (cstr_equals(compat_str, driver->dtb_supports[j])) {
+                driver->dtbinit(handle, node, addr_cells, size_cells);
+                return true;
             }
         }
     }
+    return false;
 }
 
 // Parse the DTB and add found devices.
@@ -45,17 +47,20 @@ void dtparse(void *dtb_ptr) {
     uint32_t     soc_alen = dtb_read_uint(&handle, soc, "#address-cells");
     uint32_t     soc_slen = dtb_read_uint(&handle, soc, "#size-cells");
 
+    // Initialise SMP.
+    smp_init(&handle);
+
     // Walk the SOC node to detect devices and install drivers.
     dtb_entity_t node = dtb_first_node(&handle, soc);
     while (node.valid) {
-        // Debug log.
-        logkf_from_isr(LOG_DEBUG, "Node %{cs}", node.name);
-        dtb_entity_t reg = dtb_get_prop(&handle, node, "reg");
-        for (uint32_t i = 0; i < reg.prop_len / 4 / (soc_alen + soc_slen); i++) {
-            size_t base = dtb_prop_read_cells(&handle, reg, i * (soc_alen + soc_slen), soc_alen);
-            size_t size = dtb_prop_read_cells(&handle, reg, i * (soc_alen + soc_slen) + soc_alen, soc_slen);
-            logkf_from_isr(LOG_DEBUG, "  Reg[%{u32;d}]:  base=0x%{size;x}  size=0x%{size;x}", i, base, size);
-        }
+        // // Debug log.
+        // logkf_from_isr(LOG_DEBUG, "Node %{cs}", node.name);
+        // dtb_entity_t reg = dtb_get_prop(&handle, node, "reg");
+        // for (uint32_t i = 0; i < reg.prop_len / 4 / (soc_alen + soc_slen); i++) {
+        //     size_t base = dtb_prop_read_cells(&handle, reg, i * (soc_alen + soc_slen), soc_alen);
+        //     size_t size = dtb_prop_read_cells(&handle, reg, i * (soc_alen + soc_slen) + soc_alen, soc_slen);
+        //     logkf_from_isr(LOG_DEBUG, "  Reg[%{u32;d}]:  base=0x%{size;x}  size=0x%{size;x}", i, base, size);
+        // }
 
         // Read which drivers the device is compatible with.
         dtb_entity_t compatible = dtb_get_prop(&handle, node, "compatible");
@@ -65,7 +70,9 @@ void dtparse(void *dtb_ptr) {
         // Check all compatible options.
         while (compat_len) {
             size_t len = cstr_length(compat_str);
-            check_drivers(&handle, node, soc_alen, soc_slen, compat_str);
+            if (check_drivers(&handle, node, soc_alen, soc_slen, compat_str)) {
+                break;
+            }
             compat_str += len + 1;
             compat_len -= len + 1;
         }

@@ -26,7 +26,10 @@ typedef struct {
     driver_dtbinit_t         dtbinit;
 } driver_t;
 
-// Driver list.
-extern driver_t const *const drivers[];
-// Number of drivers in the drivers list.
-extern size_t const          drivers_len;
+// Start of driver list.
+extern driver_t const start_drivers[] asm("__start_drivers");
+// End of driver list.
+extern driver_t const stop_drivers[] asm("__stop_drivers");
+
+// Define a new driver.
+#define DRIVER_DECL(name) __attribute((section(".drivers"))) driver_t const name

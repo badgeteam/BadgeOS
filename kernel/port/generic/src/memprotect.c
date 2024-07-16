@@ -35,12 +35,12 @@ typedef struct {
 } vmm_info_t;
 
 // Sort `vmm_info_t` by `vpn`.
-int vmm_info_sort(void const *a, void const *b) {
+static int vmm_info_cmp(void const *a, void const *b) {
     vmm_info_t const *info_a = a;
     vmm_info_t const *info_b = b;
     if (info_a->vpn > info_b->vpn) {
         return 1;
-    } else if (info_a->vpn > info_b->vpn) {
+    } else if (info_a->vpn < info_b->vpn) {
         return -1;
     } else {
         return 0;
@@ -343,8 +343,8 @@ virt2phys_t memprotect_virt2phys(mpu_ctx_t *ctx, size_t vaddr) {
     return (virt2phys_t){0};
 }
 
-// Mark a range of VMM as in use.
-static bool vmm_mark_used(size_t vpn, size_t pages) {
+// Mark a range of VMM as reserved.
+static void vmm_mark_reserved(size_t vpn, size_t pages) {
     // Clamp address range.
     if (vpn < mmu_high_vpn) {
         pages -= mmu_high_vpn - vpn;
@@ -355,9 +355,10 @@ static bool vmm_mark_used(size_t vpn, size_t pages) {
     }
 
     // Look up which entry to cut.
-    array_binsearch_t idx   = array_binsearch(vmm_free, sizeof(vmm_info_t), vmm_free_len, &vpn, vmm_info_sort);
-    vmm_info_t        range = vmm_free[idx.index];
-    assert_dev_drop(idx.found);
+    array_binsearch_t idx = array_binsearch(vmm_free, sizeof(vmm_info_t), vmm_free_len, &vpn, vmm_info_cmp);
+    assert_dev_drop(idx.found || idx.index > 0);
+    idx.index        -= !idx.found;
+    vmm_info_t range  = vmm_free[idx.index];
     assert_dev_drop(vpn >= range.vpn);
     assert_dev_drop(vpn + pages <= range.vpn + range.pages);
 
@@ -371,16 +372,9 @@ static bool vmm_mark_used(size_t vpn, size_t pages) {
             .vpn   = vpn + pages,
             .pages = range.vpn + range.pages - vpn - pages,
         };
-        if (!array_lencap_insert(
-                &vmm_free,
-                sizeof(vmm_info_t),
-                &vmm_free_len,
-                &vmm_free_cap,
-                &new_ent,
-                idx.index + 1
-            )) {
-            return false;
-        }
+        assert_always(
+            array_lencap_insert(&vmm_free, sizeof(vmm_info_t), &vmm_free_len, &vmm_free_cap, &new_ent, idx.index + 1)
+        );
         // Modify the other one.
         vmm_free[idx.index] = (vmm_info_t){
             .vpn   = range.vpn,
@@ -396,9 +390,6 @@ static bool vmm_mark_used(size_t vpn, size_t pages) {
         vmm_free[idx.index].vpn   = vpn + pages;
         vmm_free[idx.index].pages = range.vpn + range.pages - vpn - pages;
     }
-
-    // Add to the used list.
-    return true;
 }
 
 // Alloc vaddr mutex.
@@ -414,26 +405,20 @@ size_t memprotect_alloc_vaddr(size_t len) {
             break;
         }
     }
-    if (i >= vmm_free_len) {
-        mutex_release(NULL, &vmm_mtx);
-        return 0;
-    }
+    assert_always(i < vmm_free_len);
     vmm_info_t range      = vmm_free[i];
     vmm_info_t used_range = {
         .vpn   = range.vpn,
         .pages = pages,
     };
-    if (!array_lencap_sorted_insert(
-            &vmm_used,
-            sizeof(vmm_info_t),
-            &vmm_used_len,
-            &vmm_used_cap,
-            &used_range,
-            vmm_info_sort
-        )) {
-        mutex_release(NULL, &vmm_mtx);
-        return 0;
-    }
+    assert_always(array_lencap_sorted_insert(
+        &vmm_used,
+        sizeof(vmm_info_t),
+        &vmm_used_len,
+        &vmm_used_cap,
+        &used_range,
+        vmm_info_cmp
+    ));
     if (vmm_free[i].pages > pages) {
         vmm_free[i].vpn   += pages;
         vmm_free[i].pages -= pages;
@@ -453,13 +438,37 @@ void memprotect_free_vaddr(size_t vaddr) {
     mutex_acquire(NULL, &vmm_mtx, TIMESTAMP_US_MAX);
 
     // Look up the in-use entry.
-    array_binsearch_t res = array_binsearch(vmm_used, sizeof(vmm_info_t), vmm_used_len, &vpn, vmm_info_sort);
+    array_binsearch_t res = array_binsearch(vmm_used, sizeof(vmm_info_t), vmm_used_len, &vpn, vmm_info_cmp);
     assert_always(res.found);
     vmm_info_t range;
     array_lencap_remove(&vmm_used, sizeof(vmm_info_t), &vmm_used_len, &vmm_used_cap, &range, res.index);
     assert_always(range.vpn == vpn);
 
-    logk(LOG_WARN, "TODO: memprotect_free_vaddr");
+    // Insert into the free list.
+    res = array_binsearch(vmm_free, sizeof(vmm_info_t), vmm_free_len, &range, vmm_info_cmp);
+    assert_dev_drop(!res.found);
+    if (res.index && vmm_free[res.index - 1].vpn + vmm_free[res.index - 1].pages == range.vpn &&
+        range.vpn + range.pages == vmm_free[res.index].vpn) {
+        // Merge both.
+        vmm_free[res.index - 1].pages =
+            vmm_free[res.index].vpn + vmm_free[res.index].pages - vmm_free[res.index - 1].vpn;
+        array_lencap_remove(&vmm_free, sizeof(vmm_info_t), &vmm_free_len, &vmm_free_cap, NULL, res.index);
+
+    } else if (res.index && vmm_free[res.index - 1].vpn + vmm_free[res.index - 1].pages == range.vpn) {
+        // Merge left.
+        vmm_free[res.index - 1].pages = range.vpn + range.pages - vmm_free[res.index - 1].vpn;
+
+    } else if (range.vpn + range.pages == vmm_free[res.index].vpn) {
+        // Merge right.
+        vmm_free[res.index].pages += vmm_free[res.index].vpn - range.vpn;
+        vmm_free[res.index].vpn    = range.vpn;
+
+    } else {
+        // Not mergable.
+        assert_always(
+            array_lencap_insert(&vmm_free, sizeof(vmm_info_t), &vmm_free_len, &vmm_free_cap, &range, res.index)
+        );
+    }
 
     mutex_release(NULL, &vmm_mtx);
 }
@@ -543,8 +552,8 @@ void memprotect_init() {
     vmm_free_cap = 1;
 
     // Remove HHDM and kernel from free area.
-    assert_always(vmm_mark_used(memprotect_kernel_vpn - 1, memprotect_kernel_pages + 2));
-    assert_always(vmm_mark_used(mmu_hhdm_vpn - 1, memprotect_hhdm_pages + 2));
+    vmm_mark_reserved(memprotect_kernel_vpn - 1, memprotect_kernel_pages + 2);
+    vmm_mark_reserved(mmu_hhdm_vpn - 1, memprotect_hhdm_pages + 2);
 
     // Run other MMU init code.
     mmu_init();
