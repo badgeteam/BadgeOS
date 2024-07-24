@@ -7,6 +7,7 @@
 
 #ifndef __ASSEMBLER__
 #include "cpulocal.h"
+#include "log.h"
 #include "memprotect.h"
 
 #include <stdbool.h>

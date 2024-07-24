@@ -73,11 +73,11 @@ static inline void set_switch(sched_thread_t *thread) {
 }
 
 // Try to hand a thread off to another CPU.
-static bool thread_handoff(sched_thread_t *thread, int cpu) {
+static bool thread_handoff(sched_thread_t *thread, int cpu, bool force) {
     sched_cpulocal_t *info = cpu_ctx + cpu;
     assert_dev_keep(mutex_acquire_shared_from_isr(NULL, &info->run_mtx, TIMESTAMP_US_MAX));
     int flags = atomic_load(&info->flags);
-    if ((flags & SCHED_RUNNING) && !(flags & SCHED_EXITING)) {
+    if (force || ((flags & SCHED_RUNNING) && !(flags & SCHED_EXITING))) {
         assert_dev_keep(mutex_acquire_from_isr(NULL, &info->incoming_mtx, TIMESTAMP_US_MAX));
         dlist_append(&info->incoming, &thread->node);
         assert_dev_keep(mutex_release_from_isr(NULL, &info->incoming_mtx));
@@ -104,7 +104,7 @@ void sched_request_switch_from_isr() {
             sched_thread_t *thread = (void *)dlist_pop_front(&info->queue);
             do {
                 cpu = (cpu + 1) % smp_count;
-            } while (cpu == cur_cpu || !thread_handoff(thread, cpu));
+            } while (cpu == cur_cpu || !thread_handoff(thread, cpu, false));
         }
 
         // TODO: Power off this CPU.
@@ -114,17 +114,13 @@ void sched_request_switch_from_isr() {
 
     // Check for incoming threads.
     assert_dev_keep(mutex_acquire_from_isr(NULL, &info->incoming_mtx, TIMESTAMP_US_MAX));
-    if (info->incoming.len) {
-        // One or more threads have been handed over.
-        while (info->incoming.len) {
-            sched_thread_t *thread = (void *)dlist_pop_front(&info->incoming);
-            if (atomic_load(&thread->flags) & THREAD_STARTNOW) {
-                dlist_prepend(&info->queue, &thread->node);
-            } else {
-                dlist_append(&info->queue, &thread->node);
-            }
+    while (info->incoming.len) {
+        sched_thread_t *thread = (void *)dlist_pop_front(&info->incoming);
+        if (atomic_load(&thread->flags) & THREAD_STARTNOW) {
+            dlist_prepend(&info->queue, &thread->node);
+        } else {
+            dlist_append(&info->queue, &thread->node);
         }
-        assert_dev_keep(mutex_release_from_isr(NULL, &info->incoming_mtx));
     }
     assert_dev_keep(mutex_release_from_isr(NULL, &info->incoming_mtx));
 
@@ -138,10 +134,10 @@ void sched_request_switch_from_isr() {
                 // Kernel code still running; let it finish.
                 dlist_append(&info->queue, &thread->node);
                 set_switch(thread);
-                break;
+                return;
             } else {
                 // Process exiting; suspend thread.
-                atomic_fetch_or(&thread->flags, ~(THREAD_RUNNING | THREAD_SUSPENDING));
+                atomic_fetch_and(&thread->flags, ~(THREAD_RUNNING | THREAD_SUSPENDING));
             }
         } else if (flags & THREAD_EXITING) {
             // Clean up thread.
@@ -150,16 +146,19 @@ void sched_request_switch_from_isr() {
             assert_dev_keep(mutex_release_from_isr(NULL, &unused_mtx));
         } else if (flags & THREAD_SUSPENDING) {
             // Suspend thread.
-            atomic_fetch_or(&thread->flags, ~(THREAD_RUNNING | THREAD_SUSPENDING));
+            atomic_fetch_and(&thread->flags, ~(THREAD_RUNNING | THREAD_SUSPENDING));
         } else {
             // Perform context switch.
             dlist_append(&info->queue, &thread->node);
+            // logkf_from_isr(LOG_DEBUG, "Switch to thread #%{d} '%{cs}' @0x%{size;x}", thread->id, thread->name,
+            // thread);
             set_switch(thread);
-            break;
+            return;
         }
     }
 
     // If nothing is running on this CPU, run the idle thread.
+    // logk_from_isr(LOG_DEBUG, "Switch to idle");
     set_switch(&info->idle_thread);
 }
 
@@ -215,8 +214,10 @@ void sched_init() {
         cpu_ctx[i].incoming_mtx = MUTEX_T_INIT;
         void *stack             = malloc(8192);
         assert_always(stack);
-        cpu_ctx[i].idle_thread.kernel_stack_bottom = (size_t)stack;
-        cpu_ctx[i].idle_thread.kernel_stack_top    = (size_t)stack + 8192;
+        cpu_ctx[i].idle_thread.kernel_stack_bottom  = (size_t)stack;
+        cpu_ctx[i].idle_thread.kernel_stack_top     = (size_t)stack + 8192;
+        cpu_ctx[i].idle_thread.kernel_isr_ctx.flags = ISR_CTX_FLAG_KERNEL;
+        cpu_ctx[i].idle_thread.flags                = THREAD_PRIVILEGED;
         sched_prepare_kernel_entry(&cpu_ctx[i].idle_thread, idle_func, NULL);
     }
     hk_add_repeated(0, 1000000, sched_housekeeping, NULL);
@@ -366,6 +367,7 @@ tid_t thread_new_kernel(
     thread->kernel_stack_top      = (size_t)stack_bottom + stack_size;
     thread->kernel_isr_ctx.flags  = ISR_CTX_FLAG_KERNEL;
     thread->kernel_isr_ctx.thread = thread;
+    thread->flags                 = THREAD_PRIVILEGED;
     sched_prepare_kernel_entry(thread, entrypoint, arg);
 
     assert_dev_keep(mutex_acquire(NULL, &threads_mtx, TIMESTAMP_US_MAX));
@@ -382,6 +384,8 @@ tid_t thread_new_kernel(
         badge_err_set(ec, ELOC_THREADS, ECAUSE_NOMEM);
         return 0;
     }
+
+    logkf(LOG_DEBUG, "Kernel thread #%{d} '%{cs}' @0x%{size;x} created", thread->id, thread->name, thread);
 
     badge_err_set_ok(ec);
     return thread->id;
@@ -421,9 +425,10 @@ void thread_resume(badge_err_t *ec, tid_t tid) {
     assert_always(mutex_acquire_shared(NULL, &threads_mtx, TIMESTAMP_US_MAX));
     sched_thread_t *thread = find_thread(tid);
     if (thread) {
-        if (!(atomic_load(&thread->flags) & THREAD_RUNNING)) {
-            atomic_fetch_or(&thread->flags, THREAD_RUNNING);
-            thread_handoff(thread, smp_cur_cpu());
+        if (!(atomic_fetch_or(&thread->flags, THREAD_RUNNING) & THREAD_RUNNING)) {
+            irq_enable(false);
+            thread_handoff(thread, smp_cur_cpu(), true);
+            irq_enable(true);
         }
         badge_err_set_ok(ec);
     } else {
@@ -438,9 +443,10 @@ void thread_resume_now(badge_err_t *ec, tid_t tid) {
     assert_always(mutex_acquire_shared(NULL, &threads_mtx, TIMESTAMP_US_MAX));
     sched_thread_t *thread = find_thread(tid);
     if (thread) {
-        if (!(atomic_load(&thread->flags) & THREAD_RUNNING)) {
-            atomic_fetch_or(&thread->flags, THREAD_RUNNING | THREAD_STARTNOW);
-            thread_handoff(thread, smp_cur_cpu());
+        if (!(atomic_fetch_or(&thread->flags, THREAD_RUNNING | THREAD_STARTNOW) & THREAD_RUNNING)) {
+            irq_enable(false);
+            thread_handoff(thread, smp_cur_cpu(), true);
+            irq_enable(true);
         }
         badge_err_set_ok(ec);
     } else {
