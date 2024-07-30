@@ -41,13 +41,13 @@ void backtrace() NAKED;
 #if __riscv_xlen == 64
 void backtrace() {
     asm volatile("addi sp, sp, -16");
-    asm volatile("sw   ra, 8(sp)");
-    asm volatile("sw   s0, 0(sp)");
+    asm volatile("sd   ra, 8(sp)");
+    asm volatile("sd   s0, 0(sp)");
     asm volatile("addi s0, sp, 16");
     asm volatile("mv   a0, s0");
     asm volatile("jal  backtrace_from_ptr");
-    asm volatile("lw   ra, 8(sp)");
-    asm volatile("lw   s0, 0(sp)");
+    asm volatile("ld   ra, 8(sp)");
+    asm volatile("ld   s0, 0(sp)");
     asm volatile("addi sp, sp, 16");
     asm volatile("ret");
 }

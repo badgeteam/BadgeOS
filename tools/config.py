@@ -32,7 +32,6 @@ targets = {
         "cpu":       ["riscv32"],
         "cc-match":  "^riscv.*-linux-",
         "cc-prefer": ["^riscv32-badgeros-", "^riscv32-"],
-        "float":     True,
         "port":      "esp32p4",
         "options":   {
             "float_spec": (["single"], 0),
@@ -41,8 +40,7 @@ targets = {
     "generic": {
         "cpu":       ["riscv64"],
         "cc-match":  "^riscv64.*-linux-",
-        "cc-prefer": ["^riscv64-linux-"],
-        "float":     True,
+        "cc-prefer": ["^riscv64-badgeros-", "^riscv64-linux-"],
         "port":      "generic",
         "options":   {
             "float_spec": (float_spec, 2),
@@ -86,8 +84,10 @@ def option_select(prompt: str, options: list, prefer=0):
         print(f"Error: No valid {prompt}s found")
         exit(1)
     elif len(options) == 1:
+        print(f"Using {prompt} {options[0]}")
         return options[0]
     elif use_default:
+        print(f"Using {prompt} {options[prefer-1]}")
         return options[prefer-1]
     else:
         print(f"Available {prompt}s:")
@@ -123,7 +123,9 @@ def find_compilers():
                 candidates.append(path + "/" + bin)
         except FileNotFoundError:
             pass
-    return candidates, prefer_idx
+    if not len(candidates):
+        print(f"ERROR: No suitable compilers found for target `{target}`")
+    return candidates, prefer_idx or 0
 
 def handle_option_arg(arg: str|None, id: str, name: str) -> str:
     global target, target_options

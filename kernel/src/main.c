@@ -117,6 +117,7 @@ void basic_runtime_init() {
     );
     badge_err_assert_always(&ec);
     thread_resume(&ec, thread);
+    thread_resume(&ec, thread);
     badge_err_assert_always(&ec);
 
     // Start the scheduler and enter the next phase in the kernel's lifetime.

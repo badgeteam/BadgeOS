@@ -4,6 +4,7 @@
 #include "scheduler/scheduler.h"
 
 #include "arrays.h"
+#include "assertions.h"
 #include "badge_strings.h"
 #include "cpu/isr.h"
 #include "housekeeping.h"
@@ -92,9 +93,9 @@ void sched_request_switch_from_isr() {
     sched_cpulocal_t *info    = cpu_ctx + cur_cpu;
 
     // Check the exiting flag.
-    assert_dev_keep(mutex_acquire_shared_from_isr(NULL, &info->run_mtx, TIMESTAMP_US_MAX));
     if (atomic_load(&info->flags) & SCHED_EXITING) {
         // Exit the scheduler on this CPU.
+        assert_dev_keep(mutex_acquire_from_isr(NULL, &info->run_mtx, TIMESTAMP_US_MAX));
         atomic_fetch_and(&info->flags, ~(SCHED_RUNNING | SCHED_EXITING));
 
         // Hand all threads over to other CPUs.
@@ -106,16 +107,17 @@ void sched_request_switch_from_isr() {
                 cpu = (cpu + 1) % smp_count;
             } while (cpu == cur_cpu || !thread_handoff(thread, cpu, false));
         }
+        assert_dev_keep(mutex_release_from_isr(NULL, &info->run_mtx));
 
         // TODO: Power off this CPU.
         while (1) asm("wfi");
     }
-    assert_dev_keep(mutex_release_shared_from_isr(NULL, &info->run_mtx));
 
     // Check for incoming threads.
     assert_dev_keep(mutex_acquire_from_isr(NULL, &info->incoming_mtx, TIMESTAMP_US_MAX));
     while (info->incoming.len) {
         sched_thread_t *thread = (void *)dlist_pop_front(&info->incoming);
+        assert_dev_drop(atomic_load(&thread->flags) & THREAD_RUNNING);
         if (atomic_load(&thread->flags) & THREAD_STARTNOW) {
             dlist_prepend(&info->queue, &thread->node);
         } else {
@@ -130,7 +132,7 @@ void sched_request_switch_from_isr() {
         sched_thread_t *thread = (void *)dlist_pop_front(&info->queue);
         int             flags  = atomic_load(&thread->flags);
         if (thread->process && (atomic_load(&thread->process->flags) & PROC_EXITING)) {
-            if (flags & THREAD_PRIVILEGED) {
+            if ((flags & THREAD_PRIVILEGED) && (flags & THREAD_RUNNING)) {
                 // Kernel code still running; let it finish.
                 dlist_append(&info->queue, &thread->node);
                 set_switch(thread);
@@ -144,11 +146,12 @@ void sched_request_switch_from_isr() {
             assert_dev_keep(mutex_acquire_from_isr(NULL, &unused_mtx, TIMESTAMP_US_MAX));
             dlist_append(&dead_threads, &thread->node);
             assert_dev_keep(mutex_release_from_isr(NULL, &unused_mtx));
-        } else if (flags & THREAD_SUSPENDING) {
+        } else if (!(flags & THREAD_PRIVILEGED) && (flags & THREAD_SUSPENDING)) {
             // Suspend thread.
             atomic_fetch_and(&thread->flags, ~(THREAD_RUNNING | THREAD_SUSPENDING));
         } else {
             // Perform context switch.
+            assert_dev_drop(flags & THREAD_RUNNING);
             dlist_append(&info->queue, &thread->node);
             // logkf_from_isr(LOG_DEBUG, "Switch to thread #%{d} '%{cs}' @0x%{size;x}", thread->id, thread->name,
             // thread);
@@ -228,6 +231,7 @@ void sched_exec() {
     // Allocate CPU-local scheduler data.
     sched_cpulocal_t *info         = cpu_ctx + smp_cur_cpu();
     isr_ctx_get()->cpulocal->sched = info;
+    logkf_from_isr(LOG_DEBUG, "Starting scheduler on CPU%{d}", smp_cur_cpu());
 
     // Mark as running.
     atomic_store_explicit(&info->flags, SCHED_RUNNING, memory_order_release);
@@ -361,13 +365,13 @@ tid_t thread_new_kernel(
         cstr_copy(thread->name, name_len + 1, name);
     }
 
-    thread->priority              = priority;
-    thread->id                    = atomic_fetch_add(&tid_counter, 1);
-    thread->kernel_stack_bottom   = (size_t)stack_bottom;
-    thread->kernel_stack_top      = (size_t)stack_bottom + stack_size;
-    thread->kernel_isr_ctx.flags  = ISR_CTX_FLAG_KERNEL;
-    thread->kernel_isr_ctx.thread = thread;
-    thread->flags                 = THREAD_PRIVILEGED;
+    thread->priority               = priority;
+    thread->id                     = atomic_fetch_add(&tid_counter, 1);
+    thread->kernel_stack_bottom    = (size_t)stack_bottom;
+    thread->kernel_stack_top       = (size_t)stack_bottom + stack_size;
+    thread->kernel_isr_ctx.flags   = ISR_CTX_FLAG_KERNEL;
+    thread->kernel_isr_ctx.thread  = thread;
+    thread->flags                 |= THREAD_PRIVILEGED | THREAD_KERNEL;
     sched_prepare_kernel_entry(thread, entrypoint, arg);
 
     assert_dev_keep(mutex_acquire(NULL, &threads_mtx, TIMESTAMP_US_MAX));
@@ -410,9 +414,35 @@ void thread_suspend(badge_err_t *ec, tid_t tid) {
     assert_always(mutex_acquire_shared(NULL, &threads_mtx, TIMESTAMP_US_MAX));
     sched_thread_t *thread = find_thread(tid);
     if (thread) {
-        if (atomic_load(&thread->flags) & THREAD_RUNNING) {
-            atomic_fetch_or(&thread->flags, THREAD_SUSPENDING);
+        if (thread->flags & THREAD_KERNEL) {
+            badge_err_set(ec, ELOC_THREADS, ECAUSE_ILLEGAL);
+        } else {
+            int exp;
+            do {
+                exp = atomic_load(&thread->flags);
+            } while (!atomic_compare_exchange_strong(&thread->flags, &exp, exp | THREAD_SUSPENDING));
+            badge_err_set_ok(ec);
         }
+    } else {
+        badge_err_set(ec, ELOC_THREADS, ECAUSE_NOTFOUND);
+    }
+    assert_always(mutex_release_shared(NULL, &threads_mtx));
+}
+
+// Resumes a previously suspended thread or starts it.
+static void thread_resume_impl(badge_err_t *ec, tid_t tid, bool now) {
+    assert_always(mutex_acquire_shared(NULL, &threads_mtx, TIMESTAMP_US_MAX));
+    sched_thread_t *thread = find_thread(tid);
+    if (thread) {
+        int setfl = (now * THREAD_STARTNOW) | THREAD_RUNNING;
+        irq_enable(false);
+        if (!(atomic_fetch_or(&thread->flags, setfl) & THREAD_RUNNING)) {
+            if (dlist_contains(&cpu_ctx[smp_cur_cpu()].queue, &thread->node)) {
+                logk(LOG_FATAL, "NOOOOOOOOOOO!!!!!!!!!!!!");
+            }
+            thread_handoff(thread, smp_cur_cpu(), true);
+        }
+        irq_enable(true);
         badge_err_set_ok(ec);
     } else {
         badge_err_set(ec, ELOC_THREADS, ECAUSE_NOTFOUND);
@@ -422,37 +452,13 @@ void thread_suspend(badge_err_t *ec, tid_t tid) {
 
 // Resumes a previously suspended thread or starts it.
 void thread_resume(badge_err_t *ec, tid_t tid) {
-    assert_always(mutex_acquire_shared(NULL, &threads_mtx, TIMESTAMP_US_MAX));
-    sched_thread_t *thread = find_thread(tid);
-    if (thread) {
-        if (!(atomic_fetch_or(&thread->flags, THREAD_RUNNING) & THREAD_RUNNING)) {
-            irq_enable(false);
-            thread_handoff(thread, smp_cur_cpu(), true);
-            irq_enable(true);
-        }
-        badge_err_set_ok(ec);
-    } else {
-        badge_err_set(ec, ELOC_THREADS, ECAUSE_NOTFOUND);
-    }
-    assert_always(mutex_release_shared(NULL, &threads_mtx));
+    thread_resume_impl(ec, tid, false);
 }
 
 // Resumes a previously suspended thread or starts it.
 // Immediately schedules the thread instead of putting it in the queue first.
 void thread_resume_now(badge_err_t *ec, tid_t tid) {
-    assert_always(mutex_acquire_shared(NULL, &threads_mtx, TIMESTAMP_US_MAX));
-    sched_thread_t *thread = find_thread(tid);
-    if (thread) {
-        if (!(atomic_fetch_or(&thread->flags, THREAD_RUNNING | THREAD_STARTNOW) & THREAD_RUNNING)) {
-            irq_enable(false);
-            thread_handoff(thread, smp_cur_cpu(), true);
-            irq_enable(true);
-        }
-        badge_err_set_ok(ec);
-    } else {
-        badge_err_set(ec, ELOC_THREADS, ECAUSE_NOTFOUND);
-    }
-    assert_always(mutex_release_shared(NULL, &threads_mtx));
+    thread_resume_impl(ec, tid, true);
 }
 
 // Returns whether a thread is running; it is neither suspended nor has it exited.

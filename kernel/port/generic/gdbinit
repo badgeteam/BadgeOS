@@ -1,3 +1,11 @@
 file firmware/badger-os.elf
-b basic_runtime_init
 target remote :1234
+
+define reset
+    mon system_reset
+    maintenance flush register-cache
+    thb basic_runtime_init
+    c
+end
+
+reset

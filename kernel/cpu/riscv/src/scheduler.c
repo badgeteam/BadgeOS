@@ -53,7 +53,7 @@ void sched_lower_from_isr() {
     sched_thread_t *thread  = sched_current_thread_unsafe();
     process_t      *process = thread->process;
     assert_dev_drop(!(thread->flags & THREAD_KERNEL) && (thread->flags & THREAD_PRIVILEGED));
-    thread->flags &= ~THREAD_PRIVILEGED;
+    atomic_fetch_and(&thread->flags, ~THREAD_PRIVILEGED);
 
     // Set context switch target to user thread.
     isr_ctx_switch_set(&thread->user_isr_ctx);
@@ -61,8 +61,6 @@ void sched_lower_from_isr() {
 
     if (atomic_load(&process->flags) & PROC_EXITING) {
         // Request a context switch to a different thread.
-        thread->flags &= ~THREAD_RUNNING;
-        thread->flags |= THREAD_SUSPENDING;
         sched_request_switch_from_isr();
     }
 }
@@ -122,15 +120,17 @@ bool sched_signal_enter(size_t handler_vaddr, size_t return_vaddr, int signum) {
     thread->user_isr_ctx.regs.a0 = signum;
 
     // Successfully entered signal handler.
-    thread->flags |= THREAD_SIGHANDLER;
+    atomic_fetch_or(&thread->flags, THREAD_SIGHANDLER);
     return true;
 }
 
 // Exits a signal handler in the current thread.
 // Returns false if the process cannot be resumed.
 bool sched_signal_exit() {
-    sched_thread_t *thread  = sched_current_thread_unsafe();
-    thread->flags          &= ~THREAD_SIGHANDLER;
+    sched_thread_t *thread = sched_current_thread_unsafe();
+    if (!(atomic_fetch_and(&thread->flags, ~THREAD_SIGHANDLER) & THREAD_SIGHANDLER)) {
+        return false;
+    }
 
     // Ensure the user still has the stack.
     size_t usp   = thread->user_isr_ctx.regs.sp;
@@ -178,7 +178,7 @@ bool sched_signal_exit() {
 static void sched_exit_self(int code) {
 #ifndef NDEBUG
     sched_thread_t *const thread = sched_current_thread();
-    logkf(LOG_DEBUG, "Kernel thread '%{cs}' returned %{d}", thread->name, thread->name);
+    logkf(LOG_DEBUG, "Kernel thread '%{cs}' returned %{d}", thread->name, code);
 #endif
     thread_exit(code);
 }

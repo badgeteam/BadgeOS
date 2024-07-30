@@ -6,6 +6,7 @@
 #include "assertions.h"
 #include "cpu/mmu.h"
 #include "cpu/panic.h"
+#include "isr_ctx.h"
 #include "limine.h"
 #include "memprotect.h"
 #include "port/hardware_allocation.h"
@@ -50,9 +51,13 @@ __attribute__((section(".requests_end"))) LIMINE_REQUESTS_END_MARKER;
 // Memory map entry selected to be early alloc pool.
 static size_t early_alloc_index;
 
+// CPU0 local data.
+cpulocal_t port_cpu0_local;
+
 // Early hardware initialization.
 void port_early_init() {
     rawprint("\033[0m\033[2J");
+    isr_ctx_get()->cpulocal = &port_cpu0_local;
 
     // Verify needed requests have been answered.
     if (!mm_req.response) {
