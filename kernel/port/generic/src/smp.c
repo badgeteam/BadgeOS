@@ -24,7 +24,13 @@ typedef struct {
 static int smp_cpu_cmp(void const *a, void const *b) {
     smp_map_t const *map_a = a;
     smp_map_t const *map_b = b;
-    return map_a->cpu - map_b->cpu;
+    if (map_a->cpu < map_b->cpu) {
+        return -1;
+    } else if (map_a->cpu > map_b->cpu) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 // SMP index sort.
@@ -69,20 +75,21 @@ void smp_init(dtb_handle_t *dtb) {
     }
 
     // Parse CPU ID information from the DTB.
-    dtb_entity_t cpus = dtb_get_node(dtb, dtb_root_node(dtb), "cpus");
-    assert_always(cpus.valid);
-    dtb_entity_t cpu        = dtb_first_node(dtb, cpus);
-    uint32_t     cpu_acells = dtb_read_uint(dtb, cpus, "#address-cells");
+    dtb_node_t *cpus = dtb_get_node(dtb, dtb_root_node(dtb), "cpus");
+    assert_always(cpus);
+    dtb_node_t *cpu = cpus->nodes;
+    assert_always(cpu);
+    uint32_t cpu_acells = dtb_read_uint(dtb, cpus, "#address-cells");
     assert_always(cpu_acells && cpu_acells <= sizeof(size_t) / 4);
     assert_always(dtb_read_uint(dtb, cpus, "#size-cells") == 0);
 
-    while (cpu.valid) {
+    while (cpu) {
         // Detect usable architecture.
 #ifdef __riscv
         uint32_t    isa_len = 0;
         char const *isa     = dtb_prop_content(dtb, dtb_get_prop(dtb, cpu, "riscv,isa"), &isa_len);
         if (isa_len < 5 || !cstr_prefix_equals(isa, __riscv_xlen == 32 ? "rv32i" : "rv64i", 5)) {
-            cpu = dtb_next_node(dtb, cpu);
+            cpu = cpu->next;
             continue;
         }
 #else
@@ -93,15 +100,15 @@ void smp_init(dtb_handle_t *dtb) {
         uint32_t    mmu_len = 0;
         char const *mmu     = dtb_prop_content(dtb, dtb_get_prop(dtb, cpu, "mmu-type"), &mmu_len);
         if (!mmu || !mmu_dtb_supported(mmu)) {
-            cpu = dtb_next_node(dtb, cpu);
+            cpu = cpu->next;
             continue;
         }
 
         // Read CPU ID.
-        dtb_entity_t reg = dtb_get_prop(dtb, cpu, "reg");
-        assert_always(reg.valid && reg.prop_len == 4 * cpu_acells);
+        dtb_prop_t *reg = dtb_get_prop(dtb, cpu, "reg");
+        assert_always(reg && reg->content_len == 4 * cpu_acells);
         size_t cpuid = dtb_prop_read_uint(dtb, reg);
-        logkf(LOG_INFO, "Detected CPU #%{d} ID 0x%{size;x}", cpu_index, cpuid);
+        logkf(LOG_INFO, "Detected CPU #%{d} ID %{size;d}", cpu_index, cpuid);
 
         // Add to the maps.
         smp_map_t new_ent = {
@@ -111,7 +118,7 @@ void smp_init(dtb_handle_t *dtb) {
         assert_always(array_len_sorted_insert(&smp_map, sizeof(smp_map_t), &smp_map_len, &new_ent, smp_cpuid_cmp));
         assert_always(array_len_sorted_insert(&smp_unmap, sizeof(smp_map_t), &smp_unmap_len, &new_ent, smp_cpu_cmp));
 
-        cpu = dtb_next_node(dtb, cpu);
+        cpu = cpu->next;
     }
 }
 
@@ -133,7 +140,7 @@ int smp_get_cpu(size_t cpuid) {
 // Get the CPU ID value from the SMP CPU index.
 size_t smp_get_cpuid(int cpu) {
     smp_map_t         dummy = {.cpu = cpu};
-    array_binsearch_t res   = array_binsearch(smp_unmap, sizeof(smp_map_t), smp_unmap_len, &dummy, smp_cpuid_cmp);
+    array_binsearch_t res   = array_binsearch(smp_unmap, sizeof(smp_map_t), smp_unmap_len, &dummy, smp_cpu_cmp);
     if (res.found) {
         return smp_map[res.index].cpuid;
     }

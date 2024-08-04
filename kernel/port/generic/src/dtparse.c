@@ -22,7 +22,7 @@
 
 // Check if we have a driver for some compat string.
 static bool check_drivers(
-    dtb_handle_t *handle, dtb_entity_t node, uint32_t addr_cells, uint32_t size_cells, char const *compat_str
+    dtb_handle_t *handle, dtb_node_t *node, uint32_t addr_cells, uint32_t size_cells, char const *compat_str
 ) {
     for (driver_t const *driver = start_drivers; driver != stop_drivers; driver++) {
         for (size_t j = 0; j < driver->dtb_supports_len; j++) {
@@ -38,39 +38,39 @@ static bool check_drivers(
 // Parse the DTB and add found devices.
 void dtparse(void *dtb_ptr) {
     // Open the DTB for reading.
-    dtb_handle_t handle = dtb_open(dtb_ptr);
-    assert_always(!handle.has_errors);
-    dtb_entity_t root = dtb_root_node(&handle);
+    dtb_handle_t *handle = dtb_open(dtb_ptr);
+    assert_always(handle);
+    dtb_node_t *root = dtb_root_node(handle);
 
     // The SOC node contains devices for which we may have drivers.
-    dtb_entity_t soc      = dtb_get_node(&handle, root, "soc");
-    uint32_t     soc_alen = dtb_read_uint(&handle, soc, "#address-cells");
-    uint32_t     soc_slen = dtb_read_uint(&handle, soc, "#size-cells");
+    dtb_node_t *soc      = dtb_get_node(handle, root, "soc");
+    uint32_t    soc_alen = dtb_read_uint(handle, soc, "#address-cells");
+    uint32_t    soc_slen = dtb_read_uint(handle, soc, "#size-cells");
 
     // Initialise SMP.
-    smp_init(&handle);
+    smp_init(handle);
 
     // Walk the SOC node to detect devices and install drivers.
-    dtb_entity_t node = dtb_first_node(&handle, soc);
-    while (node.valid) {
+    dtb_node_t *node = soc->nodes;
+    while (node) {
         // // Debug log.
         // logkf_from_isr(LOG_DEBUG, "Node %{cs}", node.name);
-        // dtb_entity_t reg = dtb_get_prop(&handle, node, "reg");
+        // dtb_entity_t reg = dtb_get_prop(handle, node, "reg");
         // for (uint32_t i = 0; i < reg.prop_len / 4 / (soc_alen + soc_slen); i++) {
-        //     size_t base = dtb_prop_read_cells(&handle, reg, i * (soc_alen + soc_slen), soc_alen);
-        //     size_t size = dtb_prop_read_cells(&handle, reg, i * (soc_alen + soc_slen) + soc_alen, soc_slen);
+        //     size_t base = dtb_prop_read_cells(handle, reg, i * (soc_alen + soc_slen), soc_alen);
+        //     size_t size = dtb_prop_read_cells(handle, reg, i * (soc_alen + soc_slen) + soc_alen, soc_slen);
         //     logkf_from_isr(LOG_DEBUG, "  Reg[%{u32;d}]:  base=0x%{size;x}  size=0x%{size;x}", i, base, size);
         // }
 
         // Read which drivers the device is compatible with.
-        dtb_entity_t compatible = dtb_get_prop(&handle, node, "compatible");
-        char const  *compat_str = (char *)(handle.struct_blk + compatible.content);
-        size_t       compat_len = compatible.prop_len;
+        dtb_prop_t *compatible = dtb_get_prop(handle, node, "compatible");
+        uint32_t    compat_len = 0;
+        char const *compat_str = (char *)dtb_prop_content(handle, compatible, &compat_len);
 
         // Check all compatible options.
         while (compat_len) {
             size_t len = cstr_length(compat_str);
-            if (check_drivers(&handle, node, soc_alen, soc_slen, compat_str)) {
+            if (check_drivers(handle, node, soc_alen, soc_slen, compat_str)) {
                 break;
             }
             compat_str += len + 1;
@@ -78,7 +78,7 @@ void dtparse(void *dtb_ptr) {
         }
 
         // Next device.
-        node = dtb_next_node(&handle, node);
+        node = node->next;
     }
 }
 
@@ -138,56 +138,55 @@ static void hexprint1(uint8_t const *bin, uint32_t len) {
     }
 }
 
-static void dtdump_r(dtb_handle_t *handle, dtb_entity_t node) {
-    pindent(node.depth);
-    rawprint(node.name);
+static void dtdump_r(dtb_handle_t *handle, dtb_node_t *node) {
+    pindent(node->depth);
+    rawprint(node->name);
     rawprint(" {\n");
 
-    dtb_entity_t prop = dtb_first_prop(handle, node);
-    while (prop.valid) {
-        pindent(node.depth + 1);
-        rawprint(prop.name);
-        if (prop.prop_len) {
-            rawputc(' ');
-            if (isbin((uint8_t *)(handle->struct_blk + prop.content), prop.prop_len)) {
+    dtb_prop_t *prop = node->props;
+    while (prop) {
+        pindent(node->depth + 1);
+        rawprint(prop->name);
+        if (prop->content_len) {
+            rawprint(" = ");
+            if (isbin((uint8_t *)prop->content, prop->content_len)) {
                 rawputc('<');
-                if (prop.prop_len % 4) {
-                    hexprint1((uint8_t *)(handle->struct_blk + prop.content), prop.prop_len);
+                if (prop->content_len % 4) {
+                    hexprint1((uint8_t *)prop->content, prop->content_len);
                 } else {
-                    hexprint4((uint32_t *)(handle->struct_blk + prop.content), prop.prop_len / 4);
+                    hexprint4((uint32_t *)prop->content, prop->content_len / 4);
                 }
                 rawputc('>');
             } else {
                 rawputc('"');
-                escprint((char *)(handle->struct_blk + prop.content), prop.prop_len);
+                escprint((char *)prop->content, prop->content_len);
                 rawputc('"');
             }
         }
         rawprint(";\n");
-        prop = dtb_next_prop(handle, prop);
+        prop = prop->next;
     }
 
-    dtb_entity_t subnode = dtb_first_node(handle, node);
-    while (subnode.valid) {
+    dtb_node_t *subnode = node->nodes;
+    while (subnode) {
         dtdump_r(handle, subnode);
-        subnode = dtb_next_node(handle, subnode);
+        subnode = subnode->next;
     }
 
-    pindent(node.depth);
+    pindent(node->depth);
     rawprint("}\n");
 }
 
 // Dump the DTB.
 void dtdump(void *dtb_ptr) {
-    dtb_handle_t handle = dtb_open(dtb_ptr);
-    if (handle.has_errors) {
+    dtb_handle_t *handle = dtb_open(dtb_ptr);
+    if (!handle) {
         return;
     }
-    dtb_entity_t root = dtb_root_node(&handle);
-    if (!root.valid) {
+    dtb_node_t *root = dtb_root_node(handle);
+    if (!root) {
         rawprint("Invalid root node\n");
         return;
     }
-    root.name = "/";
-    dtdump_r(&handle, root);
+    dtdump_r(handle, root);
 }

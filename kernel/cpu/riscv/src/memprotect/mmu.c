@@ -114,7 +114,7 @@ void memprotect_swap(mpu_ctx_t *mpu) {
         .asid = 0,
         .mode = RISCV_SATP_SV39 + mmu_levels - 3,
     };
-    asm("csrw satp, %0; sfence.vma" ::"r"(satp));
+    asm volatile("csrw satp, %0; sfence.vma" ::"r"(satp) : "memory");
     isr_ctx_get()->mpu_ctx = mpu;
     irq_enable_if(ie);
 }

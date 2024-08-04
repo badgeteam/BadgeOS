@@ -93,14 +93,14 @@ void *pcie_ecam_vaddr(pcie_addr_t addr) {
 
 
 // Extract ranges from DTB.
-static bool pcie_dtb_ranges(dtb_handle_t *handle, dtb_entity_t node, uint32_t addr_cells, uint32_t size_cells) {
-    dtb_entity_t ranges = dtb_get_prop(handle, node, "ranges");
-    if (!ranges.valid) {
+static bool pcie_dtb_ranges(dtb_handle_t *handle, dtb_node_t *node, uint32_t addr_cells, uint32_t size_cells) {
+    dtb_prop_t *ranges = dtb_get_prop(handle, node, "ranges");
+    if (!ranges) {
         return false;
     }
 
     // If ranges is empty, it is identity-mapped.
-    if (ranges.prop_len == 0) {
+    if (ranges->content_len == 0) {
         ctl.ranges_len = 1;
         ctl.ranges     = malloc(sizeof(pcie_bar_range_t));
         if (!ctl.ranges) {
@@ -116,7 +116,7 @@ static bool pcie_dtb_ranges(dtb_handle_t *handle, dtb_entity_t node, uint32_t ad
     }
 
     // TODO: Is a range always 7 cells?
-    ctl.ranges_len = ranges.prop_len / (4 * 7);
+    ctl.ranges_len = ranges->content_len / (4 * 7);
     ctl.ranges     = malloc(ctl.ranges_len * sizeof(pcie_bar_range_t));
     if (!ctl.ranges) {
         return false;
@@ -137,7 +137,7 @@ static bool pcie_dtb_ranges(dtb_handle_t *handle, dtb_entity_t node, uint32_t ad
 }
 
 // DTB init for normal PCIe.
-static void pcie_driver_dtbinit(dtb_handle_t *handle, dtb_entity_t node, uint32_t addr_cells, uint32_t size_cells) {
+static void pcie_driver_dtbinit(dtb_handle_t *handle, dtb_node_t *node, uint32_t addr_cells, uint32_t size_cells) {
     ctl.type = PCIE_CTYPE_GENERIC_ECAM;
     if (!pcie_dtb_ranges(handle, node, addr_cells, size_cells)) {
         return;
@@ -152,7 +152,7 @@ static void pcie_driver_dtbinit(dtb_handle_t *handle, dtb_entity_t node, uint32_
 
 // DTB init for FU740 PCIe.
 static void
-    pcie_fu740_driver_dtbinit(dtb_handle_t *handle, dtb_entity_t node, uint32_t addr_cells, uint32_t size_cells) {
+    pcie_fu740_driver_dtbinit(dtb_handle_t *handle, dtb_node_t *node, uint32_t addr_cells, uint32_t size_cells) {
     ctl.type = PCIE_CTYPE_SIFIVE_FU740;
     pcie_dtb_ranges(handle, node, addr_cells, size_cells);
 }

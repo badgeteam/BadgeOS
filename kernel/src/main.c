@@ -92,8 +92,6 @@ void basic_runtime_init() {
 
     // Announce that we're alive.
     logk(LOG_INFO, "BadgerOS " CONFIG_TARGET " starting...");
-    extern void cfitest();
-    cfitest();
 
     // Early memory protection initialization.
     memprotect_early_init();

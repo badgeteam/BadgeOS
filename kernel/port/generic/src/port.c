@@ -168,7 +168,7 @@ void port_early_init() {
 // Full hardware initialization.
 void port_init() {
     // Parse and process DTB.
-    // dtdump(dtb_req.response->dtb_ptr);
+    dtdump(dtb_req.response->dtb_ptr);
     dtparse(dtb_req.response->dtb_ptr);
 
     // Reclaim all reclaimable memory.

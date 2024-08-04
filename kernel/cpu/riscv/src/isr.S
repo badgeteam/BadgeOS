@@ -83,9 +83,9 @@
     .option pop
     LD_REG  t1, isr_ctx_t_flags(t0)
     andi    t1, t1, ISR_CTX_FLAG_USE_SP
-    bnez    t1, .isr_entry_\@
+    bnez    t1, 1f
     la      sp, __interrupt_stack_hi
-.isr_entry_\@:
+1:
 #pragma endregion
     .endm
 
@@ -346,10 +346,13 @@ __trap_asm:
 #endif
     addi    s0, sp, 16
     ST_REG  s0, isr_ctx_t_frameptr(t0)
+    mv      s1, t0
+    .cfi_def_cfa s1, 0
     
     # Most of the trap handler is implemented in C.
     jal     riscv_trap_handler
     csrr    t0, CSR_SCRATCH
+    .cfi_def_cfa CSR_SCRATCH, 0
     
     # Discard fake stack frame.
     addi    sp, sp, 16
@@ -410,10 +413,13 @@ __isr_asm:
 #endif
     addi    s0, sp, 16
     ST_REG  s0, isr_ctx_t_frameptr(t0)
+    mv      s1, t0
+    .cfi_def_cfa s1, 0
     
     # Most of the interrupt handler is implemented in C.
     jal     riscv_interrupt_handler
     csrr    t0, CSR_SCRATCH
+    .cfi_def_cfa CSR_SCRATCH, 0
     
     # Discard fake stack frame.
     addi    sp, sp, 16
@@ -482,74 +488,3 @@ riscv_interrupt_vector_table:
 #endif
     .option pop
 #pragma endregion
-
-
-
-
-#if 1
-.LC0:
-    .string "Hi, Ther."
-    .text
-    .align  1
-    .globl  cfitest
-    .type   cfitest, @function
-cfitest:
-.LFB0:
-    .cfi_startproc
-    addi    sp,sp,-16
-    .cfi_def_cfa_offset 16
-    sd      s0,0(sp)
-    sd      ra,8(sp)
-    .cfi_offset s0, -16
-    .cfi_offset ra, -8
-    addi    s0,sp,16
-    .cfi_def_cfa 8, 0
-    la      a1, .LC0
-    li      a0,3
-    call    logk
-.LVL0:
-    ld      ra,8(sp)
-    .cfi_restore 1
-    ld      s0,0(sp)
-    .cfi_restore 8
-    .cfi_def_cfa 2, 16
-    addi    sp,sp,16
-    .cfi_def_cfa_offset 0
-    jr      ra
-    .cfi_endproc
-.LFE0:
-    .size   cfitest, .-cfitest
-#else
-    .global logk
-    .global cfitest
-    .type cfitest, %function
-cfitest:
-    .cfi_startproc simple
-    addi sp, sp, -16
-    .cfi_def_cfa_offset 16
-    sd   fp, 0(sp)
-    .cfi_offset 8, -16
-    sd   ra, 8(sp)
-    .cfi_offset 1, -8
-    addi fp, sp, 16
-    .cfi_def_cfa 8, 0
-    
-    li   a0, 3  # LOG_INFO
-    la   a1, 1f # The message
-    call logk
-    
-    ld   fp, 0(sp)
-    .cfi_restore 8
-    ld   ra, 8(sp)
-    .cfi_restore 1
-    .cfi_def_cfa 2, 16
-    addi sp, sp, 16
-    .cfi_def_cfa_offset 0
-    ret
-    .cfi_endproc
-    
-    .size cfitest, .-cfitest
-
-    .section ".rodata", "a"
-1:  .ascii "CFI test, O.K.\0"
-#endif

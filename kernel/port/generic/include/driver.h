@@ -14,7 +14,7 @@
 
 
 // Init function for devices detected from DTB.
-typedef void (*driver_dtbinit_t)(dtb_handle_t *dtb, dtb_entity_t node, uint32_t addr_cells, uint32_t size_cells);
+typedef void (*driver_dtbinit_t)(dtb_handle_t *dtb, dtb_node_t *node, uint32_t addr_cells, uint32_t size_cells);
 
 // Generic driver information.
 typedef struct {

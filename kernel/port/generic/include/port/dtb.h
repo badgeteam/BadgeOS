@@ -64,119 +64,111 @@ typedef struct FDT_ATTR {
 
 
 
-// DTB phandle map entry.
-typedef struct {
-    // Phandle reference number.
-    uint32_t    phandle;
-    // Node content offset.
-    uint32_t    content;
-    // Node depth.
-    uint8_t     depth;
-    // Node name.
-    char const *name;
-} dtb_phandle_t;
+// DTB prop.
+typedef struct dtb_prop_t dtb_prop_t;
+// DTB node.
+typedef struct dtb_node_t dtb_node_t;
 
-// DTB parent map entry.
-typedef struct {
-    // Node content offset.
-    uint32_t    content;
-    // Node content length.
-    uint32_t    length;
-    // Node depth.
+// DTB prop.
+typedef struct dtb_prop_t {
+    // Next sibling prop.
+    dtb_prop_t *next;
+    // Previous sibling prop.
+    dtb_prop_t *prev;
+    // Parent node.
+    dtb_node_t *parent;
+    // Prop name.
+    char const *name;
+    // How deep in the tree this prop is.
     uint8_t     depth;
+    // Content length.
+    uint32_t    content_len;
+    // Content pointer.
+    void const *content;
+} dtb_prop_t;
+
+// DTB node.
+typedef struct dtb_node_t {
+    // Next sibling node.
+    dtb_node_t *next;
+    // Previous sibling node.
+    dtb_node_t *prev;
+    // Parent node.
+    dtb_node_t *parent;
     // Node name.
     char const *name;
-} dtb_parent_t;
+    // How deep in the tree this node is.
+    uint8_t     depth;
+    // Number of child nodes.
+    size_t      nodes_len;
+    // Child nodes.
+    dtb_node_t *nodes;
+    // Number of child props.
+    size_t      props_len;
+    // Child props.
+    dtb_prop_t *props;
+    // Phandle value, if any.
+    uint32_t    phandle;
+    // Whether a phandle is present.
+    bool        has_phandle;
+} dtb_node_t;
 
 // DTB reading handle.
 typedef struct {
     // DTB pointer.
-    dtb_header_t  *dtb_hdr;
+    dtb_header_t *dtb_hdr;
     // Resolved structure block address.
-    uint32_t      *struct_blk;
+    uint32_t     *struct_blk;
     // Resolved strings block address.
-    char          *string_blk;
-    // Whether any errors were found in the DTB.
-    // The DTB should not be read if there are any.
-    bool           has_errors;
+    char         *string_blk;
+    // DTB root node.
+    dtb_node_t    root;
     // Number of phandles found.
-    size_t         phandles_len;
-    // Phandles and nodes found.
-    dtb_phandle_t *phandles;
-    // Number of parent map entries.
-    size_t         parents_len;
-    // Parent map.
-    dtb_parent_t  *parents;
+    size_t        phandles_len;
+    // Nodes sorted by phandle.
+    dtb_node_t  **phandles;
 } dtb_handle_t;
 
-// DTB struct / property handle.
-typedef struct {
-    // Is valid.
-    bool        valid;
-    // Is a node (and not property).
-    bool        is_node;
-    // How deep in the hierarchy this is; 0 is root-level.
-    uint8_t     depth;
-    // Word offet of the entity's content.
-    uint32_t    content;
-    // Length of the prop.
-    uint32_t    prop_len;
-    // Name pointer of the entity.
-    char const *name;
-} dtb_entity_t;
 
 
-
-// Interpret the DTB header and prepare for reading.
-dtb_handle_t dtb_open(void *dtb_ptr);
+// Interpret the DTB and prepare for reading.
+dtb_handle_t *dtb_open(void *dtb_ptr);
+// Clean up memory allocated by DTB operations.
+void          dtb_close(dtb_handle_t *handle);
 
 // Go to the first node or prop in the DTB.
-dtb_entity_t dtb_root_node(dtb_handle_t *handle);
-
-// Go to the first subnode in a node.
-dtb_entity_t dtb_first_node(dtb_handle_t *handle, dtb_entity_t parent_node);
-// Go to the first prop in a node.
-dtb_entity_t dtb_first_prop(dtb_handle_t *handle, dtb_entity_t parent_node);
-
-// Go to the next node on the same level of hierarchy.
-dtb_entity_t dtb_next_node(dtb_handle_t *handle, dtb_entity_t from);
-// Go to the next prop in this node.
-dtb_entity_t dtb_next_prop(dtb_handle_t *handle, dtb_entity_t from);
-// Walk to the next node or prop in the DTB.
-dtb_entity_t dtb_walk_next(dtb_handle_t *handle, dtb_entity_t from);
+dtb_node_t *dtb_root_node(dtb_handle_t *handle);
 
 // Get a node with a specific name.
-dtb_entity_t dtb_get_node_l(dtb_handle_t *handle, dtb_entity_t parent_node, char const *name, size_t name_len);
+dtb_node_t *dtb_get_node_l(dtb_handle_t *handle, dtb_node_t *parent_node, char const *name, size_t name_len);
 // Get a prop with a specific name.
-dtb_entity_t dtb_get_prop_l(dtb_handle_t *handle, dtb_entity_t parent_node, char const *name, size_t name_len);
+dtb_prop_t *dtb_get_prop_l(dtb_handle_t *handle, dtb_node_t *parent_node, char const *name, size_t name_len);
 
 // Find a node in the DTB.
-dtb_entity_t dtb_find_node(dtb_handle_t *handle, char const *path);
-// Find the immediate parent node of a node or prop.
-dtb_entity_t dtb_find_parent(dtb_handle_t *handle, dtb_entity_t ent);
+dtb_node_t *dtb_find_node(dtb_handle_t *handle, char const *path);
 // Get a DTB node by phandle.
-dtb_entity_t dtb_phandle_node(dtb_handle_t *handle, uint32_t phandle);
+dtb_node_t *dtb_phandle_node(dtb_handle_t *handle, uint32_t phandle);
 
 
 // Read a prop as a single unsigned number.
-uintmax_t   dtb_prop_read_uint(dtb_handle_t *handle, dtb_entity_t prop);
+uintmax_t   dtb_prop_read_uint(dtb_handle_t *handle, dtb_prop_t *prop);
 // Read a prop as an array of cells.
-uint32_t    dtb_prop_read_cell(dtb_handle_t *handle, dtb_entity_t prop, uint32_t cell_idx);
+uint32_t    dtb_prop_read_cell(dtb_handle_t *handle, dtb_prop_t *prop, uint32_t cell_idx);
 // Read an unsigned number from a prop formatted as cells.
-uintmax_t   dtb_prop_read_cells(dtb_handle_t *handle, dtb_entity_t prop, uint32_t cell_idx, uint32_t cell_count);
+uintmax_t   dtb_prop_read_cells(dtb_handle_t *handle, dtb_prop_t *prop, uint32_t cell_idx, uint32_t cell_count);
 // Get raw prop contents.
-void const *dtb_prop_content(dtb_handle_t *handle, dtb_entity_t prop, uint32_t *len_out);
+void const *dtb_prop_content(dtb_handle_t *handle, dtb_prop_t *prop, uint32_t *len_out);
 
 // Read a prop as a single unsigned number.
-uintmax_t dtb_read_uint_l(dtb_handle_t *handle, dtb_entity_t parent_node, char const *name, size_t name_len);
+uintmax_t dtb_read_uint_l(dtb_handle_t *handle, dtb_node_t *parent_node, char const *name, size_t name_len);
 // Read a prop as an array of cells.
 uint32_t  dtb_read_cell_l(
-     dtb_handle_t *handle, dtb_entity_t parent_node, char const *name, size_t name_len, uint32_t cell_idx
+     dtb_handle_t *handle, dtb_node_t *parent_node, char const *name, size_t name_len, uint32_t cell_idx
  );
 // Read an unsigned number from a prop formatted as cells.
 uintmax_t dtb_read_cells_l(
     dtb_handle_t *handle,
-    dtb_entity_t  parent_node,
+    dtb_node_t   *parent_node,
     char const   *name,
     size_t        name_len,
     uint32_t      cell_idx,
@@ -186,30 +178,30 @@ uintmax_t dtb_read_cells_l(
 
 
 // Read a prop as a single unsigned number.
-static inline uintmax_t dtb_read_uint(dtb_handle_t *handle, dtb_entity_t parent_node, char const *name) {
+static inline uintmax_t dtb_read_uint(dtb_handle_t *handle, dtb_node_t *parent_node, char const *name) {
     return dtb_read_uint_l(handle, parent_node, name, cstr_length(name));
 }
 
 // Read a prop as an array of cells.
 static inline uint32_t
-    dtb_read_cell(dtb_handle_t *handle, dtb_entity_t parent_node, char const *name, uint32_t cell_idx) {
+    dtb_read_cell(dtb_handle_t *handle, dtb_node_t *parent_node, char const *name, uint32_t cell_idx) {
     return dtb_read_cell_l(handle, parent_node, name, cstr_length(name), cell_idx);
 }
 
 // Read an unsigned number from a prop formatted as cells.
 static inline uintmax_t dtb_read_cells(
-    dtb_handle_t *handle, dtb_entity_t parent_node, char const *name, uint32_t cell_idx, uint32_t cell_count
+    dtb_handle_t *handle, dtb_node_t *parent_node, char const *name, uint32_t cell_idx, uint32_t cell_count
 ) {
     return dtb_read_cells_l(handle, parent_node, name, cstr_length(name), cell_idx, cell_count);
 }
 
 
 // Get a node with a specific name.
-static inline dtb_entity_t dtb_get_node(dtb_handle_t *handle, dtb_entity_t parent_node, char const *name) {
+static inline dtb_node_t *dtb_get_node(dtb_handle_t *handle, dtb_node_t *parent_node, char const *name) {
     return dtb_get_node_l(handle, parent_node, name, __builtin_strlen(name));
 }
 
 // Get a prop with a specific name.
-static inline dtb_entity_t dtb_get_prop(dtb_handle_t *handle, dtb_entity_t parent_node, char const *name) {
+static inline dtb_prop_t *dtb_get_prop(dtb_handle_t *handle, dtb_node_t *parent_node, char const *name) {
     return dtb_get_prop_l(handle, parent_node, name, __builtin_strlen(name));
 }

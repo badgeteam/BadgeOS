@@ -20,6 +20,7 @@ void backtrace_from_ptr(void *frame_pointer) {
     rawprint("**** BEGIN BACKRTACE ****\n");
     // Prev FP offset: -2 words
     // Prev RA offset: -1 word
+    atomic_thread_fence(memory_order_acquire);
     size_t *fp = frame_pointer;
     for (int i = 0; i < BACKTRACE_DEPTH; i++) {
         size_t ra;
