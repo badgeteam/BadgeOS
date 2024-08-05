@@ -145,9 +145,8 @@ void port_init() {
 }
 
 // Send a single character to the log output.
-void port_putc(char msg) __attribute__((naked));
 void port_putc(char msg) {
-    (void)msg;
+    register char a0 asm("a0") = msg;
     // SBI console putchar.
-    asm("li a7, 1; ecall; ret");
+    asm("li a7, 1; ecall" ::"r"(a0));
 }

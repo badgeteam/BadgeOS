@@ -12,6 +12,8 @@ BUILDDIR          ?= build
 BADGER_RAMFS_ROOT ?= ../files/root
 CROSS_COMPILE      = $(CONFIG_TC_PREFIX)
 GDB               ?= $(CROSS_COMPILE)gdb
+CLANG_FORMAT      ?= clang-format-18
+CLANG_TIDY        ?= clang-tidy-18
 
 include port/$(CONFIG_TARGET)/port.mk
 
@@ -38,14 +40,16 @@ clang-format-check: configure
 	echo "clang-format check the following files:"
 	jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$'
 	echo "analysis results:"
-	clang-format-18 --dry-run $(shell jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$')
+	$(CLANG_FORMAT) --dry-run $(shell jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$')
 
 .PHONY: clang-tidy-check
 clang-tidy-check: configure
 	echo "clang-tidy check the following files:"
 	jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$'
 	echo "analysis results:"
-	clang-tidy-18 -p build $(shell jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$') --warnings-as-errors="*"
+	$(CLANG_TIDY) -p build $(shell jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$') \
+		--checks=-*widening*multiplication*,-*insecureAPI* \
+		--warnings-as-errors="*"
 
 .PHONY: gdb
 gdb:

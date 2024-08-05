@@ -42,21 +42,21 @@ sched_thread_t *proc_create_thread_raw_unsafe(
     badge_err_t *ec, process_t *process, sched_entry_point_t entry_point, void *arg, sched_prio_t priority
 );
 // Delete a thread in a process.
-void     proc_delete_thread_raw_unsafe(badge_err_t *ec, process_t *process, sched_thread_t *thread);
+void   proc_delete_thread_raw_unsafe(badge_err_t *ec, process_t *process, sched_thread_t *thread);
 // Allocate more memory to a process.
 // Returns actual virtual address on success, 0 on failure.
-size_t   proc_map_raw(badge_err_t *ec, process_t *process, size_t vaddr, size_t size, size_t align, uint32_t flags);
+size_t proc_map_raw(badge_err_t *ec, process_t *process, size_t vaddr, size_t size, size_t align, uint32_t flags);
 // Release memory allocated to a process.
-void     proc_unmap_raw(badge_err_t *ec, process_t *process, size_t base);
+void   proc_unmap_raw(badge_err_t *ec, process_t *process, size_t base);
 // Whether the process owns this range of memory.
 // Returns the lowest common denominator of the access bits.
-uint32_t proc_map_contains_raw(process_t *proc, size_t base, size_t size);
+int    proc_map_contains_raw(process_t *proc, size_t base, size_t size);
 // Add a file to the process file handle list.
-int      proc_add_fd_raw(badge_err_t *ec, process_t *process, file_t real);
+int    proc_add_fd_raw(badge_err_t *ec, process_t *process, file_t real);
 // Find a file in the process file handle list.
-file_t   proc_find_fd_raw(badge_err_t *ec, process_t *process, int virt);
+file_t proc_find_fd_raw(badge_err_t *ec, process_t *process, int virt);
 // Remove a file from the process file handle list.
-void     proc_remove_fd_raw(badge_err_t *ec, process_t *process, int virt);
+void   proc_remove_fd_raw(badge_err_t *ec, process_t *process, int virt);
 
 // Perform a pre-resume check for a user thread.
 // Used to implement asynchronous events.

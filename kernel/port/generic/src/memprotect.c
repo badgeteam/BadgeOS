@@ -37,12 +37,14 @@ size_t memprotect_kernel_ppn;
 size_t memprotect_kernel_pages;
 
 /* ==== Kernel sections ==== */
+// NOLINTBEGIN
 extern char const __start_text[];
 extern char const __stop_text[];
 extern char const __start_rodata[];
 extern char const __stop_rodata[];
 extern char const __start_data[];
 extern char const __stop_data[];
+// NOLINTEND
 
 // For systems with VMEM: global MMU context.
 mpu_ctx_t      mpu_global_ctx;

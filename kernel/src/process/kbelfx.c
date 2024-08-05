@@ -133,13 +133,13 @@ void *kbelfx_open(char const *path) {
     if (fd == -1)
         return NULL;
     else
-        return (void *)(long)(fd + 1);
+        return (void *)(ptrdiff_t)(fd + 1);
 }
 
 // Close a file.
 // User-defined.
 void kbelfx_close(void *fd) {
-    fs_close(NULL, (long)fd - 1);
+    fs_close(NULL, (int)(ptrdiff_t)fd - 1);
 }
 
 // Reads a single byte from a file.
@@ -147,7 +147,7 @@ void kbelfx_close(void *fd) {
 // User-defined.
 int kbelfx_getc(void *fd) {
     char      buf;
-    fileoff_t len = fs_read(NULL, (long)fd - 1, &buf, 1);
+    fileoff_t len = fs_read(NULL, (int)(ptrdiff_t)fd - 1, &buf, 1);
     return len > 0 ? buf : -1;
 }
 
@@ -155,7 +155,7 @@ int kbelfx_getc(void *fd) {
 // Returns the number of bytes read, or less than that on error.
 // User-defined.
 long kbelfx_read(void *fd, void *buf, long buf_len) {
-    return fs_read(NULL, (long)fd - 1, buf, buf_len);
+    return fs_read(NULL, (int)(ptrdiff_t)fd - 1, buf, buf_len);
 }
 
 // Reads a number of bytes from a file to a virtual address in the program.
@@ -170,12 +170,12 @@ long kbelfx_load(kbelf_inst inst, void *fd, kbelf_laddr laddr, long len) {
     void *tmp          = malloc(tmp_cap);
     long  total        = 0;
     while (len > tmp_cap) {
-        total += fs_read(NULL, (long)fd - 1, tmp, tmp_cap);
+        total += fs_read(NULL, (int)(ptrdiff_t)fd - 1, tmp, tmp_cap);
         copy_to_user_raw(proc, laddr, tmp, tmp_cap);
         laddr += tmp_cap;
         len   -= tmp_cap;
     }
-    total += fs_read(NULL, (long)fd - 1, tmp, len);
+    total += fs_read(NULL, (int)(ptrdiff_t)fd - 1, tmp, len);
     copy_to_user_raw(proc, laddr, tmp, len);
     free(tmp);
     return total;
@@ -185,7 +185,7 @@ long kbelfx_load(kbelf_inst inst, void *fd, kbelf_laddr laddr, long len) {
 // Returns 0 on success, -1 on error.
 // User-defined.
 int kbelfx_seek(void *fd, long pos) {
-    fileoff_t q = fs_seek(NULL, (long)fd - 1, pos, SEEK_ABS);
+    fileoff_t q = fs_seek(NULL, (int)(ptrdiff_t)fd - 1, pos, SEEK_ABS);
     return pos == q ? 0 : -1;
 }
 

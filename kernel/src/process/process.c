@@ -57,14 +57,14 @@ static bool proc_setargs_raw_unsafe(badge_err_t *ec, process_t *process, int arg
 static void clean_up_from_housekeeping(int taskno, void *arg) {
     (void)taskno;
     mutex_acquire_shared(NULL, &proc_mtx, TIMESTAMP_US_MAX);
-    process_t *proc = proc_get_unsafe((size_t)arg);
+    process_t *proc = proc_get_unsafe((int)(ptrdiff_t)arg);
 
     // Delete run-time resources.
     proc_delete_runtime_raw(proc);
     if (!proc->parent) {
         // Init process during shutdown; delete right away.
         mutex_release_shared(NULL, &proc_mtx);
-        proc_delete((size_t)arg);
+        proc_delete((int)(ptrdiff_t)arg);
         return;
     }
 
@@ -76,7 +76,7 @@ static void clean_up_from_housekeeping(int taskno, void *arg) {
     if (ignored) {
         // Parent process ignores SIGCHLD; delete right away.
         mutex_release_shared(NULL, &proc_mtx);
-        proc_delete((size_t)arg);
+        proc_delete((int)(ptrdiff_t)arg);
     } else {
         // Signal parent process.
         atomic_fetch_or(&proc->flags, PROC_STATECHG);

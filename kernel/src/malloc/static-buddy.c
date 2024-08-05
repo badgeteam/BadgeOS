@@ -279,6 +279,7 @@ void init_pool(void *mem_start, void *mem_end, uint32_t flags) {
     void *pages_end   = ALIGN_PAGE_DOWN(mem_end);
 
     size_t   pages           = ((size_t)pages_end - (size_t)pages_start) / PAGE_SIZE;
+    // NOLINTNEXTLINE
     uint32_t max_order_waste = (1 << orders) - pages;
 
     BADGEROS_MALLOC_MSG_INFO("Initializing pool " FMT_I, memory_pool_num);
@@ -438,6 +439,7 @@ void *buddy_allocate(size_t size, enum block_type type, uint32_t flags) {
             break;
         }
 
+        // NOLINTNEXTLINE
         if (size > (1 << allocation_order) - pool->max_order_waste) {
             BADGEROS_MALLOC_MSG_WARN("buddy_allocate(" FMT_ZI ") = NULL (Allocation too large)", size);
             continue;

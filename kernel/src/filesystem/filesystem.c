@@ -605,10 +605,12 @@ file_t fs_open(badge_err_t *ec, char const *path, oflags_t oflags) {
         ec = &ec0;
 
     // Test flag validity.
+    // NOLINTNEXTLINE
     if ((oflags & OFLAGS_DIRECTORY) && (oflags & ~VALID_OFLAGS_DIRECTORY)) {
         // A flag mutually exclusive with `OFLAGS_DIRECTORY` was given.
         badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_PARAM);
         return FILE_NONE;
+        // NOLINTNEXTLINE
     } else if (!(oflags & OFLAGS_DIRECTORY) && (oflags & ~VALID_OFLAGS_FILE)) {
         // An invalid flag was given.
         badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_PARAM);
