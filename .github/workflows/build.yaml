@@ -32,6 +32,7 @@ jobs:
           curl -Lo riscv32-glibc-ubuntu-22.04-nightly.tar.gz 'https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2023.06.09/riscv32-glibc-ubuntu-22.04-nightly-2023.06.09-nightly.tar.gz'
           tar -xf riscv32-glibc-ubuntu-22.04-nightly.tar.gz
           echo "${PWD}/riscv/bin" >> $GITHUB_PATH
+          make hh24_defconfig
 
       - name: Build
         run: CMAKE_BUILD_TYPE=${{matrix.build_type}} make clean build

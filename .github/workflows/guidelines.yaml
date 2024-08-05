@@ -35,6 +35,7 @@ jobs:
 
       - name: Run clang-format
         run: |
+          make hh24_defconfig
           make clang-format-check
 
 
@@ -66,4 +67,5 @@ jobs:
 
       - name: Run clang-tidy
         run: |
+          make hh24_defconfig
           make clang-tidy-check
