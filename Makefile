@@ -37,6 +37,11 @@ clean:
 	$(MAKE) -C files clean
 	$(MAKE) -C kernel clean
 
+.PHONY: cmake-configure
+cmake-configure:
+	$(MAKE) -C files build
+	$(MAKE) -C kernel cmake-configure
+
 .PHONY: openocd
 openocd:
 	$(MAKE) -C kernel openocd

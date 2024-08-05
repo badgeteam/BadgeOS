@@ -17,8 +17,8 @@ CLANG_TIDY        ?= clang-tidy-18
 
 include port/$(CONFIG_TARGET)/port.mk
 
-.PHONY: configure
-configure:  $(BUILDDIR)/fs_root.c
+.PHONY: cmake-configure
+cmake-configure:  $(BUILDDIR)/fs_root.c
 	mkdir -p '$(BUILDDIR)'
 	cmake -B '$(BUILDDIR)' "-DCMAKE_BUILD_TYPE=$${CMAKE_BUILD_TYPE:-Debug}"
 
@@ -27,7 +27,7 @@ $(BUILDDIR)/fs_root.c: $(shell find '$(BADGER_RAMFS_ROOT)' 2>/dev/null)
 	../tools/ramfs-gen.py '$(BADGER_RAMFS_ROOT)' '$(BUILDDIR)/fs_root.c' init_ramfs
 
 .PHONY: build
-build: configure
+build: cmake-configure
 	cmake --build '$(BUILDDIR)'
 	cmake --install '$(BUILDDIR)' --prefix '$(OUTPUT)'
 
@@ -36,14 +36,14 @@ clean:
 	rm -rf "$(BUILDDIR)"
 
 .PHONY: clang-format-check
-clang-format-check: configure
+clang-format-check: cmake-configure
 	echo "clang-format check the following files:"
 	jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$'
 	echo "analysis results:"
 	$(CLANG_FORMAT) --dry-run $(shell jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$')
 
 .PHONY: clang-tidy-check
-clang-tidy-check: configure
+clang-tidy-check: cmake-configure
 	echo "clang-tidy check the following files:"
 	jq -r '.[].file' build/compile_commands.json | grep '\.[ch]$$'
 	echo "analysis results:"
