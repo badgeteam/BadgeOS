@@ -102,7 +102,7 @@ def option_select(prompt: str, options: list, prefer=0):
 def find_compilers():
     global target
     candidates  = []
-    prefer_idx  = 0
+    prefer_idx  = 1
     prefer_prio = 99999999
     for path in os.getenv("PATH").split(":"):
         path = os.path.abspath(path)
