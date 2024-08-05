@@ -59,9 +59,9 @@ typedef long inode_t;
 // Value used for absent file / directory handle.
 #define FILE_NONE ((file_t) - 1)
 // Type used for file / directory handles in the kernel.
-typedef int     file_t;
+typedef int  file_t;
 // Type used for file offsets.
-typedef int64_t fileoff_t;
+typedef long fileoff_t;
 
 // Supported filesystem types.
 typedef enum {

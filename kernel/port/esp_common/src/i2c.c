@@ -25,6 +25,7 @@
 #pragma GCC diagnostic pop
 
 #include <config.h>
+// NOLINTNEXTLINE
 static int __DECLARE_RCC_ATOMIC_ENV __attribute__((unused));
 
 #define I2C_ACK  0
