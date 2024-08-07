@@ -88,7 +88,7 @@ static void clean_up_from_housekeeping(int taskno, void *arg) {
 // Kill a process from one of its own threads.
 void proc_exit_self(int code) {
     // Mark this process as exiting.
-    sched_thread_t *thread  = sched_get_current_thread();
+    sched_thread_t *thread  = sched_current_thread();
     process_t      *process = thread->process;
     mutex_acquire(NULL, &process->mtx, TIMESTAMP_US_MAX);
     atomic_fetch_or(&process->flags, PROC_EXITING);
@@ -216,7 +216,7 @@ uint32_t proc_getflags_raw(process_t *process) {
 
 // Get a handle to the current process, if any.
 process_t *proc_current() {
-    return sched_get_current_thread()->process;
+    return sched_current_thread()->process;
 }
 
 // Get the PID of the current process, if any.
@@ -296,13 +296,7 @@ void proc_start_raw(badge_err_t *ec, process_t *process) {
     }
 
     // Create the process' main thread.
-    sched_thread_t *thread = proc_create_thread_raw_unsafe(
-        ec,
-        process,
-        (sched_entry_point_t)kbelf_dyn_entrypoint(dyn),
-        NULL,
-        SCHED_PRIO_NORMAL
-    );
+    tid_t thread = proc_create_thread_raw(ec, process, (size_t)kbelf_dyn_entrypoint(dyn), 0, SCHED_PRIO_NORMAL);
     if (!thread) {
         kbelf_dyn_unload(dyn);
         kbelf_dyn_destroy(dyn);
@@ -311,7 +305,7 @@ void proc_start_raw(badge_err_t *ec, process_t *process) {
     }
     port_fencei();
     atomic_store(&process->flags, PROC_RUNNING);
-    sched_resume_thread(ec, thread);
+    thread_resume(ec, thread);
     mutex_release(NULL, &process->mtx);
     kbelf_dyn_destroy(dyn);
     logkf(LOG_INFO, "Process %{d} started", process->pid);
@@ -320,40 +314,31 @@ void proc_start_raw(badge_err_t *ec, process_t *process) {
 
 // Create a new thread in a process.
 // Returns created thread handle.
-sched_thread_t *proc_create_thread_raw_unsafe(
-    badge_err_t *ec, process_t *process, sched_entry_point_t entry_point, void *arg, sched_prio_t priority
-) {
+tid_t proc_create_thread_raw(badge_err_t *ec, process_t *process, size_t entry_point, size_t arg, int priority) {
     // Create an entry for a new thread.
-    void *mem = realloc(process->threads, sizeof(sched_thread_t *) * (process->threads_len + 1));
+    void *mem = realloc(process->threads, sizeof(tid_t) * (process->threads_len + 1));
     if (!mem) {
         badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOMEM);
-        return NULL;
+        return 0;
     }
     process->threads = mem;
 
-    // TODO: Use a proper allocator for the kernel stack?
-    size_t const kstack_size = 8192;
-    void        *kstack      = malloc(kstack_size);
-    if (!kstack) {
-        badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOMEM);
-        return NULL;
-    }
-
     // Create a thread.
-    sched_thread_t *thread = sched_create_userland_thread(ec, process, entry_point, arg, kstack, kstack_size, priority);
-    if (!thread) {
-        free(kstack);
-        return NULL;
+    tid_t tid = thread_new_user(ec, NULL, process, entry_point, arg, NULL, 8192, priority);
+    if (!tid) {
+        return 0;
     }
+    sched_thread_t *thread = sched_get_thread(tid);
+
     thread->user_isr_ctx.mpu_ctx   = &process->memmap.mpu_ctx;
     thread->kernel_isr_ctx.mpu_ctx = &process->memmap.mpu_ctx;
 
     // Add the thread to the list.
-    array_insert(process->threads, sizeof(sched_thread_t *), process->threads_len, &thread, process->threads_len);
+    array_insert(process->threads, sizeof(tid_t), process->threads_len, &tid, process->threads_len);
     process->threads_len++;
     // logkf(LOG_DEBUG, "Creating user thread, PC: 0x%{size;x}", entry_point);
 
-    return thread;
+    return tid;
 }
 
 
@@ -439,11 +424,11 @@ void proc_raise_signal_raw(badge_err_t *ec, process_t *process, int signum) {
 
 
 // Suspend all threads for a process except the current.
-void proc_suspend(process_t *process, sched_thread_t *current) {
+void proc_suspend(process_t *process, tid_t current) {
     mutex_acquire(NULL, &process->mtx, TIMESTAMP_US_MAX);
     for (size_t i = 0; i < process->threads_len; i++) {
         if (process->threads[i] != current) {
-            sched_suspend_thread(NULL, process->threads[i]);
+            thread_suspend(NULL, process->threads[i]);
         }
     }
     mutex_release(NULL, &process->mtx);
@@ -453,7 +438,7 @@ void proc_suspend(process_t *process, sched_thread_t *current) {
 void proc_resume(process_t *process) {
     mutex_acquire(NULL, &process->mtx, TIMESTAMP_US_MAX);
     for (size_t i = 0; i < process->threads_len; i++) {
-        sched_resume_thread(NULL, process->threads[i]);
+        thread_resume(NULL, process->threads[i]);
     }
     mutex_release(NULL, &process->mtx);
 }
@@ -463,7 +448,7 @@ void proc_resume(process_t *process) {
 void proc_delete_runtime_raw(process_t *process) {
     // This may not be run from one of the process' threads because it kills all of them.
     for (size_t i = 0; i < process->threads_len; i++) {
-        assert_dev_drop(sched_get_current_thread() != process->threads[i]);
+        assert_dev_drop(sched_current_tid() != process->threads[i]);
     }
 
     if (process->pid == 1 && !allow_proc1_death()) {
@@ -486,18 +471,14 @@ void proc_delete_runtime_raw(process_t *process) {
 
     // Wait for the scheduler to suspend all the threads.
     for (size_t i = 0; i < process->threads_len; i++) {
-        sched_resume_thread(NULL, process->threads[i]);
+        thread_resume(NULL, process->threads[i]);
     }
-    bool waiting = true;
-    while (waiting) {
-        waiting = false;
-        for (size_t i = 0; i < process->threads_len; i++) {
-            if (sched_thread_is_running(NULL, process->threads[i])) {
-                waiting = true;
-            }
-        }
-        sched_yield();
+    // Destroy all threads.
+    for (size_t i = 0; i < process->threads_len; i++) {
+        thread_join(process->threads[i]);
     }
+    process->threads_len = 0;
+    free(process->threads);
 
     // Adopt all children to init.
     if (process->pid != 1) {
@@ -505,14 +486,6 @@ void proc_delete_runtime_raw(process_t *process) {
         assert_dev_drop(init->pid == 1);
         dlist_concat(&init->children, &process->children);
     }
-
-    // Destroy all threads.
-    for (size_t i = 0; i < process->threads_len; i++) {
-        free((void *)process->threads[i]->kernel_stack_bottom);
-        sched_destroy_thread(NULL, process->threads[i]);
-    }
-    process->threads_len = 0;
-    free(process->threads);
 
     // Unmap all memory regions.
     while (process->memmap.regions_len) {

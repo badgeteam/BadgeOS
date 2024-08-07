@@ -6,6 +6,7 @@
 #include "cpu/regs.h"
 
 #ifndef __ASSEMBLER__
+#include "cpulocal.h"
 #include "memprotect.h"
 
 #include <stdbool.h>
@@ -76,6 +77,8 @@ STRUCT_FIELD_WORD(isr_ctx_t, flags, 42)
 STRUCT_FIELD_STRUCT(isr_ctx_t, isr_noexc_cb_t, noexc_cb, 43)
 // Cookie for custom trap handler.
 STRUCT_FIELD_PTR(isr_ctx_t, void, noexc_cookie, 44)
+// Pointer to CPU-local struct.
+STRUCT_FIELD_PTR(isr_ctx_t, cpulocal_t, cpulocal, 45)
 STRUCT_END(isr_ctx_t)
 
 // `isr_ctx_t` flag: Is a kernel thread.

@@ -3,7 +3,9 @@
 
 #include "port/port.h"
 
+#include "cpulocal.h"
 #include "interrupt.h"
+#include "isr_ctx.h"
 #include "port/clkconfig.h"
 #include "port/hardware_allocation.h"
 #include "port/pmu_init.h"
@@ -15,9 +17,13 @@
 
 #include <stdbool.h>
 
+cpulocal_t port_cpu_local;
+
+
 
 // Early hardware initialization.
 void port_early_init() {
+    isr_ctx_get()->cpulocal = &port_cpu_local;
     // Initialise PMU.
     pmu_init();
     // Power up UART.

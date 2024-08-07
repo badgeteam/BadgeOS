@@ -50,9 +50,15 @@ static inline bool isr_global_disable() {
 static inline void isr_global_enable() {
     asm volatile("csrs " CSR_STATUS_STR ", %0" ::"r"((1U << CSR_STATUS_IE_BIT)));
 }
-// Explicit context switch from M-mode.
+// Explicit context switch from kernel.
 // Interrupts must be disabled on entry and will be re-enabled on exit.
 // If the context switch target is not set, this is a NOP.
-extern void isr_context_switch();
+extern void        isr_context_switch();
+// Pause the CPU briefly.
+static inline void isr_pause() {
+    // RISC-V Zihintpause instruction.
+    // This is a fence with PRED=W and SUCC=none.
+    asm(".word 0x0100000f");
+}
 
 #endif

@@ -5,7 +5,6 @@ CONFIG_PATH       ?= ../.config/config.mk
 include $(CONFIG_PATH)
 
 MAKEFLAGS         += --silent
-IDF_PATH          ?= $(shell pwd)/../esp-idf
 SHELL             := /usr/bin/env bash
 OUTPUT            ?= $(shell pwd)/firmware
 BUILDDIR          ?= build

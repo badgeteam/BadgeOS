@@ -3,7 +3,9 @@
 
 #include "port/port.h"
 
+#include "cpulocal.h"
 #include "interrupt.h"
+#include "isr_ctx.h"
 #include "log.h"
 #include "port/pmu_init.h"
 #include "rom/cache.h"
@@ -11,10 +13,17 @@
 #include "soc/interrupts.h"
 #include "soc/uart_struct.h"
 
+// CPU0 local data.
+cpulocal_t port_cpu0_local;
+// CPU1 local data.
+cpulocal_t port_cpu1_local;
+
 
 
 // Early hardware initialization.
 void port_early_init() {
+    // Set CPU-local data pointer.
+    isr_ctx_get()->cpulocal = &port_cpu0_local;
     // Initialize PMU.
     pmu_init();
 }

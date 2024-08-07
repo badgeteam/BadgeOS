@@ -8,6 +8,7 @@
 #include "log.h"
 #include "memprotect.h"
 #include "port/hardware_allocation.h"
+#include "scheduler/types.h"
 
 // PMP granularity.
 static size_t grain;
@@ -532,6 +533,14 @@ void riscv_pmp_memprotect_swap(riscv_pmp_ctx_t *ctx) {
 void memprotect_swap_from_isr() {
     isr_ctx_t *ctx = isr_ctx_get();
     if (!(ctx->flags & ISR_CTX_FLAG_KERNEL)) {
+        if (!ctx->mpu_ctx) {
+            logkf_from_isr(LOG_FATAL, "User ISR context 0x%{size;x} has no MPU context", ctx);
+            sched_thread_t *thread = ctx->thread;
+            if (thread) {
+                logkf_from_isr(LOG_DEBUG, "Thread #%{d} '%{cs}'", thread->id, thread->name);
+            }
+            panic_abort();
+        }
         assert_dev_drop(ctx->mpu_ctx);
         riscv_pmp_memprotect_swap(ctx->mpu_ctx);
     }
@@ -539,5 +548,5 @@ void memprotect_swap_from_isr() {
 
 // Swap in memory protections for a given context.
 void memprotect_swap(mpu_ctx_t *mpu) {
-    (void)mpu;
+    riscv_pmp_memprotect_swap(mpu);
 }

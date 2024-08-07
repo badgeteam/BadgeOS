@@ -12,6 +12,9 @@
 #include "process/types.h"
 #include "scheduler/cpu.h"
 #include "scheduler/isr.h"
+#if MEMMAP_VMEM
+#include "cpu/mmu.h"
+#endif
 
 
 
@@ -47,7 +50,7 @@ void sched_raise_from_isr(sched_thread_t *thread, bool syscall, void *entry_poin
 // Requests the scheduler to prepare a switch from kernel to userland for a user thread.
 // Resumes the userland thread where it left off.
 void sched_lower_from_isr() {
-    sched_thread_t *thread  = sched_get_current_thread_unsafe();
+    sched_thread_t *thread  = sched_current_thread_unsafe();
     process_t      *process = thread->process;
     assert_dev_drop(!(thread->flags & THREAD_KERNEL) && (thread->flags & THREAD_PRIVILEGED));
     thread->flags &= ~THREAD_PRIVILEGED;
@@ -59,6 +62,7 @@ void sched_lower_from_isr() {
     if (atomic_load(&process->flags) & PROC_EXITING) {
         // Request a context switch to a different thread.
         thread->flags &= ~THREAD_RUNNING;
+        thread->flags |= THREAD_SUSPENDING;
         sched_request_switch_from_isr();
     }
 }
@@ -66,14 +70,14 @@ void sched_lower_from_isr() {
 // Check whether the current thread is in a signal handler.
 // Returns signal number, or 0 if not in a signal handler.
 bool sched_is_sighandler() {
-    sched_thread_t *thread = sched_get_current_thread();
-    return thread->flags & THREAD_SIGHANDLER;
+    sched_thread_t *thread = sched_current_thread();
+    return atomic_load(&thread->flags) & THREAD_SIGHANDLER;
 }
 
 // Enters a signal handler in the current thread.
 // Returns false if there isn't enough resources to do so.
 bool sched_signal_enter(size_t handler_vaddr, size_t return_vaddr, int signum) {
-    sched_thread_t *thread = sched_get_current_thread();
+    sched_thread_t *thread = sched_current_thread();
 
     // Ensure the user has enough stack.
     size_t usp   = thread->user_isr_ctx.regs.sp;
@@ -85,7 +89,9 @@ bool sched_signal_enter(size_t handler_vaddr, size_t return_vaddr, int signum) {
     thread->user_isr_ctx.regs.sp -= usize;
 
     // Save context to user's stack.
-    // TODO: Enable SUM bit for S-mode kernel.
+#if MEMMAP_VMEM
+    mmu_enable_sum();
+#endif
     size_t *stackptr = (size_t *)thread->user_isr_ctx.regs.sp;
     stackptr[0]      = thread->user_isr_ctx.regs.t0;
     stackptr[1]      = thread->user_isr_ctx.regs.t1;
@@ -105,7 +111,9 @@ bool sched_signal_enter(size_t handler_vaddr, size_t return_vaddr, int signum) {
     stackptr[17]     = thread->user_isr_ctx.regs.pc;
     stackptr[18]     = thread->user_isr_ctx.regs.s0;
     stackptr[19]     = thread->user_isr_ctx.regs.ra;
-    // TODO: Disable SUM bit for S-mode kernel.
+#if MEMMAP_VMEM
+    mmu_disable_sum();
+#endif
 
     // Set up registers for entering signal handler.
     thread->user_isr_ctx.regs.s0 = thread->user_isr_ctx.regs.sp + usize;
@@ -121,7 +129,7 @@ bool sched_signal_enter(size_t handler_vaddr, size_t return_vaddr, int signum) {
 // Exits a signal handler in the current thread.
 // Returns false if the process cannot be resumed.
 bool sched_signal_exit() {
-    sched_thread_t *thread  = sched_get_current_thread_unsafe();
+    sched_thread_t *thread  = sched_current_thread_unsafe();
     thread->flags          &= ~THREAD_SIGHANDLER;
 
     // Ensure the user still has the stack.
@@ -132,8 +140,10 @@ bool sched_signal_exit() {
         return false;
     }
 
-    // Restore user's state.
-    // TODO: Enable SUM bit for S-mode kernel.
+// Restore user's state.
+#if MEMMAP_VMEM
+    mmu_enable_sum();
+#endif
     size_t *stackptr             = (size_t *)thread->user_isr_ctx.regs.sp;
     thread->user_isr_ctx.regs.t0 = stackptr[0];
     thread->user_isr_ctx.regs.t1 = stackptr[1];
@@ -153,7 +163,9 @@ bool sched_signal_exit() {
     thread->user_isr_ctx.regs.pc = stackptr[17];
     thread->user_isr_ctx.regs.s0 = stackptr[18];
     thread->user_isr_ctx.regs.ra = stackptr[19];
-    // TODO: Disable SUM bit for S-mode kernel.
+#if MEMMAP_VMEM
+    mmu_disable_sum();
+#endif
 
     // Restore user's stack pointer.
     thread->user_isr_ctx.regs.sp += usize;
@@ -163,35 +175,43 @@ bool sched_signal_exit() {
 }
 
 // Return to exit the thread.
-static void sched_exit_self() {
+static void sched_exit_self(int code) {
 #ifndef NDEBUG
-    sched_thread_t *const this_thread = sched_get_current_thread();
-    logkf(LOG_INFO, "Kernel thread '%{cs}' returned", sched_get_name(this_thread));
+    sched_thread_t *const thread = sched_current_thread();
+    logkf(LOG_DEBUG, "Kernel thread '%{cs}' returned %{d}", thread->name, thread->name);
 #endif
-    sched_exit(0);
+    thread_exit(code);
 }
 
 // Prepares a context to be invoked as a kernel thread.
-void sched_prepare_kernel_entry(sched_thread_t *thread, sched_entry_point_t entry_point, void *arg) {
+void sched_prepare_kernel_entry(sched_thread_t *thread, void *entry_point, void *arg) {
     // Initialize registers.
     mem_set(&thread->kernel_isr_ctx.regs, 0, sizeof(thread->kernel_isr_ctx.regs));
     thread->kernel_isr_ctx.regs.pc = (size_t)entry_point;
     thread->kernel_isr_ctx.regs.sp = thread->kernel_stack_top;
     thread->kernel_isr_ctx.regs.a0 = (size_t)arg;
     thread->kernel_isr_ctx.regs.ra = (size_t)sched_exit_self;
-    asm("mv %0, gp" : "=r"(thread->kernel_isr_ctx.regs.gp));
+#if __riscv_xlen == 64
+    asm("sd gp, %0" ::"m"(thread->kernel_isr_ctx.regs.gp));
+#else
+    asm("sw gp, %0" ::"m"(thread->kernel_isr_ctx.regs.gp));
+#endif
 }
 
 // Prepares a pair of contexts to be invoked as a userland thread.
 // Kernel-side in these threads is always started by an ISR and the entry point is given at that time.
-void sched_prepare_user_entry(sched_thread_t *thread, sched_entry_point_t entry_point, void *arg) {
+void sched_prepare_user_entry(sched_thread_t *thread, size_t entry_point, size_t arg) {
     // Initialize kernel registers.
     mem_set(&thread->kernel_isr_ctx.regs, 0, sizeof(thread->kernel_isr_ctx.regs));
     thread->kernel_isr_ctx.regs.sp = thread->kernel_stack_top;
-    asm("mv %0, gp" : "=r"(thread->kernel_isr_ctx.regs.gp));
+#if __riscv_xlen == 64
+    asm("sd gp, %0" ::"m"(thread->kernel_isr_ctx.regs.gp));
+#else
+    asm("sw gp, %0" ::"m"(thread->kernel_isr_ctx.regs.gp));
+#endif
 
     // Initialize userland registers.
     mem_set(&thread->user_isr_ctx.regs, 0, sizeof(thread->user_isr_ctx.regs));
-    thread->user_isr_ctx.regs.pc = (size_t)entry_point;
-    thread->user_isr_ctx.regs.a0 = (size_t)arg;
+    thread->user_isr_ctx.regs.pc = entry_point;
+    thread->user_isr_ctx.regs.a0 = arg;
 }
