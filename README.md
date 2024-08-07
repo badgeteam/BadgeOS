@@ -26,29 +26,26 @@ After that, see [Project structure](./docs/project_structure.md) for reference a
 
 
 # Prerequisites
-To build the project, we need to install below tools and compiler for RISCV architecture.
-### To install below tools:
+To be able build the project, we need to install tools and a compiler required for RISCV architecture.
+
+### On ubuntu, run:
+```sh
+sudo apt install -y gcc-riscv64-linux-gnu build-essential git picocom cmake python3
+```
+Above command installs all the tools and compiler listed below.
+
+### Tools:
 - git
 - build-essential
 - cmake
 - python3
 - picocom
 
-### Run:
-```sh
-sudo apt install build-essential git picocom cmake python3
-```
-
-### To install RISCV compiler:
+### RISCV compiler:
 - A RISC-V toolchain, one of:
     - [BadgerOS buildroot](https://github.com/badgeteam/mch2025-badgeros-buildroot), preferably riscv64
     - `gcc-riscv64-linux-gnu` (ubuntu) / `riscv64-gnu-toolchain-glibc-bin` (arch)
 
-For Ubuntu,
-### Run:
-```sh
-sudo apt-get install -y gcc-riscv64-linux-gnu
-```
 
 ## For RISC-V PC port
 If you don't know what this is, you don't need this. All of:
