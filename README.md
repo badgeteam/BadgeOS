@@ -26,15 +26,30 @@ After that, see [Project structure](./docs/project_structure.md) for reference a
 
 
 # Prerequisites
-All of:
+To build the project, we need to install below tools and compiler for RISCV architecture.
+### To install below tools:
 - `git`
 - `build-essential`
 - `cmake`
+- `python3`
+- `picocom`
+
+### Run:
+```sh
+sudo apt install build-essential git picocom cmake python3
+```
+
+### To install RISCV compiler:
 - A RISC-V toolchain, one of:
     - [BadgerOS buildroot](https://github.com/badgeteam/mch2025-badgeros-buildroot), preferably riscv64
     - `gcc-riscv64-linux-gnu` (ubuntu) / `riscv64-gnu-toolchain-glibc-bin` (arch)
-- `python3`
-- `picocom`
+
+For Ubuntu,
+### Run:
+```sh
+sudo apt-get install -y gcc-riscv64-linux-gnu
+```
+
 ## For RISC-V PC port
 If you don't know what this is, you don't need this. All of:
 - `mtools`
@@ -53,15 +68,44 @@ To select target platform, choose one of:
 - `make why2025_defconfig` (WHY2025 badge)
 - `make unmatched_defconfig` (RISC-V PC port)
 
-To build: `make build`
 
-To remove build files: `make clean`
+### Navigate to the project directory:
 
-To flash to an ESP: `make flash`
+```sh
+cd /path/to/BadgerOS
+```
+    
+1. #### To build:
 
-To open picocom: `make monitor`
+```sh
+make build
+```
+    
+2. #### To remove build files: 
 
-To build, flash and open picocom: `make` or `make all`
+```sh
+make clean
+```
+
+3. #### To flash to an ESP:
+
+```sh
+make flash
+```
+
+4. #### To open picocom:
+```sh
+make monitor
+```
+
+5. #### To build, flash and open picocom: 
+```sh
+make
+```
+or
+```sh
+make all
+```
 
 To check code style: `make clang-format-check` (code formatting) and `make clang-tidy-check` (programming guidelines)
 
