@@ -141,17 +141,20 @@ class OptCompiler(Option[str]):
         self.defidx  = 0
         priority     = None
         for dir in os.getenv("PATH").split(os.pathsep):
-            for bin in os.listdir(dir):
-                if not bin.endswith("-gcc") and not bin.endswith("-cc"): continue
-                if not self.match.match(bin): continue
-                self.options.append(dir + os.path.sep + bin)
-                opt_prio = self._prio(bin)
-                if opt_prio != None and priority == None:
-                    priority = opt_prio
-                    self.defidx = len(self.options)-1
-                elif opt_prio != None and priority != None and opt_prio < priority:
-                    priority = opt_prio
-                    self.defidx = len(self.options)-1
+            try:
+                for bin in os.listdir(dir):
+                    if not bin.endswith("-gcc") and not bin.endswith("-cc"): continue
+                    if not self.match.match(bin): continue
+                    self.options.append(dir + os.path.sep + bin)
+                    opt_prio = self._prio(bin)
+                    if opt_prio != None and priority == None:
+                        priority = opt_prio
+                        self.defidx = len(self.options)-1
+                    elif opt_prio != None and priority != None and opt_prio < priority:
+                        priority = opt_prio
+                        self.defidx = len(self.options)-1
+            except FileNotFoundError:
+                continue
         self.defval = self.options[self.defidx]
     
     def use_default(self) -> str:
