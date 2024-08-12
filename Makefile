@@ -25,7 +25,7 @@ why2025_defconfig:
 
 .PHONY: unmatched_defconfig
 unmatched_defconfig:
-	./tools/config.py --target generic --use-default --vec-spec none
+	./tools/config.py --target generic --use-default --vec_spec none
 
 .PHONY: build
 build:

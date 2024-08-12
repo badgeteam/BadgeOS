@@ -324,7 +324,7 @@ tid_t proc_create_thread_raw(badge_err_t *ec, process_t *process, size_t entry_p
     process->threads = mem;
 
     // Create a thread.
-    tid_t tid = thread_new_user(ec, NULL, process, entry_point, arg, NULL, 8192, priority);
+    tid_t tid = thread_new_user(ec, NULL, process, entry_point, arg, priority);
     if (!tid) {
         return 0;
     }

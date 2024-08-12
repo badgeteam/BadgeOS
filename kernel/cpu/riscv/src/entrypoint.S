@@ -18,18 +18,6 @@
 
 
 
-	# Reserve stack.
-	.section ".bss"
-	.align 4
-	.global __stack_top
-	.global __stack_bottom
-	.global __stack_size
-	.equ __stack_size, 8192
-	.lcomm __stack_bottom, __stack_size
-	.equ __stack_top, __stack_bottom + __stack_size
-
-
-
 	# Entrypoint from the bootloader.
 	.text
 	.align 2
@@ -42,7 +30,6 @@ _start:
 	la   gp, __global_pointer$
 	.option pop
 	mv   tp, x0
-	la   sp, __stack_top
 	
 	# Zero out .bss section.
 #ifndef CONFIG_TARGET_generic

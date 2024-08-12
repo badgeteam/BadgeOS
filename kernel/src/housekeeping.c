@@ -48,8 +48,6 @@ int hk_task_time_cmp(void const *a, void const *b) {
 
 
 
-// Stack for the housekeeping thread.
-static uint8_t hk_stack[8192] ALIGNED_TO(16);
 // The housekeeping thread handle.
 static tid_t   hk_thread;
 // Task mutex.
@@ -89,8 +87,7 @@ int hk_thread_func(void *ignored) {
 // Initialize the housekeeping system.
 void hk_init() {
     badge_err_t ec;
-    hk_thread =
-        thread_new_kernel(&ec, "housekeeping", hk_thread_func, NULL, hk_stack, sizeof(hk_stack), SCHED_PRIO_NORMAL);
+    hk_thread = thread_new_kernel(&ec, "housekeeping", hk_thread_func, NULL, SCHED_PRIO_NORMAL);
     badge_err_assert_always(&ec);
     thread_resume(&ec, hk_thread);
     badge_err_assert_always(&ec);

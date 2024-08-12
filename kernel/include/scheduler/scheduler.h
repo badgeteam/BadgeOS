@@ -40,28 +40,13 @@ void sched_exit(int cpu);
 // Create a new suspended userland thread.
 // If `kernel_stack_bottom` is NULL, the scheduler will allocate a stack.
 tid_t thread_new_user(
-    badge_err_t *ec,
-    char const  *name,
-    process_t   *process,
-    size_t       user_entrypoint,
-    size_t       user_arg,
-    void        *kernel_stack_bottom,
-    size_t       kernel_stack_size,
-    int          priority
+    badge_err_t *ec, char const *name, process_t *process, size_t user_entrypoint, size_t user_arg, int priority
 );
 // Create new suspended kernel thread.
 // If `stack_bottom` is NULL, the scheduler will allocate a stack.
-tid_t thread_new_kernel(
-    badge_err_t  *ec,
-    char const   *name,
-    sched_entry_t entry_point,
-    void         *arg,
-    void         *stack_bottom,
-    size_t        stack_size,
-    int           priority
-);
+tid_t thread_new_kernel(badge_err_t *ec, char const *name, sched_entry_t entry_point, void *arg, int priority);
 // Do not wait for thread to be joined; clean up immediately.
-void thread_detach(badge_err_t *ec, tid_t thread);
+void  thread_detach(badge_err_t *ec, tid_t thread);
 
 // Pauses execution of the thread.
 void thread_suspend(badge_err_t *ec, tid_t thread);

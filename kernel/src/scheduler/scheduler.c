@@ -6,6 +6,7 @@
 #include "arrays.h"
 #include "assertions.h"
 #include "badge_strings.h"
+#include "config.h"
 #include "cpu/isr.h"
 #include "housekeeping.h"
 #include "interrupt.h"
@@ -44,7 +45,7 @@ static dlist_t           dead_threads;
 // Compare the ID of `sched_thread_t *` to an `int`.
 static int tid_int_cmp(void const *a, void const *b) {
     sched_thread_t *thread = *(sched_thread_t **)a;
-    tid_t           tid    = (ptrdiff_t)b;
+    tid_t           tid    = (tid_t)(ptrdiff_t)b;
     return thread->id - tid;
 }
 
@@ -190,9 +191,7 @@ static void sched_housekeeping(int taskno, void *arg) {
     // Clean up all dead threads.
     while (tmp.len) {
         sched_thread_t *thread = (void *)dlist_pop_front(&tmp);
-        if (thread->flags & THREAD_SCHED_STACK) {
-            free((void *)thread->kernel_stack_bottom);
-        }
+        free((void *)thread->kernel_stack_bottom);
         if (thread->name) {
             free(thread->name);
         }
@@ -253,14 +252,7 @@ void sched_exit(int cpu) {
 
 // Create a new suspended userland thread.
 tid_t thread_new_user(
-    badge_err_t *ec,
-    char const  *name,
-    process_t   *process,
-    size_t       user_entrypoint,
-    size_t       user_arg,
-    void        *kernel_stack_bottom,
-    size_t       kernel_stack_size,
-    int          priority
+    badge_err_t *ec, char const *name, process_t *process, size_t user_entrypoint, size_t user_arg, int priority
 ) {
     // Allocate thread.
     sched_thread_t *thread = malloc(sizeof(sched_thread_t));
@@ -270,23 +262,18 @@ tid_t thread_new_user(
     }
     mem_set(thread, 0, sizeof(sched_thread_t));
 
-    if (!kernel_stack_bottom) {
-        thread->flags       = THREAD_SCHED_STACK;
-        kernel_stack_bottom = malloc(kernel_stack_size);
-        if (!kernel_stack_bottom) {
-            free(thread);
-            badge_err_set(ec, ELOC_THREADS, ECAUSE_NOMEM);
-            return 0;
-        }
+    thread->kernel_stack_bottom = (size_t)malloc(CONFIG_STACK_SIZE);
+    if (!thread->kernel_stack_bottom) {
+        free(thread);
+        badge_err_set(ec, ELOC_THREADS, ECAUSE_NOMEM);
+        return 0;
     }
 
     if (name) {
         size_t name_len = cstr_length(name);
         thread->name    = malloc(name_len + 1);
         if (!thread->name) {
-            if (thread->flags & THREAD_SCHED_STACK) {
-                free(kernel_stack_bottom);
-            }
+            free((void *)thread->kernel_stack_bottom);
             free(thread);
             badge_err_set(ec, ELOC_THREADS, ECAUSE_NOMEM);
             return 0;
@@ -297,8 +284,7 @@ tid_t thread_new_user(
     thread->priority              = priority;
     thread->process               = process;
     thread->id                    = atomic_fetch_add(&tid_counter, 1);
-    thread->kernel_stack_bottom   = (size_t)kernel_stack_bottom;
-    thread->kernel_stack_top      = (size_t)kernel_stack_bottom + kernel_stack_size;
+    thread->kernel_stack_top      = thread->kernel_stack_bottom + CONFIG_STACK_SIZE;
     thread->kernel_isr_ctx.flags  = ISR_CTX_FLAG_KERNEL;
     thread->kernel_isr_ctx.thread = thread;
     thread->user_isr_ctx.thread   = thread;
@@ -312,9 +298,7 @@ tid_t thread_new_user(
         if (thread->name) {
             free(thread->name);
         }
-        if (thread->flags & THREAD_SCHED_STACK) {
-            free((void *)thread->kernel_stack_bottom);
-        }
+        free((void *)thread->kernel_stack_bottom);
         free(thread);
         badge_err_set(ec, ELOC_THREADS, ECAUSE_NOMEM);
         return 0;
@@ -324,15 +308,7 @@ tid_t thread_new_user(
 }
 
 // Create new suspended kernel thread.
-tid_t thread_new_kernel(
-    badge_err_t  *ec,
-    char const   *name,
-    sched_entry_t entrypoint,
-    void         *arg,
-    void         *stack_bottom,
-    size_t        stack_size,
-    int           priority
-) {
+tid_t thread_new_kernel(badge_err_t *ec, char const *name, sched_entry_t entrypoint, void *arg, int priority) {
     // Allocate thread.
     sched_thread_t *thread = malloc(sizeof(sched_thread_t));
     if (!thread) {
@@ -341,23 +317,18 @@ tid_t thread_new_kernel(
     }
     mem_set(thread, 0, sizeof(sched_thread_t));
 
-    if (!stack_bottom) {
-        thread->flags = THREAD_SCHED_STACK;
-        stack_bottom  = malloc(stack_size);
-        if (!stack_bottom) {
-            free(thread);
-            badge_err_set(ec, ELOC_THREADS, ECAUSE_NOMEM);
-            return 0;
-        }
+    thread->kernel_stack_bottom = (size_t)malloc(CONFIG_STACK_SIZE);
+    if (!thread->kernel_stack_bottom) {
+        free(thread);
+        badge_err_set(ec, ELOC_THREADS, ECAUSE_NOMEM);
+        return 0;
     }
 
     if (name) {
         size_t name_len = cstr_length(name);
         thread->name    = malloc(name_len + 1);
         if (!thread->name) {
-            if (thread->flags & THREAD_SCHED_STACK) {
-                free(stack_bottom);
-            }
+            free((void *)thread->kernel_stack_bottom);
             free(thread);
             badge_err_set(ec, ELOC_THREADS, ECAUSE_NOMEM);
             return 0;
@@ -367,8 +338,7 @@ tid_t thread_new_kernel(
 
     thread->priority               = priority;
     thread->id                     = atomic_fetch_add(&tid_counter, 1);
-    thread->kernel_stack_bottom    = (size_t)stack_bottom;
-    thread->kernel_stack_top       = (size_t)stack_bottom + stack_size;
+    thread->kernel_stack_top       = thread->kernel_stack_bottom + CONFIG_STACK_SIZE;
     thread->kernel_isr_ctx.flags   = ISR_CTX_FLAG_KERNEL;
     thread->kernel_isr_ctx.thread  = thread;
     thread->flags                 |= THREAD_PRIVILEGED | THREAD_KERNEL;
@@ -381,9 +351,7 @@ tid_t thread_new_kernel(
         if (thread->name) {
             free(thread->name);
         }
-        if (thread->flags & THREAD_SCHED_STACK) {
-            free((void *)thread->kernel_stack_bottom);
-        }
+        free((void *)thread->kernel_stack_bottom);
         free(thread);
         badge_err_set(ec, ELOC_THREADS, ECAUSE_NOMEM);
         return 0;

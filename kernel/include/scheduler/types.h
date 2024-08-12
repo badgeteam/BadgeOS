@@ -25,25 +25,23 @@
 
 
 // The thread is currently in the scheduling queues.
-#define THREAD_RUNNING     (1 << 0)
+#define THREAD_RUNNING    (1 << 0)
 // The thread has finished and is waiting for destruction.
-#define THREAD_EXITING     (1 << 1)
+#define THREAD_EXITING    (1 << 1)
 // The thread is detached or has been joined.
-#define THREAD_DETACHED    (1 << 2)
+#define THREAD_DETACHED   (1 << 2)
 // The thread is a kernel thread.
-#define THREAD_KERNEL      (1 << 3)
+#define THREAD_KERNEL     (1 << 3)
 // The thread is a kernel thread or a user thread running in kernel mode.
-#define THREAD_PRIVILEGED  (1 << 4)
+#define THREAD_PRIVILEGED (1 << 4)
 // The user thread is running a signal handler.
-#define THREAD_SIGHANDLER  (1 << 5)
+#define THREAD_SIGHANDLER (1 << 5)
 // The thread should be added to the front of the queue.
-#define THREAD_STARTNOW    (1 << 6)
+#define THREAD_STARTNOW   (1 << 6)
 // The thread should be suspended.
-#define THREAD_SUSPENDING  (1 << 7)
-// Stack is owned by the scheduler.
-#define THREAD_SCHED_STACK (1 << 8)
+#define THREAD_SUSPENDING (1 << 7)
 // The thread has exited and is awaiting join.
-#define THREAD_EXITED      (1 << 9)
+#define THREAD_EXITED     (1 << 8)
 
 // The scheduler is running on this CPU.
 #define SCHED_RUNNING (1 << 0)
