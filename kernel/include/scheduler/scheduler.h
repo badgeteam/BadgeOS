@@ -52,7 +52,7 @@ tid_t thread_new_kernel(badge_err_t *ec, char const *name, sched_entry_t entry_p
 // Do not wait for thread to be joined; clean up immediately.
 void  thread_detach(badge_err_t *ec, tid_t thread);
 
-// Pauses execution of the thread.
+// Pauses execution of a user thread.
 void thread_suspend(badge_err_t *ec, tid_t thread);
 // Resumes a previously suspended thread or starts it.
 void thread_resume(badge_err_t *ec, tid_t thread);

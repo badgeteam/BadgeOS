@@ -408,7 +408,7 @@ void thread_detach(badge_err_t *ec, tid_t tid) {
 }
 
 
-// Pauses execution of the thread.
+// Pauses execution of a user thread.
 void thread_suspend(badge_err_t *ec, tid_t tid) {
     assert_always(mutex_acquire_shared(NULL, &threads_mtx, TIMESTAMP_US_MAX));
     sched_thread_t *thread = find_thread(tid);
