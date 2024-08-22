@@ -23,9 +23,9 @@ int    smp_get_cpu(size_t cpuid);
 size_t smp_get_cpuid(int cpu);
 // Power on another CPU.
 bool   smp_poweron(int cpu, void *entrypoint, void *stack);
-// Power off another CPU.
-bool   smp_poweroff(int cpu);
-// Pause another CPU, if supported.
-bool   smp_pause(int cpu);
+// Power off this CPU.
+bool   smp_poweroff();
+// Pause this CPU, if supported.
+bool   smp_pause();
 // Resume another CPU, if supported.
 bool   smp_resume(int cpu);

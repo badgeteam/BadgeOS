@@ -204,3 +204,7 @@ void port_putc(char msg) {
     // SBI console putchar.
     asm("li a7, 1; ecall" ::"r"(a0));
 }
+
+int64_t time_us() {
+    return 0;
+}

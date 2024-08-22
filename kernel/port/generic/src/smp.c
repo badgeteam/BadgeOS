@@ -124,7 +124,7 @@ void smp_init(dtb_handle_t *dtb) {
 
 // The the SMP CPU index of the calling CPU.
 int smp_cur_cpu() {
-    return smp_get_cpu(isr_ctx_get()->cpuid);
+    return smp_get_cpu(isr_ctx_get()->cpulocal->cpuid);
 }
 
 // Get the SMP CPU index from the CPU ID value.
@@ -152,13 +152,13 @@ bool smp_poweron(int cpu, void *entrypoint, void *stack) {
     return false;
 }
 
-// Power off another CPU.
-bool smp_poweroff(int cpu) {
+// Power off this CPU.
+bool smp_poweroff() {
     return false;
 }
 
-// Pause another CPU, if supported.
-bool smp_pause(int cpu) {
+// Pause this CPU, if supported.
+bool smp_pause() {
     return false;
 }
 

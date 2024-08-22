@@ -18,7 +18,7 @@
 // CPU0 local data.
 cpulocal_t port_cpu0_local;
 // CPU1 local data.
-cpulocal_t port_cpu1_local;
+cpulocal_t port_cpu1_local = {.cpuid = 1};
 
 
 
@@ -51,12 +51,11 @@ void port_early_init() {
 
 // Full hardware initialization.
 void port_init() {
-    port_start_cpu1();
-    while (1) asm("wfi");
+    // port_start_cpu1();
+    // while (1) asm("wfi");
     extern void esp_i2c_isr();
-    irq_ch_route(ETS_I2C0_INTR_SOURCE, INT_CHANNEL_I2C);
-    irq_ch_set_isr(INT_CHANNEL_I2C, esp_i2c_isr);
-    irq_ch_enable(INT_CHANNEL_I2C, true);
+    irq_ch_set_isr(ETS_I2C0_INTR_SOURCE, esp_i2c_isr);
+    irq_ch_enable(ETS_I2C0_INTR_SOURCE);
 }
 
 // Send a single character to the log output.

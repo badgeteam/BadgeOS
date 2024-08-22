@@ -9,6 +9,9 @@
 
 
 
+// Number of microseconds before log mutex times out.
+#define LOG_MUTEX_TIMEOUT 500000
+
 typedef enum {
     LOG_FATAL,
     LOG_ERROR,

@@ -75,6 +75,7 @@ size_t syscall_i2c_master_read_from(badge_err_t *ec, int i2c_num, int slave_id, 
     void *tmp = malloc(len);
     if (!tmp) {
         badge_err_userset(ec, ELOC_I2C, ECAUSE_NOMEM);
+        return 0;
     }
     size_t rv      = SYSUTIL_EC_WRAPPER(size_t, i2c_master_write_to, i2c_num, slave_id, tmp, len);
     bool   copy_ok = copy_to_user(proc_current_pid(), (size_t)buf, tmp, len);
@@ -88,6 +89,7 @@ size_t syscall_i2c_master_write_to(badge_err_t *ec, int i2c_num, int slave_id, v
     void *tmp = malloc(len);
     if (!tmp) {
         badge_err_userset(ec, ELOC_I2C, ECAUSE_NOMEM);
+        return 0;
     }
     bool copy_ok = copy_from_user(proc_current_pid(), tmp, (size_t)buf, len);
     if (!copy_ok) {

@@ -74,10 +74,8 @@ STRUCT_FIELD_PTR(isr_ctx_t, isr_ctx_t, ctxswitch, 40)
 STRUCT_FIELD_PTR(isr_ctx_t, sched_thread_t, thread, 41)
 // Kernel context flags, only 32 bits available even on 64-bit targets.
 STRUCT_FIELD_WORD(isr_ctx_t, flags, 42)
-// CPU ID because S-mode software can't read it after startup.
-STRUCT_FIELD_WORD(isr_ctx_t, cpuid, 43)
 // Custom trap handler to call.
-STRUCT_FIELD_STRUCT(isr_ctx_t, isr_noexc_cb_t, noexc_cb, 44)
+STRUCT_FIELD_STRUCT(isr_ctx_t, isr_noexc_cb_t, noexc_cb, 43)
 // Cookie for custom trap handler.
 STRUCT_FIELD_PTR(isr_ctx_t, void, noexc_cookie, 44)
 // Pointer to CPU-local struct.
@@ -119,13 +117,16 @@ static inline isr_ctx_t *isr_ctx_switch_get() {
 static inline void isr_ctx_switch_set(isr_ctx_t *switch_to) {
     isr_ctx_t *kctx;
     asm("csrr %0, " CSR_SCRATCH_STR : "=r"(kctx));
-    kctx->ctxswitch = switch_to;
+    switch_to->cpulocal = kctx->cpulocal;
+    kctx->ctxswitch     = switch_to;
 }
 // Immediately swap the ISR context handle.
 static inline isr_ctx_t *isr_ctx_swap(isr_ctx_t *kctx) {
     isr_ctx_t *old;
-    asm("csrrw %0, " CSR_SCRATCH_STR ", %1" : "=r"(old) : "r"(kctx));
+    asm("csrrw %0, " CSR_SCRATCH_STR ", %1" : "=r"(old) : "r"(kctx) : "memory");
+    kctx->cpulocal  = old->cpulocal;
     kctx->ctxswitch = old->ctxswitch;
+    asm("" ::: "memory");
     return old;
 }
 // Print a register dump given isr_ctx_t.

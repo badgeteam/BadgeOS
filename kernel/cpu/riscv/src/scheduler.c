@@ -4,6 +4,7 @@
 #include "scheduler/scheduler.h"
 
 #include "assertions.h"
+#include "backtrace.h"
 #include "badge_strings.h"
 #include "isr_ctx.h"
 #include "log.h"

@@ -6,15 +6,11 @@
 #include "port/interrupt.h"
 
 // Interrupt service routine functions.
-typedef void (*isr_t)(int irq, void *cookie);
+typedef void (*isr_t)(int irq);
 
 // Initialise interrupt drivers for this CPU.
 void irq_init();
 
-// Enable an interrupt for a specific CPU.
-void irq_ch_enable_affine(int irq, int cpu_index);
-// Disable an interrupt for a specific CPU.
-void irq_ch_disable_affine(int irq, int cpu_index);
 // Enable the IRQ.
 void irq_ch_enable(int irq);
 // Disable the IRQ.
@@ -22,7 +18,7 @@ void irq_ch_disable(int irq);
 // Query whether the IRQ is enabled.
 bool irq_ch_is_enabled(int irq);
 // Set the ISR for a certain IRQ.
-void irq_ch_set_isr(int irq, isr_t isr, void *cookie);
+void irq_ch_set_isr(int irq, isr_t isr);
 
 // Enable interrupts if a condition is met.
 static inline void irq_enable_if(bool enable);

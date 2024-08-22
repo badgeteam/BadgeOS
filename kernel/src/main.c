@@ -1,8 +1,6 @@
 
 // SPDX-License-Identifier: MIT
 
-#include "assertions.h"
-#include "badge_err.h"
 #include "filesystem.h"
 #include "housekeeping.h"
 #include "interrupt.h"
@@ -13,7 +11,6 @@
 #include "port/port.h"
 #include "process/process.h"
 #include "scheduler/scheduler.h"
-#include "smp.h"
 #include "time.h"
 
 #include <stdatomic.h>
@@ -49,12 +46,10 @@ static void userland_init();
 static void kernel_lifetime_func() {
     // Start the kernel services.
     kernel_init();
-    // TODO: Start other CPUs.
-    // cpu_multicore_init();
+    // Start other CPUs.
+    // sched_start_altcpus();
     // Start userland.
     userland_init();
-
-
 
     // The boot process is now complete, this thread will wait until a shutdown is issued.
     int shutdown_mode;
@@ -65,7 +60,7 @@ static void kernel_lifetime_func() {
 
     // TODO: Shutdown process.
     logk(LOG_INFO, "TODO: Shutdown procedure.");
-    while (1) continue;
+    while (1) sched_yield();
 }
 
 // Shutdown system call implementation.
@@ -107,7 +102,6 @@ void basic_runtime_init() {
     tid_t thread = thread_new_kernel(&ec, "main", (void *)kernel_lifetime_func, NULL, SCHED_PRIO_NORMAL);
     badge_err_assert_always(&ec);
     thread_resume(&ec, thread);
-    thread_resume(&ec, thread);
     badge_err_assert_always(&ec);
 
     // Start the scheduler and enter the next phase in the kernel's lifetime.
@@ -130,8 +124,6 @@ static void kernel_init() {
     fs_mount(&ec, FS_TYPE_RAMFS, NULL, "/", 0);
     badge_err_assert_always(&ec);
     init_ramfs();
-
-    // TODO: Non-booting CPU init.
 }
 
 

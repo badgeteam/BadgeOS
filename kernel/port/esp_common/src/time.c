@@ -9,16 +9,19 @@
 #include "port/hardware.h"
 #include "port/hardware_allocation.h"
 #include "scheduler/isr.h"
-#include "soc/lp_wdt_struct.h"
-#include "soc/timer_group_struct.h"
+#include "smp.h"
+
+#define __DECLARE_RCC_RC_ATOMIC_ENV 0
+#define __DECLARE_RCC_ATOMIC_ENV    0
 
 #include <config.h>
+#include <soc/lp_wdt_struct.h>
+#include <soc/timer_group_struct.h>
 
 #ifdef CONFIG_TARGET_esp32c6
-#include "soc/ext_irq.h"
-#include "soc/pcr_struct.h"
+#include <soc/ext_irq.h>
+#include <soc/pcr_struct.h>
 #endif
-
 
 
 #define GET_TIMER_INFO(timerno)                                                                                        \
@@ -29,9 +32,10 @@
 
 
 // Callback to the timer driver for when a timer alarm fires.
-static void timer_isr_timer_alarm() {
-    timer_alarm_disable(TIMER_SYSTICK_NUM);
-    timer_int_clear(TIMER_SYSTICK_NUM);
+void timer_isr_timer_alarm() {
+    int cpu = smp_cur_cpu();
+    timer_alarm_disable(cpu);
+    timer_int_clear(cpu);
     sched_request_switch_from_isr();
 }
 
@@ -50,35 +54,51 @@ void time_init() {
     TIMERG1.regclk.clk_en = true;
 
     // Turn off watchdogs.
-    LP_WDT.wprotect.val     = 0x50D83AA1;
-    LP_WDT.config0.val      = 0;
-    TIMERG0.wdtwprotect.val = 0x50D83AA1;
-    TIMERG0.wdtconfig0.val  = 0;
-    TIMERG1.wdtwprotect.val = 0x50D83AA1;
-    TIMERG1.wdtconfig0.val  = 0;
+    LP_WDT.wprotect.val        = 0x50D83AA1;
+    LP_WDT.config0.val         = 0;
+    TIMERG0.wdtwprotect.val    = 0x50D83AA1;
+    TIMERG0.wdtconfig0.val     = 0;
+    TIMERG1.wdtwprotect.val    = 0x50D83AA1;
+    TIMERG1.wdtconfig0.val     = 0;
+    TIMERG0.int_ena_timers.val = 0;
+    TIMERG1.int_ena_timers.val = 0;
 
-    // Configure interrupts.
-#ifdef CONFIG_TARGET_esp32c6
-    irq_ch_route(EXT_IRQ_TG0_T0_INTR, INT_CHANNEL_TIMER_ALARM);
-#endif
+    // Configure system timers.
+    timer_stop(0);
+    timer_value_set(0, 0);
+    timer_alarm_disable(0);
+    timer_int_clear(0);
+    timer_int_enable(0, true);
 #ifdef CONFIG_TARGET_esp32p4
-    irq_ch_route(ETS_TG0_T0_INTR_SOURCE, INT_CHANNEL_TIMER_ALARM);
+    timer_stop(1);
+    timer_value_set(1, 0);
+    timer_alarm_disable(1);
+    timer_int_clear(1);
+    timer_int_enable(1, true);
 #endif
-    irq_ch_set_isr(INT_CHANNEL_TIMER_ALARM, timer_isr_timer_alarm);
-    irq_ch_enable(INT_CHANNEL_TIMER_ALARM, true);
 
-    // Configure SYSTICK timer.
-    timer_set_freq(TIMER_SYSTICK_NUM, TIMER_SYSTICK_RATE);
-    timer_start(TIMER_SYSTICK_NUM);
+    // Configure timer interrupts.
+    set_cpu0_timer_irq(ETS_TG0_T0_INTR_SOURCE);
+#ifdef CONFIG_TARGET_esp32p4
+    set_cpu1_timer_irq(ETS_TG1_T0_INTR_SOURCE);
+#endif
+
+    // Start timers at close to the same time.
+    timer_start(0);
+#ifdef CONFIG_TARGET_esp32p4
+    timer_start(1);
+#endif
 }
 
 // Sets the alarm time when the next task switch should occur.
 void time_set_next_task_switch(timestamp_us_t timestamp) {
-    // TODO: Per-core solution.
-    bool mie = irq_enable(false);
-    timer_alarm_config(TIMER_SYSTICK_NUM, timestamp, false);
-    timer_int_enable(TIMER_SYSTICK_NUM, true);
-    irq_enable(mie);
+    int cpu = smp_cur_cpu();
+    timer_alarm_config(cpu, timestamp, false);
+}
+
+// Get current time in microseconds.
+timestamp_us_t time_us() {
+    return timer_value_get(smp_cur_cpu());
 }
 
 

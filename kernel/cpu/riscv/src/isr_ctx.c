@@ -45,6 +45,9 @@ void kernel_reg_dump_arr(size_t const *arr) {
 // Print a register dump given isr_ctx_t.
 void isr_ctx_dump(isr_ctx_t const *ctx) {
     kernel_reg_dump_arr((size_t const *)&ctx->regs);
+    rawprint("  HARTID    ");
+    rawprinthex(ctx->cpulocal->cpuid, sizeof(size_t) * 2);
+    rawputc('\n');
     DUMP_CSR("  STATUS    ", CSR_STATUS_STR)
     DUMP_CSR("  CAUSE     ", CSR_CAUSE_STR)
 #if RISCV_M_MODE_KERNEL

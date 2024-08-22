@@ -9,17 +9,22 @@
 #include "isr_ctx.h"
 #include "log.h"
 #include "port/hardware_allocation.h"
-#include "soc/clic_reg.h"
-#include "soc/clic_struct.h"
-#include "soc/hp_sys_clkrst_struct.h"
-#include "soc/interrupt_core0_reg.h"
-#include "soc/pmu_struct.h"
+
+#include <soc/clic_reg.h>
+#include <soc/clic_struct.h>
+#include <soc/hp_sys_clkrst_struct.h>
+#include <soc/interrupt_core0_reg.h>
+#include <soc/interrupts.h>
+#include <soc/pmu_struct.h>
+
+#define TIMER_IRQ_CH 16
+#define EXT_IRQ_CH   17
 
 // Temporary interrupt context before scheduler.
 static isr_ctx_t tmp_ctx = {.flags = ISR_CTX_FLAG_KERNEL};
 
 // Interrupt service routine table.
-static isr_t isr_table[48];
+static isr_t isr_table[ETS_MAX_INTR_SOURCE];
 
 // NOLINTNEXTLINE
 extern intmtx_t       INTMTX0;
@@ -30,6 +35,12 @@ extern clic_dev_t     CLIC;
 // NOLINTNEXTLINE
 extern clic_ctl_dev_t CLIC_CTL;
 
+// Number of 32-bit banks of interrupts.
+#define IRQ_GROUPS ((ETS_MAX_INTR_SOURCE + 31) / 32)
+
+// Interrupt claiming bitmask.
+static atomic_int claim_mask[IRQ_GROUPS] = {1, 0, 0, 0};
+
 // Get INTMTX for this CPU.
 static inline intmtx_t *intmtx_local() CONST;
 static inline intmtx_t *intmtx_local() {
@@ -38,18 +49,15 @@ static inline intmtx_t *intmtx_local() {
     return mhartid ? &INTMTX1 : &INTMTX0;
 }
 
-// Get INTMTX by CPU number.
-static inline intmtx_t *intmtx_cpu(int cpu) CONST;
-static inline intmtx_t *intmtx_cpu(int cpu) {
-    return cpu ? &INTMTX1 : &INTMTX0;
-}
-
 
 
 // Initialise interrupt drivers for this CPU.
 void irq_init() {
+    long mhartid;
+    asm volatile("csrr %0, mhartid" : "=r"(mhartid));
     HP_SYS_CLKRST.soc_clk_ctrl2.reg_intrmtx_apb_clk_en = true;
     HP_SYS_CLKRST.soc_clk_ctrl0.reg_core0_clic_clk_en  = true;
+    HP_SYS_CLKRST.soc_clk_ctrl0.reg_core1_clic_clk_en  = true;
 
     // Install interrupt handler.
     asm volatile("csrw mstatus, 0");
@@ -57,12 +65,18 @@ void irq_init() {
     asm volatile("csrw mscratch, %0" ::"r"(&tmp_ctx));
 
     // Disable all internal interrupts.
-    asm volatile("csrw mie, 0");
+    asm volatile("csrw mie, %0" ::"r"((1 << 11) | (1 << 7)));
     asm volatile("csrw mideleg, 0");
 
     // Enable interrupt matrix.
     // intmtx_local()->clock.clk_en = true;
     CLIC.int_thresh.val = 0;
+
+    // Set defaults for INTMTX.
+    intmtx_t *intmtx = intmtx_local();
+    for (size_t i = 0; i < ETS_MAX_INTR_SOURCE; i++) {
+        intmtx->map[i].val = 0;
+    }
 
     // Set defaults for CLIC.
     uint32_t num_int = CLIC.int_info.num_int;
@@ -76,74 +90,100 @@ void irq_init() {
             .ctl       = 127,
         };
     }
+    CLIC_CTL.irq_ctl[EXT_IRQ_CH] = (clic_int_ctl_reg_t){
+        .pending   = false,
+        .enable    = true,
+        .attr_shv  = false,
+        .attr_mode = 3,
+        .attr_trig = false,
+        .ctl       = 127,
+    };
 }
 
 
-// Route an external interrupt to an internal interrupt.
-void irq_ch_route(int ext_irq, int int_irq) {
-    assert_dev_drop(int_irq >= 0 && int_irq < 48);
-    assert_dev_drop(ext_irq >= 0 && ext_irq < ETS_MAX_INTR_SOURCE);
-    intmtx_local()->map[ext_irq].val = int_irq;
+// Enable the IRQ.
+void irq_ch_enable(int irq) {
+    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
+    INTMTX0.map[irq].map = EXT_IRQ_CH;
+    INTMTX1.map[irq].map = EXT_IRQ_CH;
 }
 
-// Set the priority of an internal interrupt, if possible.
-// 0 is least priority, 255 is most priority.
-void irq_ch_prio(int int_irq, int raw_prio) {
-    assert_dev_drop(int_irq > 0 && int_irq < 48);
-    if (raw_prio < 0 || raw_prio > 255) {
-        logkf_from_isr(LOG_WARN, "Invalid IRQ priority %{d}, using 127", raw_prio);
-        raw_prio = 127;
-    }
-    CLIC_CTL.irq_ctl[int_irq].ctl = raw_prio;
+// Disable the IRQ.
+void irq_ch_disable(int irq) {
+    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
+    INTMTX0.map[irq].map = 0;
+    INTMTX1.map[irq].map = 0;
 }
 
-// Acknowledge an interrupt.
-void irq_ch_ack(int int_irq) {
-    CLIC_CTL.irq_ctl[int_irq].pending = false;
+// Set the external interrupt signal for CPU0 timer IRQs.
+void set_cpu0_timer_irq(int irq) {
+    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
+    INTMTX0.map[irq].map           = TIMER_IRQ_CH;
+    CLIC_CTL.irq_ctl[TIMER_IRQ_CH] = (clic_int_ctl_reg_t){
+        .pending   = false,
+        .enable    = true,
+        .attr_shv  = false,
+        .attr_mode = 3,
+        .attr_trig = false,
+        .ctl       = 127,
+    };
+}
+
+// Set the external interrupt signal for CPU1 timer IRQs.
+void set_cpu1_timer_irq(int irq) {
+    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
+    INTMTX1.map[irq].map           = TIMER_IRQ_CH;
+    CLIC_CTL.irq_ctl[TIMER_IRQ_CH] = (clic_int_ctl_reg_t){
+        .pending   = false,
+        .enable    = true,
+        .attr_shv  = false,
+        .attr_mode = 3,
+        .attr_trig = false,
+        .ctl       = 127,
+    };
+}
+
+// Query whether the IRQ is enabled.
+bool irq_ch_is_enabled(int irq) {
+    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
+    return intmtx_local()->map[irq].val != 0;
 }
 
 // Set the interrupt service routine for an interrupt on this CPU.
-void irq_ch_set_isr(int int_irq, isr_t isr) {
-    assert_dev_drop(int_irq > 0 && int_irq < 32);
-    isr_table[int_irq] = isr;
+void irq_ch_set_isr(int irq, isr_t isr) {
+    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
+    isr_table[irq] = isr;
 }
 
+void timer_isr_timer_alarm();
 
 // Callback from ASM to platform-specific interrupt handler.
 void riscv_interrupt_handler() {
-    // Get interrupt cause.
-    int mcause;
-    asm("csrr %0, mcause" : "=r"(mcause));
-    mcause &= 31;
-
-    // Jump to ISR.
-    if (isr_table[mcause]) {
-        isr_table[mcause]();
-    } else {
-        logkf_from_isr(LOG_FATAL, "Unhandled interrupt %{d}", mcause);
-        panic_abort();
+    long mcause;
+    asm volatile("csrr %0, mcause" : "=r"(mcause));
+    if ((mcause & RISCV_VT_ICAUSE_MASK) == TIMER_IRQ_CH) {
+        timer_isr_timer_alarm();
+        return;
     }
 
-    // Acknowledge interrupt.
-    irq_ch_ack(mcause);
-}
+    intmtx_t *intmtx = intmtx_local();
 
-
-
-// Enable/disable an internal interrupt.
-void irq_ch_enable(int int_irq, bool enable) {
-    // Set new enable.
-    CLIC_CTL.irq_ctl[int_irq].enable = enable;
-    // Dummy read to force update.
-    CLIC_CTL.irq_ctl[int_irq].val;
-}
-
-// Query whether an internal interrupt is enabled.
-bool irq_ch_enabled(int int_irq) {
-    return CLIC_CTL.irq_ctl[int_irq].enable;
-}
-
-// Query whether an internal interrupt is pending.
-bool irq_ch_pending(int int_irq) {
-    return CLIC_CTL.irq_ctl[int_irq].pending;
+    for (size_t i = 0; i < IRQ_GROUPS; i++) {
+        uint32_t pending = intmtx->pending[i];
+        while (pending) {
+            uint32_t lsb_pos  = __builtin_clz(pending);
+            uint32_t lsb_mask = 1 << lsb_pos;
+            uint32_t prev     = atomic_fetch_or(&claim_mask[i], lsb_mask);
+            if (!(prev & lsb_mask)) {
+                int irq = i * 32 + lsb_pos;
+                if (!isr_table[irq]) {
+                    logkf(LOG_FATAL, "Unhandled interrupt #%{d}", irq);
+                    panic_abort();
+                } else {
+                    isr_table[irq](irq);
+                }
+                atomic_fetch_and(&claim_mask[i], lsb_mask);
+            }
+        }
+    }
 }

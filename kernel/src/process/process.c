@@ -97,6 +97,9 @@ void proc_exit_self(int code) {
 
     // Add deleting runtime to the housekeeping list.
     assert_always(hk_add_once(0, clean_up_from_housekeeping, (void *)(long)process->pid) != -1);
+
+    // Stop this thread to prevent `sched_lower_from_isr` from running dead user code.
+    thread_exit(code);
 }
 
 
@@ -453,7 +456,7 @@ void proc_delete_runtime_raw(process_t *process) {
 
     if (process->pid == 1 && !allow_proc1_death()) {
         // Process 1 exited and now the kernel is dead.
-        logkf(LOG_FATAL, "Process 1 exited unexpectedly");
+        logk(LOG_FATAL, "Init process exited unexpectedly");
         panic_abort();
     }
 
@@ -469,10 +472,6 @@ void proc_delete_runtime_raw(process_t *process) {
         atomic_thread_fence(memory_order_release);
     }
 
-    // Wait for the scheduler to suspend all the threads.
-    for (size_t i = 0; i < process->threads_len; i++) {
-        thread_resume(NULL, process->threads[i]);
-    }
     // Destroy all threads.
     for (size_t i = 0; i < process->threads_len; i++) {
         thread_join(process->threads[i]);

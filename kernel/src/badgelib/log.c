@@ -62,7 +62,7 @@ static bool putccb(char const *msg, size_t len, void *cookie) {
 
 // Print an unformatted message.
 void logk(log_level_t level, char const *msg) {
-    bool acq = mutex_acquire(NULL, &log_mtx, 10000);
+    bool acq = mutex_acquire(NULL, &log_mtx, LOG_MUTEX_TIMEOUT);
     logk_from_isr(level, msg);
     if (acq)
         mutex_release(NULL, &log_mtx);
@@ -70,7 +70,7 @@ void logk(log_level_t level, char const *msg) {
 
 // Print a formatted message according to format_str.
 void logkf(log_level_t level, char const *msg, ...) {
-    bool acq = mutex_acquire(NULL, &log_mtx, 10000);
+    bool acq = mutex_acquire(NULL, &log_mtx, LOG_MUTEX_TIMEOUT);
     logk_prefix(level);
     va_list vararg;
     va_start(vararg, msg);
@@ -88,7 +88,7 @@ void logk_hexdump(log_level_t level, char const *msg, void const *data, size_t s
 
 // Print a hexdump, override the address shown (usually for debug purposes).
 void logk_hexdump_vaddr(log_level_t level, char const *msg, void const *data, size_t size, size_t vaddr) {
-    bool acq = mutex_acquire(NULL, &log_mtx, 10000);
+    bool acq = mutex_acquire(NULL, &log_mtx, LOG_MUTEX_TIMEOUT);
     logk_hexdump_vaddr_from_isr(level, msg, data, size, vaddr);
     if (acq)
         mutex_release(NULL, &log_mtx);

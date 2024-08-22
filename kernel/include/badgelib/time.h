@@ -55,6 +55,4 @@ bool timer_int_pending(int timerno);
 void timer_int_clear(int timerno);
 
 // Get current time in microseconds.
-static inline timestamp_us_t time_us() {
-    return timer_value_get(TIMER_SYSTICK_NUM);
-}
+timestamp_us_t time_us();

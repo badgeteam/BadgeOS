@@ -110,6 +110,7 @@ void mutex_destroy(badge_err_t *ec, mutex_t *mutex) {
 static bool mutex_acquire_impl(badge_err_t *ec, mutex_t *mutex, timestamp_us_t timeout, bool from_isr) {
     if (atomic_load_explicit(&mutex->magic, memory_order_acquire) != MUTEX_MAGIC) {
         badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_ILLEGAL);
+        logkf(LOG_WARN, "Mutex 0x%{size;x} magic is invalid", mutex);
         return false;
     }
     // Compute timeout.
@@ -136,6 +137,7 @@ static bool mutex_acquire_impl(badge_err_t *ec, mutex_t *mutex, timestamp_us_t t
 static bool mutex_release_impl(badge_err_t *ec, mutex_t *mutex, bool from_isr) {
     if (atomic_load_explicit(&mutex->magic, memory_order_acquire) != MUTEX_MAGIC) {
         badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_ILLEGAL);
+        logkf(LOG_WARN, "Mutex 0x%{size;x} magic is invalid", mutex);
         return false;
     }
     assert_dev_drop(atomic_load(&mutex->shares) >= EXCLUSIVE_MAGIC);
@@ -155,6 +157,7 @@ static bool mutex_release_impl(badge_err_t *ec, mutex_t *mutex, bool from_isr) {
 static bool mutex_acquire_shared_impl(badge_err_t *ec, mutex_t *mutex, timestamp_us_t timeout, bool from_isr) {
     if (atomic_load_explicit(&mutex->magic, memory_order_acquire) != MUTEX_MAGIC) {
         badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_ILLEGAL);
+        logkf(LOG_WARN, "Mutex 0x%{size;x} magic is invalid", mutex);
         return false;
     }
     if (!mutex->is_shared) {
@@ -185,6 +188,7 @@ static bool mutex_acquire_shared_impl(badge_err_t *ec, mutex_t *mutex, timestamp
 static bool mutex_release_shared_impl(badge_err_t *ec, mutex_t *mutex, bool from_isr) {
     if (atomic_load_explicit(&mutex->magic, memory_order_acquire) != MUTEX_MAGIC) {
         badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_ILLEGAL);
+        logkf(LOG_WARN, "Mutex 0x%{size;x} magic is invalid", mutex);
         return false;
     }
     assert_dev_drop(atomic_load(&mutex->shares) < EXCLUSIVE_MAGIC);

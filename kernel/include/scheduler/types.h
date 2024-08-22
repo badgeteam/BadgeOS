@@ -18,9 +18,9 @@
 
 
 // The minimum time a thread will run. `SCHED_PRIO_LOW` maps to this.
-#define SCHEDULER_MIN_TASK_TIME_US   5000 // 5ms
+#define SCHED_MIN_US 5000
 // The time quota increment per increased priority.
-#define SCHEDULER_TIME_QUOTA_INCR_US 500 // 0.5ms * priority
+#define SCHED_INC_US 500
 
 
 
@@ -43,10 +43,12 @@
 // The thread has exited and is awaiting join.
 #define THREAD_EXITED     (1 << 8)
 
+// The scheduler is starting on this CPU.
+#define SCHED_STARTING (1 << 0)
 // The scheduler is running on this CPU.
-#define SCHED_RUNNING (1 << 0)
+#define SCHED_RUNNING  (1 << 1)
 // The scheduler is pending exit on this CPU.
-#define SCHED_EXITING (1 << 1)
+#define SCHED_EXITING  (1 << 2)
 
 // Thread struct.
 struct sched_thread_t {

@@ -57,7 +57,7 @@ typedef union {
         // Interrupt is enabled.
         uint32_t enable    : 1;
         uint32_t           : 7;
-        // TODO: What is this?
+        // Use interrupt vectoring for this IRQ.
         uint32_t attr_shv  : 1;
         // Whether the interrupt is edge-triggered.
         uint32_t attr_trig : 1;

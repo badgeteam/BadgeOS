@@ -22,7 +22,7 @@ static inline void irq_disable_if(bool disable) {
 // Enable interrupts.
 static inline void irq_enable() {
     long mask = 1 << CSR_STATUS_IE_BIT;
-    asm volatile("csrs " CSR_STATUS_STR ", %0" ::"i"(mask));
+    asm volatile("csrs " CSR_STATUS_STR ", %0" ::"ri"(mask));
 }
 
 // Disable interrupts.

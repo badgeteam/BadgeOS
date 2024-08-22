@@ -181,7 +181,9 @@ FAKE_OPER(ti_t, __multi3, *)
 
 BSWP_FUNC(si_t, __bswapsi2)
 BSWP_FUNC(di_t, __bswapdi2)
+#ifdef do_ti_math
 BSWP_FUNC(ti_t, __bswapti2)
+#endif
 
 
 // The `__clz*` count leading zero functions count how many zeroes are present, starting at the MSB.
