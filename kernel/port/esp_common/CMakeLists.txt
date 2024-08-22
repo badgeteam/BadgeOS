@@ -10,6 +10,8 @@ set(port_src ${port_src}
 )
 set(port_include ${port_include}
     ${CMAKE_CURRENT_LIST_DIR}/include/
+)
+set(port_system_include ${port_system_include}
     ${CMAKE_CURRENT_LIST_DIR}/esp-idf/components/soc/${CONFIG_TARGET}/include/
     ${CMAKE_CURRENT_LIST_DIR}/esp-idf/components/soc/include/
     ${CMAKE_CURRENT_LIST_DIR}/esp-idf/components/hal/${CONFIG_TARGET}/include/

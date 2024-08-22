@@ -75,7 +75,7 @@ void spi_controller_init(
     // Clock configuration.
     clkconfig_spi2(bitrate, true, false);
 
-    irq_ch_set_isr(ETS_GSPI2_INTR_SOURCE, spi_isr);
+    irq_ch_set_isr(ETS_GSPI2_INTR_SOURCE, (isr_t)spi_isr);
     irq_ch_enable(ETS_GSPI2_INTR_SOURCE);
     GPSPI2.dma_int_ena.trans_done = true;
 

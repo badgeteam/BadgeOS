@@ -51,7 +51,7 @@ void port_early_init() {
 // Full hardware initialization.
 void port_init() {
     extern void esp_i2c_isr();
-    irq_ch_set_isr(ETS_I2C_EXT0_INTR_SOURCE, esp_i2c_isr);
+    irq_ch_set_isr(ETS_I2C_EXT0_INTR_SOURCE, (isr_t)esp_i2c_isr);
     irq_ch_enable(ETS_I2C_EXT0_INTR_SOURCE);
 }
 
@@ -102,9 +102,6 @@ static void peri_poweroff() {
 
 RAMFUNC static void trigger_restart() {
     Cache_Disable_ICache();
-
-    // Reset the CPU.
-    void software_reset_cpu();
     software_reset_cpu(0);
 }
 

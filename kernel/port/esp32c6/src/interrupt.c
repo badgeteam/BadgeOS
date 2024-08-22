@@ -87,7 +87,7 @@ void riscv_interrupt_handler() {
     // Check pending interrupts.
     for (int i = 0; i < ETS_MAX_INTR_SOURCE / 32; i++) {
         uint32_t pending = INTMTX.status[i];
-        uint32_t lsb_pos = __builtin_clz(pending);
+        int      lsb_pos = __builtin_clz(pending);
         int      irq     = i * 32 + lsb_pos;
         if (irq_ch_is_enabled(irq)) {
             // Jump to ISR.

@@ -113,6 +113,7 @@ include_directories(
     ${cpu_include}
     ${port_include}
 )
+include_directories(SYSTEM ${port_system_include})
 
 # Add libraries.
 add_subdirectory(../common/badgelib badgelib)

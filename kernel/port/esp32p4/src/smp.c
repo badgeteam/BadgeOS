@@ -30,6 +30,7 @@ static void appcpu_stub() {
 }
 
 // APP CPU startup stub: Part 2 edition.
+static void appcpu_stub_2() __attribute__((unused));
 static void appcpu_stub_2() {
     isr_ctx_t kctx  = {0};
     kctx.flags     |= ISR_CTX_FLAG_KERNEL | ISR_CTX_FLAG_USE_SP;

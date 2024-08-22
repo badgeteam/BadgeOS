@@ -8,13 +8,10 @@
 #include "interrupt.h"
 #include "scheduler/scheduler.h"
 
+#include <config.h>
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
-// NOLINTBEGIN
-#define STDLIB_H
-#define _STDLIB_H
-#define __STDLIB_H
-// NOLINTEND
 #include "esp_rom_gpio.h"
 #include "hal/clk_tree_ll.h"
 #include "hal/gpio_hal.h"
@@ -24,7 +21,6 @@
 #include "soc/gpio_sig_map.h"
 #pragma GCC diagnostic pop
 
-#include <config.h>
 // NOLINTNEXTLINE
 static int __DECLARE_RCC_ATOMIC_ENV __attribute__((unused));
 

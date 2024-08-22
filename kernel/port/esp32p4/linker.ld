@@ -15,9 +15,10 @@ MEMORY
 
 PHDRS
 {
-	codeseg   PT_LOAD;
-	rodataseg PT_LOAD;
-	dataseg   PT_LOAD;
+	codeseg    PT_LOAD;
+	ramcodeseg PT_LOAD;
+	rodataseg  PT_LOAD;
+	dataseg    PT_LOAD;
 }
 
 SECTIONS
@@ -113,7 +114,7 @@ PROVIDE(CLIC_CTL = 0x20801000);
 		. = ALIGN(__section_alignment);
 		*(.ramtext) *(.ramtext.*)
 		. = ALIGN(__section_alignment);
-	} >sram :dataseg
+	} >sram :ramcodeseg
 	.data : AT(LOADADDR(.ramtext) + SIZEOF(.ramtext)) {
 		. = ALIGN(__section_alignment);
 		*(.data) *(.data.*)

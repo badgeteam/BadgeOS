@@ -11,8 +11,10 @@
 #include "scheduler/isr.h"
 #include "smp.h"
 
+// NOLINTBEGIN
 #define __DECLARE_RCC_RC_ATOMIC_ENV 0
 #define __DECLARE_RCC_ATOMIC_ENV    0
+// NOLINTEND
 
 #include <config.h>
 #include <soc/lp_wdt_struct.h>

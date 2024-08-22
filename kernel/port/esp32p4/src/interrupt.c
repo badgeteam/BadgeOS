@@ -171,18 +171,18 @@ void riscv_interrupt_handler() {
     for (size_t i = 0; i < IRQ_GROUPS; i++) {
         uint32_t pending = intmtx->pending[i];
         while (pending) {
-            uint32_t lsb_pos  = __builtin_clz(pending);
+            int      lsb_pos  = __builtin_clz(pending);
             uint32_t lsb_mask = 1 << lsb_pos;
-            uint32_t prev     = atomic_fetch_or(&claim_mask[i], lsb_mask);
+            int      prev     = atomic_fetch_or(&claim_mask[i], lsb_mask);
             if (!(prev & lsb_mask)) {
                 int irq = i * 32 + lsb_pos;
                 if (!isr_table[irq]) {
-                    logkf(LOG_FATAL, "Unhandled interrupt #%{d}", irq);
+                    logkf(LOG_FATAL, "Unhandled interrupt #%{u32;d}", irq);
                     panic_abort();
                 } else {
-                    isr_table[irq](irq);
+                    isr_table[irq]((int)irq);
                 }
-                atomic_fetch_and(&claim_mask[i], lsb_mask);
+                atomic_fetch_and(&claim_mask[i], ~lsb_mask);
             }
         }
     }
