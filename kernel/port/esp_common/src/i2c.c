@@ -31,8 +31,12 @@ static int __DECLARE_RCC_ATOMIC_ENV __attribute__((unused));
 #define I2C_ACK  0
 #define I2C_NACK 1
 
-#define I2C_DEV   (i2c_dev[i2c_num])
-#define I2C_COUNT ((int)SOC_I2C_NUM)
+#define I2C_DEV (i2c_dev[i2c_num])
+#ifdef CONFIG_TARGET_esp32p4
+#define I2C_COUNT 2
+#else
+#define I2C_COUNT 1
+#endif
 
 
 
@@ -85,7 +89,7 @@ int i2c_count() {
 // I²C dev table.
 static i2c_dev_t *const i2c_dev[] = {
     &I2C0,
-#if SOC_I2C_NUM > 1
+#if I2C_COUNT > 1
     &I2C1,
 #endif
 };

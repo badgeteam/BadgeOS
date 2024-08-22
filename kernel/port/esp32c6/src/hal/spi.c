@@ -9,6 +9,7 @@
 #include "port/hardware_allocation.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/gpio_struct.h"
+#include "soc/interrupts.h"
 #include "soc/io_mux_struct.h"
 #include "soc/spi_struct.h"
 
@@ -36,23 +37,6 @@ static void spi_isr(void) {
     if (GPSPI2.dma_int_raw.trans_done) {
         GPSPI2.dma_int_clr.trans_done = 1;
     }
-}
-
-static void spi_int_config(bool enable, int channel) {
-    // Disable interrupts before changing interrupt settings.
-    bool ie = irq_disable();
-
-    if (enable) {
-        irq_ch_route(EXT_IRQ_GPSPI2_INTR, channel);
-        irq_ch_set_isr(channel, spi_isr);
-        irq_ch_prio(channel, INT_PRIO_SPI);
-    }
-    irq_ch_enable(channel, enable);
-    GPSPI2.dma_int_ena.trans_done = enable;
-
-    // Re-enable interrupts.
-    asm volatile("fence");
-    irq_enable_if(ie);
 }
 
 
@@ -91,7 +75,9 @@ void spi_controller_init(
     // Clock configuration.
     clkconfig_spi2(bitrate, true, false);
 
-    spi_int_config(true, INT_CHANNEL_SPI);
+    irq_ch_set_isr(ETS_GSPI2_INTR_SOURCE, spi_isr);
+    irq_ch_enable(ETS_GSPI2_INTR_SOURCE);
+    GPSPI2.dma_int_ena.trans_done = true;
 
     spi_config_apply();
 

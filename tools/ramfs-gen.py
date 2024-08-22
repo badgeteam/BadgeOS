@@ -40,7 +40,7 @@ def add_rom(path, virtpath, name):
     for byte in data:
         roms += "0x{:02x},".format(byte)
     roms += "\n};\n"
-    roms += "size_t const {}_len = {};\n".format(name, len(data))
+    roms += "fileoff_t const {}_len = {};\n".format(name, len(data))
     files += "    fd = fs_open(&ec, \"{}\", OFLAGS_CREATE | OFLAGS_WRITEONLY);\n".format(escape(virtpath))
     files += "    badge_err_assert_dev(&ec);\n"
     files += "    len = fs_write(&ec, fd, {}, {}_len);\n".format(name, name)

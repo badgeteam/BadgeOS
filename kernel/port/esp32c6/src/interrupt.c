@@ -6,9 +6,14 @@
 #include "cpu/isr.h"
 #include "cpu/panic.h"
 #include "isr_ctx.h"
+#include "port/hardware.h"
 #include "port/hardware_allocation.h"
+#include "soc/interrupts.h"
 #include "soc/pcr_struct.h"
 #include "soc/plic_struct.h"
+
+#define TIMER_IRQ_CH 16
+#define EXT_IRQ_CH   17
 
 typedef struct {
     // Interrupt routing.
@@ -24,7 +29,9 @@ extern intmtx_t INTMTX;
 static isr_ctx_t tmp_ctx = {.flags = ISR_CTX_FLAG_KERNEL};
 
 // Interrupt service routine table.
-static isr_t isr_table[32];
+static isr_t isr_table[ETS_MAX_INTR_SOURCE] = {0};
+
+void timer_isr_timer_alarm();
 
 
 
@@ -62,103 +69,62 @@ void irq_init() {
     }
 }
 
-
-// Route an external interrupt to an internal interrupt.
-void irq_ch_route(int ext_irq, int int_irq) {
-    assert_dev_drop(int_irq > 0 && int_irq < 32);
-    assert_dev_drop(ext_irq >= 0 && ext_irq < EXT_IRQ_COUNT);
-    INTMTX.route[ext_irq] = int_irq;
-}
-
-// Set the priority of an internal interrupt, if possible.
-// 0 is least priority, 255 is most priority.
-void irq_ch_prio(int int_irq, int raw_prio) {
-    assert_dev_drop(int_irq > 0 && int_irq < 32);
-    if (raw_prio < 0 || raw_prio > 255)
-        raw_prio = 127;
-    PLIC_MX.int_pri[int_irq] = raw_prio * 14 / 255 + 1;
-}
-
-// Acknowledge an interrupt.
-void irq_ch_ack(int int_irq) {
-    PLIC_MX.int_clear = 1 << int_irq;
-    PLIC_MX.int_clear = 0;
-}
-
-// Set the interrupt service routine for an interrupt on this CPU.
-void irq_ch_set_isr(int int_irq, isr_t isr) {
-    assert_dev_drop(int_irq > 0 && int_irq < 32);
-    isr_table[int_irq] = isr;
-}
-
-
 // Callback from ASM to platform-specific interrupt handler.
 void riscv_interrupt_handler() {
-    static timestamp_us_t last_time = 0;
-    static unsigned long  count     = 0;
-
     // Get interrupt cause.
     long mcause;
     asm("csrr %0, mcause" : "=r"(mcause));
-    mcause &= 31;
+    mcause &= RISCV_VT_ICAUSE_MASK;
 
-    timestamp_us_t now = time_us();
-    if (now > last_time + 1000) {
-        last_time = now;
-        count     = 0;
-    } else if (count < 100) {
-        count++;
-    } else {
-        logk_from_isr(LOG_FATAL, "Interrupt storm detected");
-        logkf_from_isr(LOG_FATAL, "MCAUSE: %{long;x}", mcause);
-        for (int i = 0; i < EXT_IRQ_COUNT; i++) {
-            if (irq_ch_ext_pending(i)) {
-                logkf_from_isr(LOG_FATAL, "Pending: %{d}", i);
+    if (mcause == TIMER_IRQ_CH) {
+        timer_isr_timer_alarm();
+        return;
+    }
+
+    // Check pending interrupts.
+    for (int i = 0; i < ETS_MAX_INTR_SOURCE / 32; i++) {
+        uint32_t pending = INTMTX.status[i];
+        uint32_t lsb_pos = __builtin_clz(pending);
+        int      irq     = i * 32 + lsb_pos;
+        if (irq_ch_is_enabled(irq)) {
+            // Jump to ISR.
+            if (isr_table[mcause]) {
+                isr_table[mcause](irq);
+            } else {
+                logkf_from_isr(LOG_FATAL, "Unhandled interrupt %{d}", mcause);
+                panic_abort();
             }
         }
-        panic_abort();
-    }
-
-    // Jump to ISR.
-    if (isr_table[mcause]) {
-        isr_table[mcause]();
-    } else {
-        logkf_from_isr(LOG_FATAL, "Unhandled interrupt %{d}", mcause);
-        panic_abort();
-    }
-
-    // Acknowledge interrupt.
-    irq_ch_ack(mcause);
-}
-
-
-
-// Enable/disable an internal interrupt.
-void irq_ch_enable(int int_irq, bool enable) {
-    assert_dev_drop(int_irq > 0 && int_irq < 32);
-    long mask = 1 << int_irq;
-    if (enable) {
-        asm volatile("csrs mie, %0" ::"r"(mask));
-    } else {
-        asm volatile("csrc mie, %0" ::"r"(mask));
     }
 }
 
-// Query whether an internal interrupt is enabled.
-bool irq_ch_enabled(int int_irq) {
-    long mask;
-    asm("csrr %0, mie" : "=r"(mask));
-    return ((mask) >> int_irq) & 1;
+
+
+// Set the external interrupt signal for CPU0 timer IRQs.
+void set_cpu0_timer_irq(int timer_irq) {
+    INTMTX.route[timer_irq] = TIMER_IRQ_CH;
 }
 
-// Query whether an internal interrupt is pending.
-bool irq_ch_pending(int int_irq) {
-    long mask;
-    asm("csrr %0, mip" : "=r"(mask));
-    return ((mask) >> int_irq) & 1;
+// Enable the IRQ.
+void irq_ch_enable(int irq) {
+    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
+    INTMTX.route[irq] = EXT_IRQ_CH;
 }
 
-// Query whether an external interrupt is pending.
-bool irq_ch_ext_pending(int ext_irq) {
-    return (INTMTX.status[ext_irq >> 5] >> (ext_irq & 31)) & 1;
+// Disable the IRQ.
+void irq_ch_disable(int irq) {
+    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
+    INTMTX.route[irq] = 0;
+}
+
+// Query whether the IRQ is enabled.
+bool irq_ch_is_enabled(int irq) {
+    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
+    return INTMTX.route[irq] != 0;
+}
+
+// Set the interrupt service routine for an interrupt on this CPU.
+void irq_ch_set_isr(int irq, isr_t isr) {
+    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
+    isr_table[irq] = isr;
 }

@@ -9,13 +9,13 @@
 #include "port/clkconfig.h"
 #include "port/hardware_allocation.h"
 #include "port/pmu_init.h"
-#include "soc/ext_irq.h"
-#include "soc/pcr_struct.h"
-#include "soc/uart_struct.h"
-#include "soc/usb_serial_jtag_struct.h"
 #include "time.h"
 
 #include <stdbool.h>
+
+#include <soc/pcr_struct.h>
+#include <soc/uart_struct.h>
+#include <soc/usb_serial_jtag_struct.h>
 
 cpulocal_t port_cpu_local;
 
@@ -36,9 +36,8 @@ void port_early_init() {
 // Full hardware initialization.
 void port_init() {
     extern void esp_i2c_isr();
-    irq_ch_route(EXT_IRQ_I2C_EXT0_INTR, INT_CHANNEL_I2C);
-    irq_ch_set_isr(INT_CHANNEL_I2C, esp_i2c_isr);
-    irq_ch_enable(INT_CHANNEL_I2C, true);
+    irq_ch_set_isr(ETS_I2C_EXT0_INTR_SOURCE, esp_i2c_isr);
+    irq_ch_enable(ETS_I2C_EXT0_INTR_SOURCE);
 }
 
 // Send a single character to the log output.

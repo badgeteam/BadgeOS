@@ -18,6 +18,10 @@
 
 #include <config.h>
 
+#ifdef CONFIG_TARGET_esp32c6
+#define io_mux_gpio_reg_t io_mux_gpio_t
+#endif
+
 
 
 // Unsafe check if a pin has a function assigned.

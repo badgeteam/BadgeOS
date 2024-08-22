@@ -19,7 +19,6 @@
 #include <soc/timer_group_struct.h>
 
 #ifdef CONFIG_TARGET_esp32c6
-#include <soc/ext_irq.h>
 #include <soc/pcr_struct.h>
 #endif
 
@@ -78,8 +77,11 @@ void time_init() {
 #endif
 
     // Configure timer interrupts.
-    set_cpu0_timer_irq(ETS_TG0_T0_INTR_SOURCE);
+#ifdef CONFIG_TARGET_esp32c6
+    set_cpu0_timer_irq(ETS_TG0_T0_LEVEL_INTR_SOURCE);
+#endif
 #ifdef CONFIG_TARGET_esp32p4
+    set_cpu0_timer_irq(ETS_TG0_T0_INTR_SOURCE);
     set_cpu1_timer_irq(ETS_TG1_T0_INTR_SOURCE);
 #endif
 

@@ -18,6 +18,7 @@ set(port_src
     ${CMAKE_CURRENT_LIST_DIR}/src/memprotect.c
     ${CMAKE_CURRENT_LIST_DIR}/src/pmu_init.c
     ${CMAKE_CURRENT_LIST_DIR}/src/port.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/smp.c
 )
 set(port_include
     ${CMAKE_CURRENT_LIST_DIR}/include
