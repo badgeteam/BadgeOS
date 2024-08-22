@@ -429,7 +429,7 @@ void thread_suspend(badge_err_t *ec, tid_t tid) {
 }
 
 // Try to mark a thread as running if a thread is allowed to be resumed.
-static bool thread_try_mark_running(sched_thread_t *thread) {
+static bool thread_try_mark_running(sched_thread_t *thread, bool now) {
     int cur = atomic_load(&thread->flags);
     int nextval;
     do {
@@ -437,6 +437,9 @@ static bool thread_try_mark_running(sched_thread_t *thread) {
             return false;
         }
         nextval = (cur | THREAD_RUNNING) & ~THREAD_SUSPENDING;
+        if (now) {
+            nextval |= THREAD_STARTNOW;
+        }
     } while (!atomic_compare_exchange_strong(&thread->flags, &cur, nextval));
     return true;
 }
@@ -446,7 +449,7 @@ static void thread_resume_impl(badge_err_t *ec, tid_t tid, bool now) {
     assert_always(mutex_acquire_shared(NULL, &threads_mtx, TIMESTAMP_US_MAX));
     sched_thread_t *thread = find_thread(tid);
     if (thread) {
-        if (thread_try_mark_running(thread)) {
+        if (thread_try_mark_running(thread, now)) {
             irq_disable();
             thread_handoff(thread, smp_cur_cpu(), true);
             irq_enable();
