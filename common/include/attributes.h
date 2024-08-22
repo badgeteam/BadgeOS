@@ -6,6 +6,17 @@
 // this file provides convenience macros for the attributes provided by gcc:
 // https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html
 
+#ifdef BADGEROS_KERNEL
+#include <config.h>
+#ifdef CONFIG_TARGET_generic
+// Function that must be in RAM for XIP targets.
+#define RAMFUNC
+#else
+// Function that must be in RAM for XIP targets.
+#define RAMFUNC __attribute__((section(".ramtext")))
+#endif
+#endif
+
 // Disable address sanitization for a function.
 #define NOASAN __attribute__((no_sanitize("address")))
 

@@ -12,6 +12,7 @@
 #include "interrupt.h"
 #include "isr_ctx.h"
 #include "malloc.h"
+#include "process/sighandler.h"
 #include "scheduler/cpu.h"
 #include "scheduler/isr.h"
 #include "scheduler/types.h"
@@ -62,10 +63,21 @@ static void idle_func(void *arg) {
 
 // Set the context switch to a certain thread.
 static inline void set_switch(sched_thread_t *thread) {
-    int        flags = atomic_load(&thread->flags);
-    isr_ctx_t *next  = (flags & THREAD_PRIVILEGED) ? &thread->kernel_isr_ctx : &thread->user_isr_ctx;
-    next->cpulocal   = isr_ctx_get()->cpulocal;
+    int pflags = thread->process ? atomic_load(&thread->process->flags) : 0;
+    int tflags = atomic_load(&thread->flags);
+
+    // Check for pending signals.
+    if (!(tflags & (THREAD_PRIVILEGED | THREAD_SIGHANDLER)) && (pflags & PROC_SIGPEND)) {
+        // Process has pending signals to handle first.
+        sched_raise_from_isr(thread, false, proc_signal_handler);
+    }
+
+    // Set context switch target.
+    isr_ctx_t *next = (tflags & THREAD_PRIVILEGED) ? &thread->kernel_isr_ctx : &thread->user_isr_ctx;
+    next->cpulocal  = isr_ctx_get()->cpulocal;
     isr_ctx_switch_set(next);
+
+    // Set preemption timer.
     timestamp_us_t timeout = SCHED_MIN_US + SCHED_INC_US * thread->priority;
     time_set_next_task_switch(time_us() + timeout);
 }

@@ -47,10 +47,6 @@ if("${CMAKE_BUILD_TYPE}" MATCHES "Release")
 message("Building in release mode")
 else()
 message("Building in debug mode")
-set(common_compiler_flags ${common_compiler_flags}
-    -fsanitize=undefined               # Adds sanitizer for undefined behaviour.
-    -fsanitize-undefined-trap-on-error
-)
 endif()
 
 # we must pass the same options to GCC and LD when using LTO, as the linker will actually do the codegen

@@ -32,3 +32,4 @@ set(port_flags
 )
 
 include(port/esp_common/CMakeLists.txt)
+set_target_properties(${target} PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/linker.ld)

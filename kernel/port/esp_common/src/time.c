@@ -68,12 +68,14 @@ void time_init() {
     timer_alarm_disable(0);
     timer_int_clear(0);
     timer_int_enable(0, true);
+    timer_set_freq(0, 1000000);
 #ifdef CONFIG_TARGET_esp32p4
     timer_stop(1);
     timer_value_set(1, 0);
     timer_alarm_disable(1);
     timer_int_clear(1);
     timer_int_enable(1, true);
+    timer_set_freq(1, 1000000);
 #endif
 
     // Configure timer interrupts.

@@ -27,6 +27,11 @@ typedef struct process_t process_t;
 // Globally unique process ID.
 typedef int              pid_t;
 
+// Send a signal to all running processes in the system except the init process.
+void proc_signal_all(int signal);
+// Whether any non-init processes are currently running.
+bool proc_has_noninit();
+
 // Create a new, empty process.
 pid_t    proc_create(badge_err_t *ec, pid_t parent, char const *binary, int argc, char const *const *argv);
 // Delete a process only if it hasn't been started yet.

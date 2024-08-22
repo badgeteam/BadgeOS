@@ -1,6 +1,7 @@
 
 // SPDX-License-Identifier: MIT
 
+#include "cpu/panic.h"
 #include "filesystem.h"
 #include "housekeeping.h"
 #include "interrupt.h"
@@ -9,6 +10,7 @@
 #include "malloc.h"
 #include "memprotect.h"
 #include "port/port.h"
+#include "process/internal.h"
 #include "process/process.h"
 #include "scheduler/scheduler.h"
 #include "time.h"
@@ -36,11 +38,11 @@ extern size_t const  elf_rom_len;
         logkf(LOG_INFO, #name ": %{long;x}", csr);                                                                     \
     } while (0)
 
-extern void init_ramfs();
+void        init_ramfs();
 static void kernel_init();
 static void userland_init();
-// static void userland_shutdown();
-// static void kernel_shutdown();
+static void userland_shutdown();
+static void kernel_shutdown();
 
 // Manages the kernel's lifetime after basic runtime initialization.
 static void kernel_lifetime_func() {
@@ -58,9 +60,18 @@ static void kernel_lifetime_func() {
         shutdown_mode = atomic_load(&kernel_shutdown_mode);
     } while (shutdown_mode == 0);
 
-    // TODO: Shutdown process.
-    logk(LOG_INFO, "TODO: Shutdown procedure.");
-    while (1) sched_yield();
+    // Shut down the userland.
+    userland_shutdown();
+    // Tie up loose ends.
+    kernel_shutdown();
+    // Power off.
+    if (kernel_shutdown_mode == 2) {
+        logkf(LOG_INFO, "Restarting");
+        port_poweroff(true);
+    } else {
+        logkf(LOG_INFO, "Powering off");
+        port_poweroff(false);
+    }
 }
 
 // Shutdown system call implementation.
@@ -146,16 +157,47 @@ static void userland_init() {
 
 
 
-// // When a shutdown event begins, exactly one CPU core runs this entire function.
-// // This signals all processes to exit (or be killed if they wait too long) and shuts down other CPU cores.
-// // When finished, the CPU continues to shut down the kernel.
-// static void userland_shutdown() {
-// }
+// When a shutdown event begins, exactly one CPU core runs this entire function.
+// This signals all processes to exit (or be killed if they wait too long) and shuts down other CPU cores.
+// When finished, the CPU continues to shut down the kernel.
+static void userland_shutdown() {
+    if (proc_has_noninit()) {
+        // Warn all processes of the imminent doom.
+        logk(LOG_INFO, "Sending SIGHUP to running processes");
+        proc_signal_all(SIGHUP);
+        // Wait for one second to give them time.
+        timestamp_us_t lim = time_us() + 1000000;
+        while (time_us() < lim && proc_has_noninit()) sched_yield();
+
+        if (proc_has_noninit()) {
+            // Forcibly terminate all processes.
+            logk(LOG_INFO, "Sending SIGKILL to running processes");
+            proc_signal_all(SIGKILL);
+        }
+    }
+
+    // Tell init it's now time to stop.
+    logk(LOG_INFO, "Sending SIGHUP to init");
+    proc_raise_signal(NULL, 1, SIGHUP);
+    // Wait for a couple seconds to give it time.
+    timestamp_us_t lim = time_us() + 5 * 1000000;
+    while (time_us() < lim) {
+        if (!(proc_getflags(NULL, 1) & PROC_RUNNING)) {
+            return;
+        }
+        sched_yield();
+    }
+
+    // If init didn't stop by this point we're probably out of luck.
+    logk(LOG_FATAL, "Init process did not stop at shutdown");
+    panic_abort();
+}
 
 
 
-// // When the userspace has been shut down, the CPU continues here.
-// // This will synchronize all filesystems and clean up any other resources not needed to finish hardware shutdown.
-// // When finished, the CPU continues to the platform-specific hardware shutdown / reboot handler.
-// static void kernel_shutdown() {
-// }
+// When the userspace has been shut down, the CPU continues here.
+// This will synchronize all filesystems and clean up any other resources not needed to finish hardware shutdown.
+// When finished, the CPU continues to the platform-specific hardware shutdown / reboot handler.
+static void kernel_shutdown() {
+    // TODO: Filesystems flush.
+}

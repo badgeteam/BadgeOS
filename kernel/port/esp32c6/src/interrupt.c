@@ -67,6 +67,9 @@ void irq_init() {
     for (int i = 0; i < 32; i++) {
         PLIC_MX.int_pri[i] = 7;
     }
+
+    // Enable appropriate interrupts.
+    asm volatile("csrw mie, %0" ::"r"((1 << TIMER_IRQ_CH) | (1 << EXT_IRQ_CH)));
 }
 
 // Callback from ASM to platform-specific interrupt handler.

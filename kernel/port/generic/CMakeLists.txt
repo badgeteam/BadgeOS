@@ -33,3 +33,4 @@ set(port_link
     -L${CMAKE_CURRENT_LIST_DIR}
 )
 set(port_flags)
+set_target_properties(${target} PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/linker.ld)

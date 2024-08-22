@@ -22,6 +22,7 @@
 #include "scheduler/cpu.h"
 #include "scheduler/types.h"
 #include "static-buddy.h"
+#include "sys/wait.h"
 #include "usercopy.h"
 
 #if MEMMAP_VMEM
@@ -44,12 +45,41 @@ static process_t **procs       = NULL;
 extern atomic_int  kernel_shutdown_mode;
 // Allow process 1 to die without kernel panic.
 static bool        allow_proc1_death() {
+    // While the kernel is shutting down and init is the only process left.
     return kernel_shutdown_mode && procs_len == 1;
 }
 
 // Set arguments for a process.
 // If omitted, argc will be 0 and argv will be NULL.
 static bool proc_setargs_raw_unsafe(badge_err_t *ec, process_t *process, int argc, char const *const *argv);
+
+
+
+// Send a signal to all running processes in the system except the init process.
+void proc_signal_all(int signal) {
+    mutex_acquire_shared(NULL, &proc_mtx, TIMESTAMP_US_MAX);
+    for (size_t i = 0; i < procs_len; i++) {
+        if (procs[i]->pid == 1)
+            continue;
+        proc_raise_signal_raw(NULL, procs[i], signal);
+    }
+    mutex_release_shared(NULL, &proc_mtx);
+}
+
+// Whether any non-init processes are currently running.
+bool proc_has_noninit() {
+    mutex_acquire_shared(NULL, &proc_mtx, TIMESTAMP_US_MAX);
+    for (size_t i = 0; i < procs_len; i++) {
+        if (procs[i]->pid == 1)
+            continue;
+        if (atomic_load(&procs[i]->flags) & PROC_RUNNING) {
+            mutex_release_shared(NULL, &proc_mtx);
+            return true;
+        }
+    }
+    mutex_release_shared(NULL, &proc_mtx);
+    return false;
+}
 
 
 
@@ -410,8 +440,24 @@ bool proc_signals_pending_raw(process_t *process) {
     return atomic_load(&process->flags) & PROC_SIGPEND;
 }
 
+// Raise SIGKILL to a process.
+static void proc_raise_sigkill_raw(process_t *process) {
+    mutex_acquire(NULL, &process->mtx, TIMESTAMP_US_MAX);
+    atomic_fetch_or(&process->flags, PROC_EXITING);
+    process->state_code = W_SIGNALLED(SIGKILL);
+    mutex_release(NULL, &process->mtx);
+
+    // Add deleting runtime to the housekeeping list.
+    assert_always(hk_add_once(0, clean_up_from_housekeeping, (void *)(long)process->pid) != -1);
+}
+
 // Raise a signal to a process' main thread or a specified thread, while suspending it's other threads.
 void proc_raise_signal_raw(badge_err_t *ec, process_t *process, int signum) {
+    if (signum == SIGKILL) {
+        proc_raise_sigkill_raw(process);
+        badge_err_set_ok(ec);
+        return;
+    }
     mutex_acquire(NULL, &process->mtx, TIMESTAMP_US_MAX);
     sigpending_t *node = malloc(sizeof(sigpending_t));
     if (!node) {
@@ -498,8 +544,8 @@ void proc_delete_runtime_raw(process_t *process) {
     // TODO: Close pipes and files.
 
     // Mark the process as exited.
-    process->flags |= PROC_EXITED;
-    process->flags &= ~PROC_EXITING & ~PROC_RUNNING;
+    atomic_fetch_or(&process->flags, PROC_EXITED);
+    atomic_fetch_and(&process->flags, ~PROC_EXITING & ~PROC_RUNNING);
     logkf(LOG_INFO, "Process %{d} stopped with code %{d}", process->pid, process->state_code);
     mutex_release(NULL, &process->mtx);
 }

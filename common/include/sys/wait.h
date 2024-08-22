@@ -15,9 +15,9 @@
 // Create status for child exited normally.
 #define W_EXITED(ret)    ((ret) << 8)
 // Create status for child exited by signal.
-#define W_SIGNALLED(sig) ((sig) | 0x40)
+#define W_SIGNALLED(sig) (((sig) << 8) | 0x40)
 // Create status for child that was suspended by a signal.
-#define W_STOPCODE(sig)  ((sig) << 8 | 0x20)
+#define W_STOPCODE(sig)  (((sig) << 8) | 0x20)
 // Child was continued.
 #define W_CONTINUED      0x10
 // Child dumped core.

@@ -109,7 +109,12 @@ PROVIDE(CLIC_CTL = 0x20801000);
 	
 	. = __start_sram;
 	__start_data = .;
-	.data : AT(LOADADDR(.espseg.2) + SIZEOF(.espseg.2)) {
+	.ramtext : AT(LOADADDR(.espseg.2) + SIZEOF(.espseg.2)) {
+		. = ALIGN(__section_alignment);
+		*(.ramtext) *(.ramtext.*)
+		. = ALIGN(__section_alignment);
+	} >sram :dataseg
+	.data : AT(LOADADDR(.ramtext) + SIZEOF(.ramtext)) {
 		. = ALIGN(__section_alignment);
 		*(.data) *(.data.*)
 		. = ALIGN(__section_alignment);
