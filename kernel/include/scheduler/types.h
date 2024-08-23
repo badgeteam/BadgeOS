@@ -18,9 +18,11 @@
 
 
 // The minimum time a thread will run. `SCHED_PRIO_LOW` maps to this.
-#define SCHED_MIN_US 5000
+#define SCHED_MIN_US        5000
 // The time quota increment per increased priority.
-#define SCHED_INC_US 500
+#define SCHED_INC_US        500
+// The interval on which schedulers measure CPU load.
+#define SCHED_LOAD_INTERVAL 250000
 
 
 
@@ -56,13 +58,15 @@ struct sched_thread_t {
     dlist_node_t node;
 
     // Process to which this thread belongs.
-    process_t *process;
+    process_t  *process;
     // Lowest address of the kernel stack.
-    size_t     kernel_stack_bottom;
+    size_t      kernel_stack_bottom;
     // Highest address of the kernel stack.
-    size_t     kernel_stack_top;
+    size_t      kernel_stack_top;
     // Priority of this thread.
-    int        priority;
+    int         priority;
+    // Time usage information.
+    timeusage_t timeusage;
 
     // Thread flags.
     atomic_int flags;
@@ -92,8 +96,14 @@ struct sched_cpulocal_t {
     dlist_t        queue;
     // CPU-local scheduler state flags.
     atomic_int     flags;
-    // CPU load estimate in 0.01% increments.
-    atomic_int     load;
+    // Last preemption time.
+    timestamp_us_t last_preempt;
+    // Time until next measurement interval.
+    timestamp_us_t load_measure_time;
+    // CPU load average in 0.01% increments.
+    atomic_int     load_average;
+    // CPU load estimate for load-balancing purposes.
+    atomic_int     load_estimate;
     // Idle thread.
     sched_thread_t idle_thread;
 };

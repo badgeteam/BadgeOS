@@ -107,4 +107,6 @@ typedef struct process_t {
     size_t        sighandlers[SIG_COUNT];
     // Exit code if applicable.
     int           state_code;
+    // Total time usage.
+    timeusage_t   timeusage;
 } process_t;

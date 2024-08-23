@@ -5,6 +5,7 @@
 
 #include "attributes.h"
 #include "badge_err.h"
+#include "time.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -20,6 +21,18 @@ typedef struct sched_thread_t sched_thread_t;
 typedef int (*sched_entry_t)(void *arg);
 // CPU-local scheduler data.
 typedef struct sched_cpulocal_t sched_cpulocal_t;
+
+// Time usage information.
+typedef struct {
+    // Time spent running in user-space.
+    timestamp_us_t user_time;
+    // Time spent running in kernel-space.
+    timestamp_us_t kernel_time;
+    // Total time usage since last load measurement.
+    timestamp_us_t cycle_time;
+    // Current number of CPUs used in 0.01% units.
+    atomic_int     cpu_usage;
+} timeusage_t;
 
 // will be scheduled with smaller time slices than normal
 #define SCHED_PRIO_LOW    0

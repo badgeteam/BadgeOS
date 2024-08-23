@@ -24,6 +24,7 @@ int main() {
     badge_err_t ec = {0};
     print("Hi, Ther.\n");
 
-    syscall_sys_shutdown(true);
+    syscall_sys_shutdown(false);
+
     return 0;
 }

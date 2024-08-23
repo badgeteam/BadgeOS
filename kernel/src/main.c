@@ -49,7 +49,7 @@ static void kernel_lifetime_func() {
     // Start the kernel services.
     kernel_init();
     // Start other CPUs.
-    // sched_start_altcpus();
+    sched_start_altcpus();
     // Start userland.
     userland_init();
 

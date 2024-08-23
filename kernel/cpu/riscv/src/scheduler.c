@@ -44,6 +44,14 @@ void sched_raise_from_isr(sched_thread_t *thread, bool syscall, void *entry_poin
         thread->kernel_isr_ctx.regs.a7 = thread->user_isr_ctx.regs.a7;
     }
 
+    // Do time accounting.
+    timestamp_us_t    now         = time_us();
+    sched_cpulocal_t *info        = isr_ctx_get()->cpulocal->sched;
+    timestamp_us_t    used        = now - info->last_preempt;
+    thread->timeusage.cycle_time += used;
+    thread->timeusage.user_time  += used;
+    info->last_preempt            = now;
+
     // Set context switch target to kernel thread.
     isr_ctx_switch_set(&thread->kernel_isr_ctx);
 }
@@ -55,6 +63,14 @@ void sched_lower_from_isr() {
     process_t      *process = thread->process;
     assert_dev_drop(!(thread->flags & THREAD_KERNEL) && (thread->flags & THREAD_PRIVILEGED));
     atomic_fetch_and(&thread->flags, ~THREAD_PRIVILEGED);
+
+    // Do time accounting.
+    timestamp_us_t    now          = time_us();
+    sched_cpulocal_t *info         = isr_ctx_get()->cpulocal->sched;
+    timestamp_us_t    used         = now - info->last_preempt;
+    thread->timeusage.cycle_time  += used;
+    thread->timeusage.kernel_time += used;
+    info->last_preempt             = now;
 
     // Set context switch target to user thread.
     isr_ctx_switch_set(&thread->user_isr_ctx);
