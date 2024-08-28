@@ -27,26 +27,6 @@
 #define RISCV_VT_TCAUSE_MASK 31
 
 
-/* ==== SOC INFO ==== */
-
-// Number of timer groups.
-#define ESP_TIMG_COUNT        2
-// Number of timers per timer group.
-#define ESP_TIMG_TIMER_COUNT  1
-// Speed of RC_FAST_CLK in hertz.
-#define ESP_FREQ_RC_FAST_CLK  20000000
-// Speed of XTAL_CLK in hertz.
-#define ESP_FREQ_XTAL_CLK     40000000
-// Speed of RC32K_CLK in hertz.
-#define ESP_FREQ_RC32K_CLK    32000
-// Speed of XTAL32K_CLK in hertz.
-#define ESP_FREQ_XTAL32K_CLK  32000
-// Speed of RC_SLOW_CLK in hertz.
-#define ESP_FREQ_RC_SLOW_CLK  150000
-// Speed of OSC_SLOW_CLK in hertz.
-#define ESP_FREQ_OSC_SLOW_CLK 32000
-
-
 /* ==== PERIPHERAL MAP ==== */
 
 // Base address of peripherals.

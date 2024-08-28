@@ -49,3 +49,9 @@ bool smp_resume(int cpu) {
     (void)cpu;
     return false;
 }
+
+// Whether a CPU can be powered off at runtime.
+bool smp_can_poweroff(int cpu) {
+    (void)cpu;
+    return false;
+}

@@ -400,7 +400,7 @@ static size_t i2c_sync_trans(badge_err_t *ec, int i2c_num, i2c_fsm_cmd_t *cmd, s
             badge_err_set(ec, ELOC_I2C, ECAUSE_TIMEOUT);
             return i2c_ctx[i2c_num].trans_bytes;
         }
-        sched_yield();
+        thread_yield();
     }
     logkf(LOG_DEBUG, "SR: %{u32;x}", I2C0.sr.val);
 

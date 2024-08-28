@@ -43,42 +43,7 @@ static void kernel_init();
 static void userland_init();
 static void userland_shutdown();
 static void kernel_shutdown();
-
-// Manages the kernel's lifetime after basic runtime initialization.
-static void kernel_lifetime_func() {
-    // Start the kernel services.
-    kernel_init();
-    // Start other CPUs.
-    sched_start_altcpus();
-    // Start userland.
-    userland_init();
-
-    // The boot process is now complete, this thread will wait until a shutdown is issued.
-    int shutdown_mode;
-    do {
-        sched_yield();
-        shutdown_mode = atomic_load(&kernel_shutdown_mode);
-    } while (shutdown_mode == 0);
-
-    // Shut down the userland.
-    userland_shutdown();
-    // Tie up loose ends.
-    kernel_shutdown();
-    // Power off.
-    if (kernel_shutdown_mode == 2) {
-        logkf(LOG_INFO, "Restarting");
-        port_poweroff(true);
-    } else {
-        logkf(LOG_INFO, "Powering off");
-        port_poweroff(false);
-    }
-}
-
-// Shutdown system call implementation.
-void syscall_sys_shutdown(bool is_reboot) {
-    logk(LOG_INFO, is_reboot ? "Reboot requested" : "Shutdown requested");
-    atomic_store(&kernel_shutdown_mode, 1 + is_reboot);
-}
+static void kernel_lifetime_func();
 
 
 
@@ -120,6 +85,43 @@ void basic_runtime_init() {
 }
 
 
+// Manages the kernel's lifetime after basic runtime initialization.
+static void kernel_lifetime_func() {
+    // Start the kernel services.
+    kernel_init();
+    // Start other CPUs.
+    sched_start_altcpus();
+    // Start userland.
+    userland_init();
+
+    // The boot process is now complete, this thread will wait until a shutdown is issued.
+    int shutdown_mode;
+    do {
+        thread_yield();
+        shutdown_mode = atomic_load(&kernel_shutdown_mode);
+    } while (shutdown_mode == 0);
+
+    // Shut down the userland.
+    userland_shutdown();
+    // Tie up loose ends.
+    kernel_shutdown();
+    // Power off.
+    if (kernel_shutdown_mode == 2) {
+        logkf(LOG_INFO, "Restarting");
+        port_poweroff(true);
+    } else {
+        logkf(LOG_INFO, "Powering off");
+        port_poweroff(false);
+    }
+}
+
+// Shutdown system call implementation.
+void syscall_sys_shutdown(bool is_reboot) {
+    logk(LOG_INFO, is_reboot ? "Reboot requested" : "Shutdown requested");
+    atomic_store(&kernel_shutdown_mode, 1 + is_reboot);
+}
+
+
 
 // After basic runtime initialization, the booting CPU core continues here.
 // This finishes the initialization of all kernel systems, resources and services.
@@ -130,6 +132,9 @@ static void kernel_init() {
     memprotect_init();
     // Full hardware initialization.
     port_init();
+
+    logk(LOG_DEBUG, "Waiting for a second");
+    thread_sleep(1000000);
 
     // Temporary filesystem image.
     fs_mount(&ec, FS_TYPE_RAMFS, NULL, "/", 0);
@@ -167,7 +172,7 @@ static void userland_shutdown() {
         proc_signal_all(SIGHUP);
         // Wait for one second to give them time.
         timestamp_us_t lim = time_us() + 1000000;
-        while (time_us() < lim && proc_has_noninit()) sched_yield();
+        while (time_us() < lim && proc_has_noninit()) thread_yield();
 
         if (proc_has_noninit()) {
             // Forcibly terminate all processes.
@@ -185,7 +190,7 @@ static void userland_shutdown() {
         if (!(proc_getflags(NULL, 1) & PROC_RUNNING)) {
             return;
         }
-        sched_yield();
+        thread_yield();
     }
 
     // If init didn't stop by this point we're probably out of luck.

@@ -42,8 +42,10 @@
 #define THREAD_STARTNOW   (1 << 6)
 // The thread should be suspended.
 #define THREAD_SUSPENDING (1 << 7)
+// The thread should be suspended even if it is a kernel thread.
+#define THREAD_KSUSPEND   (1 << 8)
 // The thread has exited and is awaiting join.
-#define THREAD_EXITED     (1 << 8)
+#define THREAD_EXITED     (1 << 9)
 
 // The scheduler is starting on this CPU.
 #define SCHED_STARTING (1 << 0)
@@ -107,6 +109,3 @@ struct sched_cpulocal_t {
     // Idle thread.
     sched_thread_t idle_thread;
 };
-
-// Returns the current thread without using a critical section.
-sched_thread_t *sched_current_thread_unsafe();

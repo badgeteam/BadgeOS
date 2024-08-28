@@ -25,7 +25,7 @@ static inline bool await_swap_atomic_int(
         } else if (from_isr) {
             isr_pause();
         } else {
-            sched_yield();
+            thread_yield();
         }
     } while (time_us() < timeout);
     return false;
@@ -43,7 +43,7 @@ static inline bool
         } else if (from_isr) {
             isr_pause();
         } else {
-            sched_yield();
+            thread_yield();
         }
     } while (time_us() < timeout);
     return false;
@@ -61,7 +61,7 @@ static inline bool
         } else if (from_isr) {
             isr_pause();
         } else {
-            sched_yield();
+            thread_yield();
         }
     }
 }

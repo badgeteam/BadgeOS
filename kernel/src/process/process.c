@@ -477,7 +477,7 @@ void proc_suspend(process_t *process, tid_t current) {
     mutex_acquire(NULL, &process->mtx, TIMESTAMP_US_MAX);
     for (size_t i = 0; i < process->threads_len; i++) {
         if (process->threads[i] != current) {
-            thread_suspend(NULL, process->threads[i]);
+            thread_suspend(NULL, process->threads[i], false);
         }
     }
     mutex_release(NULL, &process->mtx);

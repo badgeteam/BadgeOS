@@ -29,3 +29,5 @@ bool   smp_poweroff();
 bool   smp_pause();
 // Resume another CPU, if supported.
 bool   smp_resume(int cpu);
+// Whether a CPU can be powered off at runtime.
+bool   smp_can_poweroff(int cpu);

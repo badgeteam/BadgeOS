@@ -6,6 +6,7 @@ cmake_minimum_required(VERSION 3.10.0)
 set(port_src ${port_src}
     ${CMAKE_CURRENT_LIST_DIR}/src/gpio.c
     ${CMAKE_CURRENT_LIST_DIR}/src/i2c.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/hwtimer.c
     ${CMAKE_CURRENT_LIST_DIR}/src/time.c
 )
 set(port_include ${port_include}

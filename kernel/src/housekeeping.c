@@ -80,7 +80,7 @@ int hk_thread_func(void *ignored) {
         }
 
         mutex_release(NULL, &hk_mtx);
-        sched_yield();
+        thread_yield();
     }
 }
 

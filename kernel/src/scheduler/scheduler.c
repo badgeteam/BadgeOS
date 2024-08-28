@@ -41,23 +41,10 @@ static mutex_t           unused_mtx  = MUTEX_T_INIT;
 // Pool of unused thread handles.
 static dlist_t           dead_threads;
 
-// Compare the ID of `sched_thread_t *` to an `int`.
-static int tid_int_cmp(void const *a, void const *b) {
-    sched_thread_t *thread = *(sched_thread_t **)a;
-    tid_t           tid    = (tid_t)(ptrdiff_t)b;
-    return thread->id - tid;
-}
-
-// Find a thread by TID.
-static sched_thread_t *find_thread(tid_t tid) {
-    array_binsearch_t res = array_binsearch(threads, sizeof(void *), threads_len, (void *)(ptrdiff_t)tid, tid_int_cmp);
-    return res.found ? threads[res.index] : NULL;
-}
-
 
 
 // Set the context switch to a certain thread.
-static inline void set_switch(sched_cpulocal_t *info, sched_thread_t *thread) {
+static void set_switch(sched_cpulocal_t *info, sched_thread_t *thread) {
     int pflags = thread->process ? atomic_load(&thread->process->flags) : 0;
     int tflags = atomic_load(&thread->flags);
 
@@ -255,7 +242,7 @@ void sched_request_switch_from_isr() {
     }
 
     // Account thread time usage.
-    sched_thread_t *cur_thread = sched_current_thread_unsafe();
+    sched_thread_t *cur_thread = sched_current_thread();
     if (cur_thread) {
         timestamp_us_t used               = now - info->last_preempt;
         cur_thread->timeusage.cycle_time += used;
@@ -310,9 +297,17 @@ void sched_request_switch_from_isr() {
             dlist_append(&dead_threads, &thread->node);
             assert_dev_keep(mutex_release_from_isr(NULL, &unused_mtx));
 
-        } else if (!(flags & THREAD_PRIVILEGED) && (flags & THREAD_SUSPENDING)) {
-            // Userspace thread being suspended.
-            atomic_fetch_and(&thread->flags, ~(THREAD_RUNNING | THREAD_SUSPENDING));
+        } else if (((flags & THREAD_KSUSPEND) || !(flags & THREAD_PRIVILEGED)) && (flags & THREAD_SUSPENDING)) {
+            // Userspace and/or kernel thread being suspended.
+            int newval;
+            do {
+                if (!((flags & THREAD_KSUSPEND) || !(flags & THREAD_PRIVILEGED)) || !(flags & THREAD_SUSPENDING)) {
+                    // Suspend cancelled; set as switch target.
+                    set_switch(info, thread);
+                    return;
+                }
+                newval = flags & ~(THREAD_RUNNING | THREAD_KSUSPEND | THREAD_SUSPENDING);
+            } while (!atomic_compare_exchange_strong(&thread->flags, &flags, newval));
 
         } else {
             // Runnable thread found; perform context switch.
@@ -327,14 +322,37 @@ void sched_request_switch_from_isr() {
     set_switch(info, &info->idle_thread);
 }
 
+
+
+// Compare the ID of `sched_thread_t *` to an `int`.
+static int tid_int_cmp(void const *a, void const *b) {
+    sched_thread_t *thread = *(sched_thread_t **)a;
+    tid_t           tid    = (tid_t)(ptrdiff_t)b;
+    return thread->id - tid;
+}
+
+// Find a thread by TID.
+static sched_thread_t *find_thread(tid_t tid) {
+    array_binsearch_t res = array_binsearch(threads, sizeof(void *), threads_len, (void *)(ptrdiff_t)tid, tid_int_cmp);
+    return res.found ? threads[res.index] : NULL;
+}
+
 // Scheduler housekeeping.
 static void sched_housekeeping(int taskno, void *arg) {
     (void)taskno;
     (void)arg;
-    assert_dev_keep(mutex_acquire(NULL, &threads_mtx, TIMESTAMP_US_MAX));
+
+    // Acquire the mutex with interrupts disabled without blocking other threads.
+    while (1) {
+        irq_disable();
+        if (mutex_acquire_from_isr(NULL, &threads_mtx, 500)) {
+            break;
+        }
+        irq_enable();
+        thread_yield();
+    }
 
     // Get list of dead threads.
-    irq_disable();
     assert_dev_keep(mutex_acquire_from_isr(NULL, &unused_mtx, TIMESTAMP_US_MAX));
     dlist_t         tmp  = DLIST_EMPTY;
     sched_thread_t *node = (void *)dead_threads.head;
@@ -347,7 +365,6 @@ static void sched_housekeeping(int taskno, void *arg) {
         node = next;
     }
     assert_dev_keep(mutex_release_from_isr(NULL, &unused_mtx));
-    irq_enable();
 
     // Clean up all dead threads.
     while (tmp.len) {
@@ -360,19 +377,19 @@ static void sched_housekeeping(int taskno, void *arg) {
             array_binsearch(threads, sizeof(void *), threads_len, (void *)(ptrdiff_t)thread->id, tid_int_cmp);
         assert_dev_drop(res.found);
         array_lencap_remove(&threads, sizeof(void *), &threads_len, &threads_cap, NULL, res.index);
+        free(thread);
     }
 
-    assert_dev_keep(mutex_release(NULL, &threads_mtx));
+    assert_dev_keep(mutex_release_from_isr(NULL, &threads_mtx));
+    irq_enable();
 }
-
-
 
 // Idle function ran when a CPU has no threads.
 static void idle_func(void *arg) {
     (void)arg;
     while (1) {
         isr_pause();
-        sched_yield();
+        thread_yield();
     }
 }
 
@@ -450,6 +467,26 @@ void sched_exit(int cpu) {
     assert_dev_keep(mutex_acquire(NULL, &cpu_ctx[cpu].run_mtx, TIMESTAMP_US_MAX));
     atomic_fetch_or_explicit(&cpu_ctx[cpu].flags, SCHED_EXITING, memory_order_relaxed);
     assert_dev_keep(mutex_release(NULL, &cpu_ctx[cpu].run_mtx));
+}
+
+
+
+// Returns the current thread ID.
+tid_t sched_current_tid() {
+    return isr_ctx_get()->thread->id;
+}
+
+// Returns the current thread struct.
+sched_thread_t *sched_current_thread() {
+    return isr_ctx_get()->thread;
+}
+
+// Returns the associated thread struct.
+sched_thread_t *sched_get_thread(tid_t tid) {
+    assert_always(mutex_acquire_shared(NULL, &threads_mtx, TIMESTAMP_US_MAX));
+    sched_thread_t *thread = find_thread(tid);
+    assert_always(mutex_release_shared(NULL, &threads_mtx));
+    return thread;
 }
 
 
@@ -580,24 +617,90 @@ void thread_detach(badge_err_t *ec, tid_t tid) {
 }
 
 
-// Pauses execution of a user thread.
-void thread_suspend(badge_err_t *ec, tid_t tid) {
-    assert_always(mutex_acquire_shared(NULL, &threads_mtx, TIMESTAMP_US_MAX));
-    sched_thread_t *thread = find_thread(tid);
+// Explicitly yield to the scheduler; the scheduler may run other threads without waiting for preemption.
+// Use this function to reduce the CPU time used by a thread.
+void thread_yield() {
+    irq_disable();
+    sched_request_switch_from_isr();
+    isr_context_switch();
+}
+
+// Resume a thread from a timer ISR.
+static void thread_resume_from_timer(void *cookie) {
+    tid_t tid = (tid_t)(long)cookie;
+    thread_resume_now_from_isr(NULL, tid);
+}
+
+// Set thread wakeup timer.
+static void thread_set_wake_time(timestamp_us_t time) {
+    sched_thread_t *thread = sched_current_thread();
+    time_add_async_task(time, thread_resume_from_timer, (void *)(long)thread->id);
+}
+
+// Sleep for an amount of microseconds.
+void thread_sleep(timestamp_us_t delay) {
+    // Set the sleep timer; the kernel thread will yield and wake up later.
+    thread_set_wake_time(time_us() + delay);
+    thread_yield();
+}
+
+// Implementation of thread yield system call.
+void syscall_thread_yield() {
+    thread_yield();
+}
+
+// Implementation of usleep system call.
+void syscall_thread_sleep(timestamp_us_t delay) {
+    // Set the sleep timer; the thread will drop to user mode and then pause.
+    thread_set_wake_time(time_us() + delay);
+}
+
+
+// Pauses execution of a thread.
+// If `suspend_kernel` is false, the thread won't be suspended until it enters user mode.
+void thread_suspend(badge_err_t *ec, tid_t tid, bool suspend_kernel) {
+    sched_thread_t *self = sched_current_thread();
+    sched_thread_t *thread;
+
+    if (tid == self->id) {
+        // If suspending self, disable IRQs to guard suspension.
+        irq_disable();
+        thread = self;
+    } else {
+        // If suspending another thread, acquire mutex to guard existance.
+        assert_always(mutex_acquire_shared(NULL, &threads_mtx, TIMESTAMP_US_MAX));
+        thread = find_thread(tid);
+    }
+
     if (thread) {
-        if (thread->flags & THREAD_KERNEL) {
+        if ((thread->flags & THREAD_KERNEL) && !suspend_kernel) {
             badge_err_set(ec, ELOC_THREADS, ECAUSE_ILLEGAL);
         } else {
-            int exp;
+            int setfl = THREAD_SUSPENDING + suspend_kernel * THREAD_KSUSPEND;
+            int exp   = atomic_load(&thread->flags);
             do {
-                exp = atomic_load(&thread->flags);
-            } while (!atomic_compare_exchange_strong(&thread->flags, &exp, exp | THREAD_SUSPENDING));
+                if (!(exp & THREAD_RUNNING)) {
+                    break;
+                }
+            } while (!atomic_compare_exchange_strong(&thread->flags, &exp, exp | setfl));
             badge_err_set_ok(ec);
         }
     } else {
         badge_err_set(ec, ELOC_THREADS, ECAUSE_NOTFOUND);
     }
-    assert_always(mutex_release_shared(NULL, &threads_mtx));
+
+    if (tid == self->id) {
+        if (suspend_kernel) {
+            // Yield to suspend and implicitly re-enable IRQs.
+            thread_yield();
+        } else {
+            // Re-enable IRQs and wait for the drop to user mode to suspend.
+            irq_enable();
+        }
+    } else {
+        // If suspending another thread, release mutex.
+        assert_always(mutex_release_shared(NULL, &threads_mtx));
+    }
 }
 
 // Try to mark a thread as running if a thread is allowed to be resumed.
@@ -613,35 +716,54 @@ static bool thread_try_mark_running(sched_thread_t *thread, bool now) {
             nextval |= THREAD_STARTNOW;
         }
     } while (!atomic_compare_exchange_strong(&thread->flags, &cur, nextval));
-    return true;
+    return !(cur & THREAD_RUNNING);
 }
 
 // Resumes a previously suspended thread or starts it.
-static void thread_resume_impl(badge_err_t *ec, tid_t tid, bool now) {
-    assert_always(mutex_acquire_shared(NULL, &threads_mtx, TIMESTAMP_US_MAX));
+static void thread_resume_impl(badge_err_t *ec, tid_t tid, bool now, bool from_isr) {
+    if (from_isr) {
+        assert_always(mutex_acquire_shared_from_isr(NULL, &threads_mtx, TIMESTAMP_US_MAX));
+    } else {
+        assert_always(mutex_acquire_shared(NULL, &threads_mtx, TIMESTAMP_US_MAX));
+    }
     sched_thread_t *thread = find_thread(tid);
     if (thread) {
         if (thread_try_mark_running(thread, now)) {
-            irq_disable();
-            thread_handoff(thread, smp_cur_cpu(), true, __INT_MAX__);
-            irq_enable();
+            irq_disable_if(!from_isr);
+            thread_handoff(thread, smp_cur_cpu(), true, 0);
+            irq_enable_if(!from_isr);
         }
         badge_err_set_ok(ec);
     } else {
         badge_err_set(ec, ELOC_THREADS, ECAUSE_NOTFOUND);
     }
-    assert_always(mutex_release_shared(NULL, &threads_mtx));
+    if (from_isr) {
+        assert_always(mutex_release_shared_from_isr(NULL, &threads_mtx));
+    } else {
+        assert_always(mutex_release_shared(NULL, &threads_mtx));
+    }
 }
 
 // Resumes a previously suspended thread or starts it.
 void thread_resume(badge_err_t *ec, tid_t tid) {
-    thread_resume_impl(ec, tid, false);
+    thread_resume_impl(ec, tid, false, false);
 }
 
 // Resumes a previously suspended thread or starts it.
 // Immediately schedules the thread instead of putting it in the queue first.
 void thread_resume_now(badge_err_t *ec, tid_t tid) {
-    thread_resume_impl(ec, tid, true);
+    thread_resume_impl(ec, tid, true, false);
+}
+
+// Resumes a previously suspended thread or starts it from an ISR.
+void thread_resume_from_isr(badge_err_t *ec, tid_t tid) {
+    thread_resume_impl(ec, tid, false, true);
+}
+
+// Resumes a previously suspended thread or starts it from an ISR.
+// Immediately schedules the thread instead of putting it in the queue first.
+void thread_resume_now_from_isr(badge_err_t *ec, tid_t tid) {
+    thread_resume_impl(ec, tid, true, true);
 }
 
 // Returns whether a thread is running; it is neither suspended nor has it exited.
@@ -659,41 +781,6 @@ bool thread_is_running(badge_err_t *ec, tid_t tid) {
     return res;
 }
 
-
-// Returns the current thread ID.
-tid_t sched_current_tid() {
-    return isr_ctx_get()->thread->id;
-}
-
-// Returns the current thread struct.
-sched_thread_t *sched_current_thread() {
-    irq_disable();
-    sched_thread_t *thread = isr_ctx_get()->thread;
-    irq_enable();
-    return thread;
-}
-
-// Returns the current thread without using a critical section.
-sched_thread_t *sched_current_thread_unsafe() {
-    return isr_ctx_get()->thread;
-}
-
-// Returns the associated thread struct.
-sched_thread_t *sched_get_thread(tid_t tid) {
-    assert_always(mutex_acquire_shared(NULL, &threads_mtx, TIMESTAMP_US_MAX));
-    sched_thread_t *thread = find_thread(tid);
-    assert_always(mutex_release_shared(NULL, &threads_mtx));
-    return thread;
-}
-
-
-// Explicitly yield to the scheduler; the scheduler may run other threads without waiting for preemption.
-// Use this function to reduce the CPU time used by a thread.
-void sched_yield() {
-    irq_disable();
-    sched_request_switch_from_isr();
-    isr_context_switch();
-}
 
 // Exits the current thread.
 // If the thread is detached, resources will be cleaned up.
@@ -723,6 +810,6 @@ void thread_join(tid_t tid) {
             return;
         }
         assert_always(mutex_release_shared(NULL, &threads_mtx));
-        sched_yield();
+        thread_yield();
     }
 }

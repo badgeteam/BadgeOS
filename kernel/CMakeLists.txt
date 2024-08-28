@@ -93,7 +93,6 @@ add_executable(${target}
     ${CMAKE_CURRENT_LIST_DIR}/src/process/syscall_util.c
     
     ${CMAKE_CURRENT_LIST_DIR}/src/scheduler/scheduler.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/scheduler/syscall_impl.c
     
     ${CMAKE_CURRENT_LIST_DIR}/src/housekeeping.c
     ${CMAKE_CURRENT_LIST_DIR}/src/main.c

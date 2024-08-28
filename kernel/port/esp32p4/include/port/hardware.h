@@ -33,11 +33,3 @@
 #define RISCV_VT_ICAUSE_MASK 63
 // Bitmask for trap cause.
 #define RISCV_VT_TCAUSE_MASK 31
-
-
-/* ==== SOC INFO ==== */
-
-// Number of timer groups.
-#define ESP_TIMG_COUNT       2
-// Number of timers per timer group.
-#define ESP_TIMG_TIMER_COUNT 1

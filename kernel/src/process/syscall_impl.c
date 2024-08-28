@@ -201,7 +201,7 @@ NOASAN int syscall_proc_waitpid(int pid, int *wstatus, int options) {
             // No children with matching PIDs exist.
             return -ECHILD;
         }
-        sched_yield();
+        thread_yield();
     }
 
     // Nothing found in non-blocking wait.

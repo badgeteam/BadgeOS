@@ -92,9 +92,6 @@ bool smp_poweroff() {
 
 // Pause this CPU, if supported.
 bool smp_pause() {
-    if (smp_cur_cpu() == 0) {
-        return false;
-    }
     cpu_utility_ll_stall_cpu(smp_cur_cpu());
     return true;
 }
@@ -103,4 +100,9 @@ bool smp_pause() {
 bool smp_resume(int cpu) {
     cpu_utility_ll_unstall_cpu(cpu);
     return true;
+}
+
+// Whether a CPU can be powered off at runtime.
+bool smp_can_poweroff(int cpu) {
+    return cpu == 1;
 }

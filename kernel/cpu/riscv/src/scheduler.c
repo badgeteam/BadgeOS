@@ -59,7 +59,7 @@ void sched_raise_from_isr(sched_thread_t *thread, bool syscall, void *entry_poin
 // Requests the scheduler to prepare a switch from kernel to userland for a user thread.
 // Resumes the userland thread where it left off.
 void sched_lower_from_isr() {
-    sched_thread_t *thread  = sched_current_thread_unsafe();
+    sched_thread_t *thread  = sched_current_thread();
     process_t      *process = thread->process;
     assert_dev_drop(!(thread->flags & THREAD_KERNEL) && (thread->flags & THREAD_PRIVILEGED));
     atomic_fetch_and(&thread->flags, ~THREAD_PRIVILEGED);
@@ -144,7 +144,7 @@ bool sched_signal_enter(size_t handler_vaddr, size_t return_vaddr, int signum) {
 // Exits a signal handler in the current thread.
 // Returns false if the process cannot be resumed.
 bool sched_signal_exit() {
-    sched_thread_t *thread = sched_current_thread_unsafe();
+    sched_thread_t *thread = sched_current_thread();
     if (!(atomic_fetch_and(&thread->flags, ~THREAD_SIGHANDLER) & THREAD_SIGHANDLER)) {
         return false;
     }

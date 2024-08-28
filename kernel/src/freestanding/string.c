@@ -24,8 +24,8 @@ size_t strnlen(char const *string, size_t max_len) {
 // Implementation of the mem_copy loop with variable access size.
 #define MEM_COPY_IMPL(type, alignment, dest, src, size)                                                                \
     {                                                                                                                  \
-        type       *dest_ptr = (dest); /* NOLINT*/                                                                     \
-        type const *src_ptr  = (src);  /* NOLINT*/                                                                     \
+        type       *dest_ptr = (dest); /* NOLINT */                                                                    \
+        type const *src_ptr  = (src);  /* NOLINT */                                                                    \
         size_t      _size    = (size) / (alignment);                                                                   \
         if ((dest) < (src)) {                                                                                          \
             /* Forward iteration. */                                                                                   \

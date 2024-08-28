@@ -39,7 +39,9 @@ extern clic_ctl_dev_t CLIC_CTL;
 #define IRQ_GROUPS ((ETS_MAX_INTR_SOURCE + 31) / 32)
 
 // Interrupt claiming bitmask.
-static atomic_int claim_mask[IRQ_GROUPS] = {1, 0, 0, 0};
+static atomic_int claim_mask[IRQ_GROUPS]  = {0};
+// Interrupt enabled bitmask
+static atomic_int enable_mask[IRQ_GROUPS] = {0};
 
 // Get INTMTX for this CPU.
 static inline intmtx_t *intmtx_local() CONST;
@@ -103,36 +105,28 @@ void irq_init() {
 
 // Enable the IRQ.
 void irq_ch_enable(int irq) {
-    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
+    assert_dev_drop(irq >= 0 && irq < ETS_MAX_INTR_SOURCE);
+    atomic_fetch_or(&enable_mask[irq / 32], 1 << (irq % 32));
     INTMTX0.map[irq].map = EXT_IRQ_CH;
     INTMTX1.map[irq].map = EXT_IRQ_CH;
 }
 
 // Disable the IRQ.
 void irq_ch_disable(int irq) {
-    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
+    assert_dev_drop(irq >= 0 && irq < ETS_MAX_INTR_SOURCE);
+    atomic_fetch_and(&enable_mask[irq / 32], ~(1 << (irq % 32)));
     INTMTX0.map[irq].map = 0;
     INTMTX1.map[irq].map = 0;
 }
 
-// Set the external interrupt signal for CPU0 timer IRQs.
-void set_cpu0_timer_irq(int irq) {
-    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
-    INTMTX0.map[irq].map           = TIMER_IRQ_CH;
-    CLIC_CTL.irq_ctl[TIMER_IRQ_CH] = (clic_int_ctl_reg_t){
-        .pending   = false,
-        .enable    = true,
-        .attr_shv  = false,
-        .attr_mode = 3,
-        .attr_trig = false,
-        .ctl       = 127,
-    };
-}
-
-// Set the external interrupt signal for CPU1 timer IRQs.
-void set_cpu1_timer_irq(int irq) {
-    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
-    INTMTX1.map[irq].map           = TIMER_IRQ_CH;
+// Set the external interrupt signal for CPU timer IRQs.
+void set_cpu_timer_irq(int cpu, int irq) {
+    assert_dev_drop(irq >= 0 && irq < ETS_MAX_INTR_SOURCE);
+    if (cpu) {
+        INTMTX1.map[irq].map = TIMER_IRQ_CH;
+    } else {
+        INTMTX0.map[irq].map = TIMER_IRQ_CH;
+    }
     CLIC_CTL.irq_ctl[TIMER_IRQ_CH] = (clic_int_ctl_reg_t){
         .pending   = false,
         .enable    = true,
@@ -145,13 +139,13 @@ void set_cpu1_timer_irq(int irq) {
 
 // Query whether the IRQ is enabled.
 bool irq_ch_is_enabled(int irq) {
-    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
-    return intmtx_local()->map[irq].val != 0;
+    assert_dev_drop(irq >= 0 && irq < ETS_MAX_INTR_SOURCE);
+    return (enable_mask[irq / 32] >> (irq % 32)) & 1;
 }
 
 // Set the interrupt service routine for an interrupt on this CPU.
 void irq_ch_set_isr(int irq, isr_t isr) {
-    assert_dev_drop(irq > 0 && irq < ETS_MAX_INTR_SOURCE);
+    assert_dev_drop(irq >= 0 && irq < ETS_MAX_INTR_SOURCE);
     isr_table[irq] = isr;
 }
 
@@ -169,13 +163,14 @@ void riscv_interrupt_handler() {
     intmtx_t *intmtx = intmtx_local();
 
     for (size_t i = 0; i < IRQ_GROUPS; i++) {
-        uint32_t pending = intmtx->pending[i];
+        uint32_t pending = intmtx->pending[i] & atomic_load(&enable_mask[i]);
         while (pending) {
-            int      lsb_pos  = __builtin_clz(pending);
-            uint32_t lsb_mask = 1 << lsb_pos;
-            int      prev     = atomic_fetch_or(&claim_mask[i], lsb_mask);
+            int      lsb_pos   = __builtin_ctz(pending);
+            uint32_t lsb_mask  = 1 << lsb_pos;
+            pending           ^= lsb_mask;
+            int irq            = i * 32 + lsb_pos;
+            int prev           = atomic_fetch_or(&claim_mask[i], lsb_mask);
             if (!(prev & lsb_mask)) {
-                int irq = i * 32 + lsb_pos;
                 if (!isr_table[irq]) {
                     logkf(LOG_FATAL, "Unhandled interrupt #%{u32;d}", irq);
                     panic_abort();
