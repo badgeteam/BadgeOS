@@ -113,7 +113,7 @@ static inline bool
         } else if (from_isr) {
             isr_pause();
         } else {
-            mutex_wait(mutex, timeout);
+            thread_yield();
         }
     }
 }

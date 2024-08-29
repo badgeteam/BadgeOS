@@ -68,6 +68,7 @@ add_executable(${target}
     ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/mutex.c
     ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/num_to_str.c
     ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/rawprint.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/badgelib/spinlock.c
     
     ${CMAKE_CURRENT_LIST_DIR}/src/blockdevice/blkdev_ram.c
     ${CMAKE_CURRENT_LIST_DIR}/src/blockdevice/blockdevice.c
@@ -104,7 +105,7 @@ add_executable(${target}
 )
 include_directories(
     ${CMAKE_CURRENT_LIST_DIR}/include
-    ${CMAKE_CURRENT_LIST_DIR}/src/malloc
+    # ${CMAKE_CURRENT_LIST_DIR}/src/malloc
     ${CMAKE_CURRENT_LIST_DIR}/include/badgelib
     ${CMAKE_CURRENT_LIST_DIR}/../common/include
     ${CMAKE_CURRENT_LIST_DIR}/../common/badgelib
