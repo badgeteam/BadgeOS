@@ -43,6 +43,16 @@ static dlist_t           dead_threads;
 
 
 
+// Remove the current thread from the runqueue from this CPU.
+// Interrupts must be disabled.
+sched_thread_t *thread_dequeue_self() {
+    isr_ctx_t        *kctx = isr_ctx_get();
+    sched_cpulocal_t *info = kctx->cpulocal->sched;
+    sched_thread_t   *self = kctx->thread;
+    dlist_remove(&info->queue, self);
+    return self;
+}
+
 // Set the context switch to a certain thread.
 static void set_switch(sched_cpulocal_t *info, sched_thread_t *thread) {
     int pflags = thread->process ? atomic_load(&thread->process->flags) : 0;
@@ -70,7 +80,8 @@ static void set_switch(sched_cpulocal_t *info, sched_thread_t *thread) {
 }
 
 // Try to hand a thread off to another CPU.
-static bool thread_handoff(sched_thread_t *thread, int cpu, bool force, int max_load) {
+// The thread must not yet be in any runqueue.
+bool thread_handoff(sched_thread_t *thread, int cpu, bool force, int max_load) {
     sched_cpulocal_t *info = cpu_ctx + cpu;
     assert_dev_keep(mutex_acquire_shared_from_isr(NULL, &info->run_mtx, TIMESTAMP_US_MAX));
 
@@ -641,7 +652,7 @@ static void thread_set_wake_time(timestamp_us_t time) {
 void thread_sleep(timestamp_us_t delay) {
     // Set the sleep timer; the kernel thread will yield and wake up later.
     thread_set_wake_time(time_us() + delay);
-    thread_yield();
+    thread_suspend(NULL, sched_current_tid(), true);
 }
 
 // Implementation of thread yield system call.
@@ -653,6 +664,7 @@ void syscall_thread_yield() {
 void syscall_thread_sleep(timestamp_us_t delay) {
     // Set the sleep timer; the thread will drop to user mode and then pause.
     thread_set_wake_time(time_us() + delay);
+    thread_suspend(NULL, sched_current_tid(), false);
 }
 
 

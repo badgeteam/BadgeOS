@@ -204,7 +204,7 @@ void vfs_ramfs_mount(badge_err_t *ec, vfs_t *vfs) {
         return;
     }
     vfs->inode_root = VFS_RAMFS_INODE_ROOT;
-    mutex_init_shared(ec, &vfs->ramfs.mtx);
+    mutex_init(ec, &vfs->ramfs.mtx, true, false);
 
     // Clear inode usage.
     mem_set(vfs->ramfs.inode_list, 0, sizeof(*vfs->ramfs.inode_list) * vfs->ramfs.inode_list_len);

@@ -3,33 +3,36 @@
 
 #pragma once
 
+#include "list.h"
+#include "time.h"
+
 #include <stdatomic.h>
 #include <stdbool.h>
 
-// Magic value for the magic field.
-#define MUTEX_MAGIC (int)0xcafebabe
-
 typedef struct {
-    // Magic value.
-    atomic_int magic;
     // Mutex allows sharing.
-    bool       is_shared;
+    bool        is_shared;
+    // Allow accessing from ISR.
+    bool        allow_isr;
+    // Spinlock guarding the waiting list.
+    atomic_flag wait_spinlock;
     // Share count and/or is locked.
-    atomic_int shares;
+    atomic_int  shares;
+    // List of threads waiting for this mutex.
+    dlist_t     waiting_list;
 } mutex_t;
 
-#define MUTEX_T_INIT        ((mutex_t){MUTEX_MAGIC, 0, 0})
-#define MUTEX_T_INIT_SHARED ((mutex_t){MUTEX_MAGIC, 1, 0})
+#define MUTEX_T_INIT            ((mutex_t){0, 0, ATOMIC_FLAG_INIT, 0, {0}})
+#define MUTEX_T_INIT_SHARED     ((mutex_t){1, 0, ATOMIC_FLAG_INIT, 0, {0}})
+#define MUTEX_T_INIT_ISR        ((mutex_t){0, 1, ATOMIC_FLAG_INIT, 0, {0}})
+#define MUTEX_T_INIT_SHARED_ISR ((mutex_t){1, 1, ATOMIC_FLAG_INIT, 0, {0}})
 
 #include "badge_err.h"
-#include "time.h"
 
 
 
-// Initialise a mutex for unshared use.
-void mutex_init(badge_err_t *ec, mutex_t *mutex);
-// Initialise a mutex for shared use.
-void mutex_init_shared(badge_err_t *ec, mutex_t *mutex);
+// Recommended way to create a mutex at run-time.
+void mutex_init(badge_err_t *ec, mutex_t *mutex, bool shared, bool allow_isr);
 // Clean up the mutex.
 void mutex_destroy(badge_err_t *ec, mutex_t *mutex);
 

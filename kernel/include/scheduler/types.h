@@ -74,6 +74,8 @@ struct sched_thread_t {
     atomic_int flags;
     // Exit code from `thread_exit`
     int        exit_code;
+    // Timer ID used by mutex timeout code.
+    int64_t    mutex_timer_id;
 
     // ISR context for threads running in kernel mode.
     isr_ctx_t kernel_isr_ctx;

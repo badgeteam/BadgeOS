@@ -5,8 +5,12 @@
 
 #include "assertions.h"
 #include "cpu/isr.h"
+#include "interrupt.h"
 #include "log.h"
+#include "scheduler/isr.h"
 #include "scheduler/scheduler.h"
+#include "scheduler/types.h"
+#include "smp.h"
 #include "time.h"
 
 // Magic value for exclusive locking.
@@ -14,18 +18,66 @@
 
 
 
+// Recommended way to create a mutex at run-time.
+void mutex_init(badge_err_t *ec, mutex_t *mutex, bool shared, bool allow_isr) {
+    *mutex = ((mutex_t){shared, allow_isr, ATOMIC_FLAG_INIT, 0, {0}});
+    atomic_thread_fence(memory_order_release);
+}
+
+// Clean up the mutex.
+void mutex_destroy(badge_err_t *ec, mutex_t *mutex) {
+    // The mutex must always be completely unlocked to guarantee no threads are waiting on it.
+    assert_dev_drop(mutex->shares == 0);
+    assert_dev_drop(!atomic_flag_test_and_set(&mutex->wait_spinlock));
+    irq_disable();
+    int cur_cpu = smp_cur_cpu();
+    while (mutex->waiting_list.len) {
+        thread_handoff(dlist_pop_front(&mutex->waiting_list), cur_cpu, true, 0);
+    }
+    irq_enable();
+}
+
+
+
+// Mutex resume by timer.
+static void mutex_resume_timer(void *cookie) {
+}
+
+// Mutex awaiting implementation.
+static void mutex_wait(mutex_t *mutex, timestamp_us_t timeout) {
+    // Disable IRQs because of multiple IRQ spinlocks in use here.
+    irq_disable();
+    // Pause the execution of this thread.
+    sched_thread_t *self = thread_dequeue_self();
+
+    if (timeout < TIMESTAMP_US_MAX) {
+        // Set timeout interrupt for mutex.
+        self->mutex_timer_id = time_add_async_task(timeout, mutex_resume_timer, self);
+    } else {
+        // No timeout; no timer interrupt is added.
+        self->mutex_timer_id = 0;
+    }
+
+    // Add thread to mutex waiting list.
+    while (atomic_flag_test_and_set_explicit(&mutex->wait_spinlock, memory_order_acquire));
+    atomic_flag_clear_explicit(&mutex->wait_spinlock, memory_order_release);
+
+    // Switch to some other still runnable thread.
+    thread_yield();
+}
+
 // Atomically await the expected value and swap in the new value.
 static inline bool await_swap_atomic_int(
-    atomic_int *var, timestamp_us_t timeout, int expected, int new_value, memory_order order, bool from_isr
+    mutex_t *mutex, timestamp_us_t timeout, int expected, int new_value, memory_order order, bool from_isr
 ) {
     do {
         int old_value = expected;
-        if (atomic_compare_exchange_weak_explicit(var, &old_value, new_value, order, memory_order_relaxed)) {
+        if (atomic_compare_exchange_weak_explicit(&mutex->shares, &old_value, new_value, order, memory_order_relaxed)) {
             return true;
         } else if (from_isr) {
             isr_pause();
         } else {
-            thread_yield();
+            mutex_wait(mutex, timeout);
         }
     } while (time_us() < timeout);
     return false;
@@ -33,17 +85,17 @@ static inline bool await_swap_atomic_int(
 
 // Atomically check the value does not exceed a threshold and add 1.
 static inline bool
-    thresh_add_atomic_int(atomic_int *var, timestamp_us_t timeout, int threshold, memory_order order, bool from_isr) {
+    thresh_add_atomic_int(mutex_t *mutex, timestamp_us_t timeout, int threshold, memory_order order, bool from_isr) {
+    int old_value = atomic_load(&mutex->shares);
     do {
-        int old_value = atomic_load(var);
         int new_value = old_value + 1;
         if (!(old_value >= threshold || new_value >= threshold) &&
-            atomic_compare_exchange_weak_explicit(var, &old_value, new_value, order, memory_order_relaxed)) {
+            atomic_compare_exchange_weak_explicit(&mutex->shares, &old_value, new_value, order, memory_order_relaxed)) {
             return true;
         } else if (from_isr) {
             isr_pause();
         } else {
-            thread_yield();
+            mutex_wait(mutex, timeout);
         }
     } while (time_us() < timeout);
     return false;
@@ -51,68 +103,27 @@ static inline bool
 
 // Atomically check the value doesn't equal either illegal values and subtract 1.
 static inline bool
-    unequal_sub_atomic_int(atomic_int *var, int unequal0, int unequal1, memory_order order, bool from_isr) {
+    unequal_sub_atomic_int(mutex_t *mutex, int unequal0, int unequal1, memory_order order, bool from_isr) {
+    int old_value = atomic_load(&mutex->shares);
     while (1) {
-        int old_value = atomic_load(var);
         int new_value = old_value - 1;
         if (!(old_value == unequal0 || old_value == unequal1) &&
-            atomic_compare_exchange_weak_explicit(var, &old_value, new_value, order, memory_order_relaxed)) {
+            atomic_compare_exchange_weak_explicit(&mutex->shares, &old_value, new_value, order, memory_order_relaxed)) {
             return true;
         } else if (from_isr) {
             isr_pause();
         } else {
-            thread_yield();
+            mutex_wait(mutex, timeout);
         }
     }
 }
 
 
 
-// Initialise a mutex for unshared use.
-void mutex_init(badge_err_t *ec, mutex_t *mutex) {
-    if (atomic_load_explicit(&mutex->magic, memory_order_acquire) == MUTEX_MAGIC) {
-        badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_ILLEGAL);
-        return;
-    }
-    mutex->magic     = MUTEX_MAGIC;
-    mutex->is_shared = false;
-    atomic_store(&mutex->shares, 0);
-    atomic_thread_fence(memory_order_release);
-    badge_err_set_ok(ec);
-}
-
-// Initialise a mutex for shared use.
-void mutex_init_shared(badge_err_t *ec, mutex_t *mutex) {
-    if (atomic_load_explicit(&mutex->magic, memory_order_acquire) == MUTEX_MAGIC) {
-        badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_ILLEGAL);
-        return;
-    }
-    mutex->magic     = MUTEX_MAGIC;
-    mutex->is_shared = true;
-    atomic_store(&mutex->shares, 0);
-    atomic_thread_fence(memory_order_release);
-    badge_err_set_ok(ec);
-}
-
-// Clean up the mutex.
-void mutex_destroy(badge_err_t *ec, mutex_t *mutex) {
-    if (atomic_load_explicit(&mutex->magic, memory_order_acquire) != MUTEX_MAGIC) {
-        badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_ILLEGAL);
-        return;
-    }
-    mutex->magic = 0;
-    atomic_thread_fence(memory_order_release);
-}
-
-
 // Try to acquire `mutex` within `timeout` microseconds.
 // Returns true if the mutex was successully acquired.
 static bool mutex_acquire_impl(badge_err_t *ec, mutex_t *mutex, timestamp_us_t timeout, bool from_isr) {
-    if (atomic_load_explicit(&mutex->magic, memory_order_acquire) != MUTEX_MAGIC) {
-        badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_ILLEGAL);
-        logkf(LOG_WARN, "Mutex 0x%{size;x} magic is invalid", mutex);
-        return false;
-    }
+    assert_dev_drop(!from_isr || mutex->allow_isr);
     // Compute timeout.
     timestamp_us_t now = time_us();
     if (timeout < 0 || timeout - TIMESTAMP_US_MAX + now >= 0) {
@@ -135,11 +146,7 @@ static bool mutex_acquire_impl(badge_err_t *ec, mutex_t *mutex, timestamp_us_t t
 // Release `mutex`, if it was initially acquired by this thread.
 // Returns true if the mutex was successfully released.
 static bool mutex_release_impl(badge_err_t *ec, mutex_t *mutex, bool from_isr) {
-    if (atomic_load_explicit(&mutex->magic, memory_order_acquire) != MUTEX_MAGIC) {
-        badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_ILLEGAL);
-        logkf(LOG_WARN, "Mutex 0x%{size;x} magic is invalid", mutex);
-        return false;
-    }
+    assert_dev_drop(!from_isr || mutex->allow_isr);
     assert_dev_drop(atomic_load(&mutex->shares) >= EXCLUSIVE_MAGIC);
     if (await_swap_atomic_int(&mutex->shares, TIMESTAMP_US_MAX, EXCLUSIVE_MAGIC, 0, memory_order_release, from_isr)) {
         // Successful release.
@@ -155,11 +162,6 @@ static bool mutex_release_impl(badge_err_t *ec, mutex_t *mutex, bool from_isr) {
 // Try to acquire a share in `mutex` within `timeout` microseconds.
 // Returns true if the share was successfully acquired.
 static bool mutex_acquire_shared_impl(badge_err_t *ec, mutex_t *mutex, timestamp_us_t timeout, bool from_isr) {
-    if (atomic_load_explicit(&mutex->magic, memory_order_acquire) != MUTEX_MAGIC) {
-        badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_ILLEGAL);
-        logkf(LOG_WARN, "Mutex 0x%{size;x} magic is invalid", mutex);
-        return false;
-    }
     if (!mutex->is_shared) {
         badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_ILLEGAL);
         return false;
@@ -186,11 +188,6 @@ static bool mutex_acquire_shared_impl(badge_err_t *ec, mutex_t *mutex, timestamp
 // Release `mutex`, if it was initially acquired by this thread.
 // Returns true if the mutex was successfully released.
 static bool mutex_release_shared_impl(badge_err_t *ec, mutex_t *mutex, bool from_isr) {
-    if (atomic_load_explicit(&mutex->magic, memory_order_acquire) != MUTEX_MAGIC) {
-        badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_ILLEGAL);
-        logkf(LOG_WARN, "Mutex 0x%{size;x} magic is invalid", mutex);
-        return false;
-    }
     assert_dev_drop(atomic_load(&mutex->shares) < EXCLUSIVE_MAGIC);
     if (!unequal_sub_atomic_int(&mutex->shares, 0, EXCLUSIVE_MAGIC, memory_order_release, from_isr)) {
         // Prevent the counter from underflowing.

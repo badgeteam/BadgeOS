@@ -104,13 +104,13 @@ class OptEnum(Option[T]):
         while True:
             print(f"Available {desc.name} options:")
             for i in range(len(keys)):
-                print(f"[{i+1}] {options[keys[i]]}")
+                print(f"[{i+1}] {self.options[keys[i]]}")
             defidx = keys.index(self.defval)+1
-            idx = input(f"Select {desc.name} [{defidx}] ") or str(defidx+1)
+            idx = input(f"Select {desc.name} [{defidx}] ") or str(defidx)
             try:
-                idx = str(idx)
+                idx = int(idx)
                 if idx >= 1 and idx <= len(keys):
-                    return options[keys[idx-1]]
+                    return self.options[keys[idx-1]]
             except ValueError:
                 continue
     
