@@ -160,6 +160,6 @@ bool io_is_peripheral(badge_err_t *ec, int pin) {
         return false;
     } else {
         badge_err_set_ok(ec);
-        return io_has_function(pin);
+        return (!io_has_function(pin));
     }
 }

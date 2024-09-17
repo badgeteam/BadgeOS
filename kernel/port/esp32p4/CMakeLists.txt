@@ -10,6 +10,8 @@ set(cpu_riscv_enable_pmp true)
 set(cpu_multicore true)
 
 set(port_src
+    ${CMAKE_CURRENT_LIST_DIR}/src/clkconfig.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/hal/spi.c
     ${CMAKE_CURRENT_LIST_DIR}/src/interrupt.c
     ${CMAKE_CURRENT_LIST_DIR}/src/memprotect.c
     ${CMAKE_CURRENT_LIST_DIR}/src/pmu_init.c

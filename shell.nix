@@ -1,18 +1,22 @@
 let
-  nixpkgs_rev = "1f7e3343e3de9e8d05d8316262a95409a390c83b";  # master on 2024-03-20
+  nixpkgs-rev = "d8fd1dd81c18a31844d08d63207f6c4a9e2c51ba";  # release-24.05 on 2024-08-14
+  nixpkgs-hash = "sha256:002nvkg7ak7a39963fw4vad2pm14c3rimj00z115pzrlflx6h4nl";
+  nixpkgs-src = (builtins.fetchTarball {
+    url = "https://github.com/NixOS/nixpkgs/archive/${nixpkgs-rev}.tar.gz";
+    sha256 = nixpkgs-hash;
+  });
 
-  # TODO: change to mirrexagon's repo after merges of PR 42 and 44
-  nixpkgs-esp-dev_rev = "b3594b490ed1ffb40e5dd20ea7074b73ae34ea27"; # main on 2024-03-20
-  nixpkgs-esp-dev_sha256 = "sha256:0fqvk9va6rqd9pmjd82pmikzc30d174jcgmvfyacg875qgrxjii8";
-  nixpkgs-esp-dev_src = (builtins.fetchTarball {
-    url = "https://github.com/cyber-murmel/nixpkgs-esp-dev/archive/${nixpkgs-esp-dev_rev}.tar.gz";
-    sha256 = nixpkgs-esp-dev_sha256;
+  esp-dev-rev = "86a2bbe01fe0258887de7396af2a5eb0e37ac3be"; # main on 2024-08-04
+  esp-dev-hash = "sha256:1sj2dz0a0rsmpm5igyxiy8sj8j8scsz1b6hcs0z4spwp83bc6lvv";
+  esp-dev-src = (builtins.fetchTarball {
+    url = "https://github.com/mirrexagon/nixpkgs-esp-dev/archive/${esp-dev-rev}.tar.gz";
+    sha256 = esp-dev-hash;
   });
 in
 
-{ pkgs ? import (builtins.fetchTarball "https://github.com/NixOS/nixpkgs/archive/${nixpkgs_rev}.tar.gz") {
+{ pkgs ? import nixpkgs-src {
   overlays = [
-    (import "${nixpkgs-esp-dev_src}/overlay.nix")
+    (import "${esp-dev-src}/overlay.nix")
   ];
 }
 }:
@@ -31,16 +35,16 @@ let
     buildInputs = [
       autoPatchelfHook
 
-      zlib
+      expat
       glib
       gmp
-      zstd
-      mpfr
       libmpc
       lzma
-      expat
-      python310
+      mpfr
       ncurses
+      python310
+      zlib
+      zstd
     ];
 
     installPhase = ''
@@ -51,13 +55,27 @@ let
       runHook postInstall
     '';
   };
+
+  # esptool-git = esptool.overrideAttrs(finalAttrs: previousAttrs: rec{
+  #   version = "4d0c7d9";
+  #   src = fetchFromGitHub {
+  #     owner = "espressif";
+  #     repo = "esptool";
+  #     rev = "${version}";
+  #     hash = "sha256-O9rqCAMK+1JMMCJFl5GggEJqQ0LCP436wf2MCEo2gE0=";
+  #   };
+  # });
 in
 mkShell {
   buildInputs = [
-    riscv32-unknown-linux-gnu
+    clang-tools_18
     cmake
-    esptool
-    picocom
     esp-idf-esp32c6
+    jq
+    picocom
+    riscv32-unknown-linux-gnu
   ];
+
+  CLANG_FORMAT = "clang-format";
+  CLANG_TIDY = "clang-tidy";
 }

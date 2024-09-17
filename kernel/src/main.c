@@ -3,6 +3,7 @@
 
 #include "cpu/panic.h"
 #include "filesystem.h"
+#include "hal/spi.h"
 #include "housekeeping.h"
 #include "interrupt.h"
 #include "isr_ctx.h"
@@ -126,10 +127,16 @@ void basic_runtime_init() {
 // When finished, the non-booting CPUs will be started (method and entrypoints to be determined).
 static void kernel_init() {
     badge_err_t ec = {0};
+
+    static char data[] = {0x55, 0x55, 0x55, 0x55};
     // Memory protection initialization.
     memprotect_init();
     // Full hardware initialization.
     port_init();
+
+    spi_controller_init(&ec, 0, 20, 21, 22, 23, 1*1000*1000);
+    spi_controller_write(&ec, 0, data, sizeof(data));
+    spi_controller_write(&ec, 0, data, sizeof(data));
 
     // Temporary filesystem image.
     fs_mount(&ec, FS_TYPE_RAMFS, NULL, "/", 0);
