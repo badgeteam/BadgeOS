@@ -485,12 +485,14 @@ __attribute__((always_inline)) static inline buddy_block_t *buddy_get_block(void
     void *aligned_ptr = ALIGN_PAGE_DOWN(ptr);
     if (aligned_ptr != ptr) {
         BADGEROS_MALLOC_MSG_ERROR("buddy_get_block(" FMT_P ") = Pointer not page aligned", ptr);
+        panic_abort();
         return NULL;
     }
 
     *pool = ptr_to_pool(ptr);
     if (!*pool) {
         BADGEROS_MALLOC_MSG_ERROR("buddy_get_block(" FMT_P ") = Pointer not in a pool", ptr);
+        panic_abort();
         return NULL;
     }
 

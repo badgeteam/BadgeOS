@@ -478,6 +478,22 @@ void memprotect_free_vaddr(size_t vaddr) {
 void memprotect_early_init() {
     // Initialize MMU driver.
     mmu_early_init();
+}
+
+// Initialise memory protection driver.
+void memprotect_postheap_init() {
+    // Mark entire space as free.
+    vmm_info_t mem;
+    mem.vpn      = mmu_high_vpn;
+    mem.pages    = mmu_half_pages;
+    vmm_free     = malloc(sizeof(vmm_info_t));
+    vmm_free[0]  = mem;
+    vmm_free_len = 1;
+    vmm_free_cap = 1;
+
+    // Remove HHDM and kernel from free area.
+    vmm_mark_reserved(memprotect_kernel_vpn - 1, memprotect_kernel_pages + 2);
+    vmm_mark_reserved(mmu_hhdm_vpn - 1, memprotect_hhdm_pages + 2);
 
     // Allocate global page table.
     mpu_global_ctx.root_ppn = phys_page_alloc(1, false);
@@ -538,25 +554,13 @@ void memprotect_early_init() {
     atomic_thread_fence(memory_order_release);
     memprotect_swap_from_isr();
     logkf_from_isr(LOG_INFO, "Virtual memory initialized, %{d} paging levels", mmu_levels);
+
+    // Run other MMU init code.
+    mmu_init();
 }
 
 // Initialise memory protection driver.
 void memprotect_init() {
-    // Mark entire space as free.
-    vmm_info_t mem;
-    mem.vpn      = mmu_high_vpn;
-    mem.pages    = mmu_half_pages;
-    vmm_free     = malloc(sizeof(vmm_info_t));
-    vmm_free[0]  = mem;
-    vmm_free_len = 1;
-    vmm_free_cap = 1;
-
-    // Remove HHDM and kernel from free area.
-    vmm_mark_reserved(memprotect_kernel_vpn - 1, memprotect_kernel_pages + 2);
-    vmm_mark_reserved(mmu_hhdm_vpn - 1, memprotect_hhdm_pages + 2);
-
-    // Run other MMU init code.
-    mmu_init();
 }
 
 

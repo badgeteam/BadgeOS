@@ -65,7 +65,7 @@ static smp_map_t *smp_unmap;
 
 
 // Initialise the SMP subsystem.
-void smp_init(dtb_handle_t *dtb) {
+void smp_init_dtb(dtb_handle_t *dtb) {
     int cpu_index = 0;
 
     sbi_ret_t res = sbi_probe_extension(SBI_HART_MGMT_EID);

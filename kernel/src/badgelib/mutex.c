@@ -41,6 +41,26 @@ void mutex_destroy(badge_err_t *ec, mutex_t *mutex) {
 
 // Mutex resume by timer.
 static void mutex_resume_timer(void *cookie) {
+    sched_thread_t *thread = cookie;
+    // Disable IRQs because of multiple IRQ spinlocks in use here.
+    bool            ie     = irq_disable();
+
+    int flags = atomic_fetch_and(&thread->flags, ~THREAD_BLOCKED);
+    if (flags & THREAD_BLOCKED) {
+        // If blocked flag was still set, we won the race with mutex_notify.
+        mutex_t *mutex = thread->blocking_obj.mutex.mutex;
+
+        // Remove thread from waiting list.
+        while (atomic_flag_test_and_set_explicit(&mutex->wait_spinlock, memory_order_acquire));
+        dlist_remove(&mutex->waiting_list, &thread->node);
+        atomic_flag_clear_explicit(&mutex->wait_spinlock, memory_order_release);
+
+        // Resume the thread.
+        thread_handoff(thread, smp_cur_cpu(), true, 0);
+    }
+
+    // Re-enable interrupts.
+    irq_enable_if(ie);
 }
 
 // Mutex awaiting implementation.
@@ -50,12 +70,15 @@ static void mutex_wait(mutex_t *mutex, timestamp_us_t timeout) {
     // Pause the execution of this thread.
     sched_thread_t *self = thread_dequeue_self();
 
+    atomic_fetch_or(&self->flags, THREAD_BLOCKED);
+    self->blocked_by               = THREAD_BLOCK_MUTEX;
+    self->blocking_obj.mutex.mutex = mutex;
     if (timeout < TIMESTAMP_US_MAX) {
         // Set timeout interrupt for mutex.
-        self->mutex_timer_id = time_add_async_task(timeout, mutex_resume_timer, self);
+        self->blocking_obj.mutex.timer_id = time_add_async_task(timeout, mutex_resume_timer, self);
     } else {
         // No timeout; no timer interrupt is added.
-        self->mutex_timer_id = 0;
+        self->blocking_obj.mutex.timer_id = -1;
     }
 
     // Add thread to mutex waiting list.
@@ -69,14 +92,39 @@ static void mutex_wait(mutex_t *mutex, timestamp_us_t timeout) {
 
 // Notify the first waiting thread of the mutex being released.
 static void mutex_notify(mutex_t *mutex) {
-    irq_disable();
+    bool ie = irq_disable();
     while (atomic_flag_test_and_set_explicit(&mutex->wait_spinlock, memory_order_acquire));
-    if (mutex->waiting_list.len) {
-        sched_thread_t *to_resume = (sched_thread_t *)dlist_pop_front(&mutex->waiting_list);
-        thread_handoff(to_resume, smp_cur_cpu(), true, 0);
+
+    dlist_node_t *node = mutex->waiting_list.head;
+    while (node) {
+        // Try to pop the first thread from the list.
+        sched_thread_t *thread = (sched_thread_t *)node;
+        int             flags  = atomic_fetch_and(&thread->flags, ~THREAD_BLOCKED);
+        if (flags & THREAD_BLOCKED) {
+            // If blocked flag was still set, we won the race with the timer.
+            // Remove thread from the waiting list.
+            dlist_remove(&mutex->waiting_list, node);
+            atomic_flag_clear_explicit(&mutex->wait_spinlock, memory_order_release);
+
+            // Cancel the timer.
+            if (thread->blocking_obj.mutex.timer_id != -1) {
+                time_cancel_async_task(thread->blocking_obj.mutex.timer_id);
+            }
+
+            // Resume the thread.
+            thread_handoff(thread, smp_cur_cpu(), true, 0);
+            irq_enable_if(ie);
+            return;
+
+        } else {
+            // We lost the race with the timer; try the next thread.
+            node = node->next;
+        }
     }
+
+    // We lost all the races or there were no threads in the waiting list.
     atomic_flag_clear_explicit(&mutex->wait_spinlock, memory_order_release);
-    irq_enable();
+    irq_enable_if(ie);
 }
 
 // Atomically await the expected value and swap in the new value.

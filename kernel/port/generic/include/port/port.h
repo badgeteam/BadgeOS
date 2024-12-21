@@ -9,6 +9,8 @@
 
 // Early hardware initialization.
 void port_early_init();
+// Post-heap hardware initialization.
+void port_postheap_init();
 // Full hardware initialization.
 void port_init();
 // Power off.

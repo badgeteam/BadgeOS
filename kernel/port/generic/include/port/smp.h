@@ -10,4 +10,4 @@
 #include <stdint.h>
 
 // Initialise the SMP subsystem.
-void smp_init(dtb_handle_t *dtb);
+void smp_init_dtb(dtb_handle_t *dtb);

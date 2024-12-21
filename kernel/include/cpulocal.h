@@ -4,6 +4,7 @@
 #pragma once
 
 #include "scheduler/scheduler.h"
+#include "time_private.h"
 
 #include <stddef.h>
 
@@ -19,6 +20,8 @@ typedef struct {
     size_t            isr_stack_bottom;
     // CPU-local scheduler data.
     sched_cpulocal_t *sched;
+    // CPU-local timer data.
+    time_cpulocal_t   time;
 } cpulocal_t;
 
 // Per-CPU CPU-local data.

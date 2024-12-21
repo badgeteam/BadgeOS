@@ -5,13 +5,19 @@
 #define _GNU_SOURCE
 #endif
 
+#include "config.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#define PAGE_SIZE        4096
+#define PAGE_SIZE 4096
+#ifdef CONFIG_TARGET_generic
+#define MAX_MEMORY_POOLS 16
+#else
 #define MAX_MEMORY_POOLS 4
-#define MAX_SLAB_SIZE    256
+#endif
+#define MAX_SLAB_SIZE 256
 
 #define ALIGN_UP(x, y)   (void *)(((size_t)(x) + (y - 1)) & ~(y - 1))
 #define ALIGN_DOWN(x, y) (void *)((size_t)(x) & ~(y - 1))

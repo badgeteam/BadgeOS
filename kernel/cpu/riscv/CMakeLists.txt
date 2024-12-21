@@ -16,6 +16,10 @@ set(cpu_src
     ${CMAKE_CURRENT_LIST_DIR}/src/scheduler.c
     ${CMAKE_CURRENT_LIST_DIR}/src/usercopy.c
 )
+set(cpu_include ${CMAKE_CURRENT_LIST_DIR}/include)
+set(cpu_link)
+set(cpu_flags)
+
 if(DEFINED cpu_multicore)
     set(cpu_src ${cpu_src} ${CMAKE_CURRENT_LIST_DIR}/src/cpu1_entrypoint.S)
 endif()
@@ -31,6 +35,7 @@ endif()
 if(DEFINED cpu_riscv_enable_mmu)
     set(cpu_src ${cpu_src} ${CMAKE_CURRENT_LIST_DIR}/src/memprotect/mmu.c)
 endif()
-set(cpu_include ${CMAKE_CURRENT_LIST_DIR}/include)
-set(cpu_link)
-set(cpu_flags)
+if(DEFINED cpu_riscv_enable_sbi_time)
+    set(cpu_src ${cpu_src} ${CMAKE_CURRENT_LIST_DIR}/src/sbi_time.c)
+    add_definitions(-DCPU_RISCV_ENABLE_SBI_TIME)
+endif()

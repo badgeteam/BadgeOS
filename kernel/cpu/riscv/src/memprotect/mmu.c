@@ -75,6 +75,8 @@ void mmu_init() {
     size_t pa = memprotect_kernel_vpn * MMU_PAGE_SIZE;
     assert_always(va);
 
+    // TODO: Check for accessed and dirty bit scheme.
+
     // Check for Svpbmt.
     mmu_svpbmt = true;
     assert_always(memprotect_k(va, pa, MMU_PAGE_SIZE, MEMPROTECT_FLAG_R | MEMPROTECT_FLAG_IO));

@@ -56,6 +56,8 @@ void        memprotect_free_vaddr(size_t vaddr);
 // Initialise memory protection driver.
 void memprotect_early_init();
 // Initialise memory protection driver.
+void memprotect_postheap_init();
+// Initialise memory protection driver.
 void memprotect_init();
 // Create a memory protection context.
 void memprotect_create(mpu_ctx_t *ctx);

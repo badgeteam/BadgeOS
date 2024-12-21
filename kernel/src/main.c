@@ -56,19 +56,21 @@ void basic_runtime_init() {
 
     // ISR initialization.
     irq_init();
+    // Early memory protection initialization.
+    memprotect_early_init();
     // Early platform initialization.
     port_early_init();
-
-    // Timekeeping initialization.
-    time_init();
 
     // Announce that we're alive.
     logk_from_isr(LOG_INFO, "BadgerOS " CONFIG_TARGET " starting...");
 
-    // Early memory protection initialization.
-    memprotect_early_init();
     // Kernel memory allocator initialization.
     kernel_heap_init();
+
+    // Post-heap memory protection initialization.
+    memprotect_postheap_init();
+    // Post-heap platform initialization.
+    port_postheap_init();
 
     // Global scheduler initialization.
     sched_init();
@@ -134,8 +136,8 @@ static void kernel_init() {
     // Full hardware initialization.
     port_init();
 
-    // logk(LOG_DEBUG, "Waiting for a second");
-    // thread_sleep(1000000);
+    logk(LOG_DEBUG, "Waiting for a second");
+    thread_sleep(1000000);
 
     // Temporary filesystem image.
     fs_mount(&ec, FS_TYPE_RAMFS, NULL, "/", 0);

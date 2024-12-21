@@ -21,7 +21,7 @@
 #define SCHED_MIN_US        5000
 // The time quota increment per increased priority.
 #define SCHED_INC_US        500
-// The interval on which schedulers measure CPU load.
+// The microsecond interval on which schedulers measure CPU load.
 #define SCHED_LOAD_INTERVAL 250000
 
 
@@ -46,6 +46,8 @@
 #define THREAD_KSUSPEND   (1 << 8)
 // The thread has exited and is awaiting join.
 #define THREAD_EXITED     (1 << 9)
+// The thread is blocked on a resource.
+#define THREAD_BLOCKED    (1 << 10)
 
 // The scheduler is starting on this CPU.
 #define SCHED_STARTING (1 << 0)
@@ -53,6 +55,12 @@
 #define SCHED_RUNNING  (1 << 1)
 // The scheduler is pending exit on this CPU.
 #define SCHED_EXITING  (1 << 2)
+
+// Things a thread can be blocked on.
+typedef enum {
+    // Thread is blocked on a `mutex_t`.
+    THREAD_BLOCK_MUTEX,
+} thread_block_t;
 
 // Thread struct.
 struct sched_thread_t {
@@ -71,11 +79,21 @@ struct sched_thread_t {
     timeusage_t timeusage;
 
     // Thread flags.
-    atomic_int flags;
+    atomic_int     flags;
     // Exit code from `thread_exit`
-    int        exit_code;
-    // Timer ID used by mutex timeout code.
-    int64_t    mutex_timer_id;
+    int            exit_code;
+    // Cause for the thread to block. Only valid if THREAD_BLOCKED flag is set.
+    thread_block_t blocked_by;
+    // Information for the object the thread is blocking on.
+    union {
+        // Info for threads blocked on a mutex.
+        struct {
+            // Pointer to blocking mutex.
+            mutex_t *mutex;
+            // Timer ID used by mutex timeout code.
+            int64_t  timer_id;
+        } mutex;
+    } blocking_obj;
 
     // ISR context for threads running in kernel mode.
     isr_ctx_t kernel_isr_ctx;
@@ -106,7 +124,7 @@ struct sched_cpulocal_t {
     timestamp_us_t load_measure_time;
     // CPU load average in 0.01% increments.
     atomic_int     load_average;
-    // CPU load estimate for load-balancing purposes.
+    // CPU load estimate in 0.01% increments.
     atomic_int     load_estimate;
     // Idle thread.
     sched_thread_t idle_thread;

@@ -21,8 +21,8 @@
 
 // Sort phandles by index.
 static int phandle_cmp(void const *a, void const *b) {
-    dtb_node_t const **phandle_a = a;
-    dtb_node_t const **phandle_b = b;
+    dtb_node_t const *const *phandle_a = a;
+    dtb_node_t const *const *phandle_b = b;
     return (**phandle_a).phandle - (**phandle_b).phandle;
 }
 
@@ -203,6 +203,7 @@ dtb_node_t *dtb_root_node(dtb_handle_t *handle) {
 
 // Get a node with a specific name.
 dtb_node_t *dtb_get_node_l(dtb_handle_t *handle, dtb_node_t *parent_node, char const *name, size_t name_len) {
+    (void)handle;
     dtb_node_t *node = parent_node->nodes;
     while (node) {
         if (cstr_prefix_equals(node->name, name, name_len) && node->name[name_len] == 0) {
@@ -215,6 +216,7 @@ dtb_node_t *dtb_get_node_l(dtb_handle_t *handle, dtb_node_t *parent_node, char c
 
 // Get a prop with a specific name.
 dtb_prop_t *dtb_get_prop_l(dtb_handle_t *handle, dtb_node_t *parent_node, char const *name, size_t name_len) {
+    (void)handle;
     dtb_prop_t *prop = parent_node->props;
     while (prop) {
         if (cstr_prefix_equals(prop->name, name, name_len) && prop->name[name_len] == 0) {
@@ -228,6 +230,8 @@ dtb_prop_t *dtb_get_prop_l(dtb_handle_t *handle, dtb_node_t *parent_node, char c
 
 // Find a node in the DTB.
 dtb_node_t *dtb_find_node(dtb_handle_t *handle, char const *path) {
+    (void)handle;
+    (void)path;
     logk(LOG_WARN, "TODO: dtb_find_node");
     return NULL;
 }

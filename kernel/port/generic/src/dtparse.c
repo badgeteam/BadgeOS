@@ -47,8 +47,10 @@ void dtparse(void *dtb_ptr) {
     uint32_t    soc_alen = dtb_read_uint(handle, soc, "#address-cells");
     uint32_t    soc_slen = dtb_read_uint(handle, soc, "#size-cells");
 
+    // Initialise timers.
+    time_init_dtb(handle);
     // Initialise SMP.
-    smp_init(handle);
+    smp_init_dtb(handle);
 
     // Walk the SOC node to detect devices and install drivers.
     dtb_node_t *node = soc->nodes;

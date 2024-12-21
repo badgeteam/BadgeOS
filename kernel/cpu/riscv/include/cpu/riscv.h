@@ -27,6 +27,16 @@
 
 
 
+/* ==== RISC-V INTERRUPT LIST ==== */
+#define RISCV_INT_SUPERVISOR_SOFT  1
+#define RISCV_INT_MACHINE_SOFT     3
+#define RISCV_INT_SUPERVISOR_TIMER 5
+#define RISCV_INT_MACHINE_TIMER    7
+#define RISCV_INT_SUPERVISOR_EXT   9
+#define RISCV_INT_MACHINE_EXT      11
+
+
+
 /* ==== RISC-V TRAP LIST ==== */
 
 // Instruction access misaligned.
