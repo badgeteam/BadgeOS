@@ -32,7 +32,7 @@ void mutex_destroy(badge_err_t *ec, mutex_t *mutex) {
     irq_disable();
     int cur_cpu = smp_cur_cpu();
     while (mutex->waiting_list.len) {
-        thread_handoff(dlist_pop_front(&mutex->waiting_list), cur_cpu, true, 0);
+        thread_handoff((sched_thread_t *)dlist_pop_front(&mutex->waiting_list), cur_cpu, true, 0);
     }
     irq_enable();
 }
@@ -60,10 +60,23 @@ static void mutex_wait(mutex_t *mutex, timestamp_us_t timeout) {
 
     // Add thread to mutex waiting list.
     while (atomic_flag_test_and_set_explicit(&mutex->wait_spinlock, memory_order_acquire));
+    dlist_append(&mutex->waiting_list, &self->node);
     atomic_flag_clear_explicit(&mutex->wait_spinlock, memory_order_release);
 
     // Switch to some other still runnable thread.
     thread_yield();
+}
+
+// Notify the first waiting thread of the mutex being released.
+static void mutex_notify(mutex_t *mutex) {
+    irq_disable();
+    while (atomic_flag_test_and_set_explicit(&mutex->wait_spinlock, memory_order_acquire));
+    if (mutex->waiting_list.len) {
+        sched_thread_t *to_resume = (sched_thread_t *)dlist_pop_front(&mutex->waiting_list);
+        thread_handoff(to_resume, smp_cur_cpu(), true, 0);
+    }
+    atomic_flag_clear_explicit(&mutex->wait_spinlock, memory_order_release);
+    irq_enable();
 }
 
 // Atomically await the expected value and swap in the new value.
@@ -132,7 +145,7 @@ static bool mutex_acquire_impl(badge_err_t *ec, mutex_t *mutex, timestamp_us_t t
         timeout += now;
     }
     // Await the shared portion to reach 0 and then lock.
-    if (await_swap_atomic_int(&mutex->shares, timeout, 0, EXCLUSIVE_MAGIC, memory_order_acquire, from_isr)) {
+    if (await_swap_atomic_int(mutex, timeout, 0, EXCLUSIVE_MAGIC, memory_order_acquire, from_isr)) {
         // If that succeeds, the mutex was acquired.
         badge_err_set_ok(ec);
         return true;
@@ -148,8 +161,9 @@ static bool mutex_acquire_impl(badge_err_t *ec, mutex_t *mutex, timestamp_us_t t
 static bool mutex_release_impl(badge_err_t *ec, mutex_t *mutex, bool from_isr) {
     assert_dev_drop(!from_isr || mutex->allow_isr);
     assert_dev_drop(atomic_load(&mutex->shares) >= EXCLUSIVE_MAGIC);
-    if (await_swap_atomic_int(&mutex->shares, TIMESTAMP_US_MAX, EXCLUSIVE_MAGIC, 0, memory_order_release, from_isr)) {
+    if (await_swap_atomic_int(mutex, TIMESTAMP_US_MAX, EXCLUSIVE_MAGIC, 0, memory_order_release, from_isr)) {
         // Successful release.
+        mutex_notify(mutex);
         badge_err_set_ok(ec);
         return true;
     } else {
@@ -174,7 +188,7 @@ static bool mutex_acquire_shared_impl(badge_err_t *ec, mutex_t *mutex, timestamp
         timeout += now;
     }
     // Take a share.
-    if (thresh_add_atomic_int(&mutex->shares, timeout, EXCLUSIVE_MAGIC, memory_order_acquire, from_isr)) {
+    if (thresh_add_atomic_int(mutex, timeout, EXCLUSIVE_MAGIC, memory_order_acquire, from_isr)) {
         // If that succeeds, the mutex was successfully acquired.
         badge_err_set_ok(ec);
         return true;
@@ -189,12 +203,13 @@ static bool mutex_acquire_shared_impl(badge_err_t *ec, mutex_t *mutex, timestamp
 // Returns true if the mutex was successfully released.
 static bool mutex_release_shared_impl(badge_err_t *ec, mutex_t *mutex, bool from_isr) {
     assert_dev_drop(atomic_load(&mutex->shares) < EXCLUSIVE_MAGIC);
-    if (!unequal_sub_atomic_int(&mutex->shares, 0, EXCLUSIVE_MAGIC, memory_order_release, from_isr)) {
+    if (!unequal_sub_atomic_int(mutex, 0, EXCLUSIVE_MAGIC, memory_order_release, from_isr)) {
         // Prevent the counter from underflowing.
         badge_err_set(ec, ELOC_UNKNOWN, ECAUSE_ILLEGAL);
         return false;
     } else {
         // Successful release.
+        mutex_notify(mutex);
         badge_err_set_ok(ec);
         return true;
     }

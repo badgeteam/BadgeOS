@@ -5,7 +5,7 @@
 
 #include "assertions.h"
 
-#define SPINLOCK_EXCL_MAGIC (__INT_MAX__ + 1)
+#define SPINLOCK_EXCL_MAGIC (-__INT_MAX__ - 1)
 
 
 

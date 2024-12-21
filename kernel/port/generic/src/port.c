@@ -6,14 +6,16 @@
 #include "assertions.h"
 #include "cpu/mmu.h"
 #include "cpu/panic.h"
+#include "interrupt.h"
 #include "isr_ctx.h"
-#include "limine.h"
 #include "memprotect.h"
 #include "port/dtparse.h"
 #include "port/hardware_allocation.h"
 #include "rawprint.h"
 
 #include <stdbool.h>
+
+#include <limine.h>
 
 void init_pool(void *mem_start, void *mem_end, uint32_t flags);
 
@@ -205,6 +207,9 @@ void port_putc(char msg) {
     asm("li a7, 1; ecall" ::"r"(a0));
 }
 
-int64_t time_us() {
-    return 0;
+// Power off.
+void port_poweroff(bool restart) {
+    irq_disable();
+    logkf_from_isr(LOG_INFO, "TODO: port_poweroff() is a stub");
+    while (1) asm("");
 }

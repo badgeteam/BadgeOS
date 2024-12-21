@@ -142,10 +142,22 @@ error:
 
 // Release memory allocated to a process.
 void proc_unmap_raw(badge_err_t *ec, process_t *proc, size_t base) {
-    (void)ec;
-    (void)proc;
-    (void)base;
-    logk(LOG_WARN, "TODO: proc_unmap_raw");
+    proc_memmap_t *map = &proc->memmap;
+    for (size_t i = 0; i < map->regions_len; i++) {
+        if (map->regions[i].vaddr == base) {
+            proc_memmap_ent_t region = map->regions[i];
+            array_remove(&map->regions[0], sizeof(map->regions[0]), map->regions_len, NULL, i);
+            map->regions_len--;
+            assert_dev_keep(memprotect_u(map, &map->mpu_ctx, base, 0, region.size, 0));
+            memprotect_commit(&map->mpu_ctx);
+            logkf(LOG_WARN, "TODO: Free phys pages");
+            // phys_page_free(base / MEMMAP_PAGE_SIZE);
+            badge_err_set_ok(ec);
+            logkf(LOG_INFO, "Unmapped %{size;d} bytes at %{size;x} from process %{d}", region.size, base, proc->pid);
+            return;
+        }
+    }
+    badge_err_set(ec, ELOC_PROCESS, ECAUSE_NOTFOUND);
 }
 
 // Whether the process owns this range of virtual memory.

@@ -27,7 +27,7 @@ static atomic_int        loadbalance_ready_count;
 // CPU-local scheduler structs.
 static sched_cpulocal_t *cpu_ctx;
 // Threads list mutex.
-static mutex_t           threads_mtx = MUTEX_T_INIT_SHARED;
+static mutex_t           threads_mtx = MUTEX_T_INIT_SHARED_ISR;
 // Number of threads that exist.
 static size_t            threads_len;
 // Capacity for thread list.
@@ -37,7 +37,7 @@ static sched_thread_t  **threads;
 // Thread ID counter.
 static atomic_int        tid_counter = 1;
 // Unused thread pool mutex.
-static mutex_t           unused_mtx  = MUTEX_T_INIT;
+static mutex_t           unused_mtx  = MUTEX_T_INIT_ISR;
 // Pool of unused thread handles.
 static dlist_t           dead_threads;
 
@@ -49,7 +49,7 @@ sched_thread_t *thread_dequeue_self() {
     isr_ctx_t        *kctx = isr_ctx_get();
     sched_cpulocal_t *info = kctx->cpulocal->sched;
     sched_thread_t   *self = kctx->thread;
-    dlist_remove(&info->queue, self);
+    dlist_remove(&info->queue, &self->node);
     return self;
 }
 
@@ -410,8 +410,8 @@ void sched_init() {
     assert_always(cpu_ctx);
     mem_set(cpu_ctx, 0, smp_count * sizeof(sched_cpulocal_t));
     for (int i = 0; i < smp_count; i++) {
-        cpu_ctx[i].run_mtx      = MUTEX_T_INIT_SHARED;
-        cpu_ctx[i].incoming_mtx = MUTEX_T_INIT;
+        cpu_ctx[i].run_mtx      = MUTEX_T_INIT_SHARED_ISR;
+        cpu_ctx[i].incoming_mtx = MUTEX_T_INIT_ISR;
         void *stack             = malloc(8192);
         assert_always(stack);
         cpu_ctx[i].idle_thread.kernel_stack_bottom  = (size_t)stack;

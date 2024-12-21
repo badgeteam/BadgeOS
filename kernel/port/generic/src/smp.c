@@ -124,6 +124,9 @@ void smp_init(dtb_handle_t *dtb) {
 
 // The the SMP CPU index of the calling CPU.
 int smp_cur_cpu() {
+    if (!smp_map_len) {
+        return 0;
+    }
     return smp_get_cpu(isr_ctx_get()->cpulocal->cpuid);
 }
 

@@ -130,7 +130,13 @@ static void trap_signal_handler(int signum, uint64_t cause) {
             memmap_info(proc, cause);
         }
         // Print backtrace of the calling thread.
+#if MEMMAP_VMEM
+        mmu_enable_sum();
+#endif
         backtrace_from_ptr((void *)thread->user_isr_ctx.regs.s0);
+#if MEMMAP_VMEM
+        mmu_disable_sum();
+#endif
         isr_ctx_dump(&thread->user_isr_ctx);
         mutex_release(NULL, &log_mtx);
         // Finally, kill the process.

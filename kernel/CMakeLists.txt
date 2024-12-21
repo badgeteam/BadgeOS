@@ -32,6 +32,7 @@ set(common_compiler_flags
     -Werror=return-type                # Error when a function doesn't return a value, but declares to do so.
     -Werror=implicit-fallthrough
     -Werror=int-conversion
+    -Werror=incompatible-pointer-types
     -Wall -Wextra                      # Ramp up warning level.
     -Wno-missing-braces
     -std=gnu11                         # We use the C11 standard

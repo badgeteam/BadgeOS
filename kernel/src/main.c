@@ -1,6 +1,7 @@
 
 // SPDX-License-Identifier: MIT
 
+#include "assertions.h"
 #include "cpu/panic.h"
 #include "filesystem.h"
 #include "housekeeping.h"
@@ -62,7 +63,7 @@ void basic_runtime_init() {
     time_init();
 
     // Announce that we're alive.
-    logk(LOG_INFO, "BadgerOS " CONFIG_TARGET " starting...");
+    logk_from_isr(LOG_INFO, "BadgerOS " CONFIG_TARGET " starting...");
 
     // Early memory protection initialization.
     memprotect_early_init();
@@ -133,8 +134,8 @@ static void kernel_init() {
     // Full hardware initialization.
     port_init();
 
-    logk(LOG_DEBUG, "Waiting for a second");
-    thread_sleep(1000000);
+    // logk(LOG_DEBUG, "Waiting for a second");
+    // thread_sleep(1000000);
 
     // Temporary filesystem image.
     fs_mount(&ec, FS_TYPE_RAMFS, NULL, "/", 0);
@@ -188,6 +189,7 @@ static void userland_shutdown() {
     timestamp_us_t lim = time_us() + 5 * 1000000;
     while (time_us() < lim) {
         if (!(proc_getflags(NULL, 1) & PROC_RUNNING)) {
+            // When the init process stops, userland has successfully been shut down.
             return;
         }
         thread_yield();
