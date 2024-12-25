@@ -94,6 +94,8 @@ void *pcie_ecam_vaddr(pcie_addr_t addr) {
 
 // Extract ranges from DTB.
 static bool pcie_dtb_ranges(dtb_handle_t *handle, dtb_node_t *node, uint32_t addr_cells, uint32_t size_cells) {
+    (void)addr_cells;
+    (void)size_cells;
     dtb_prop_t *ranges = dtb_get_prop(handle, node, "ranges");
     if (!ranges) {
         return false;

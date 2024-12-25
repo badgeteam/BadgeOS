@@ -456,9 +456,10 @@ void sched_exec() {
     timestamp_us_t now = time_us();
 
     // Allocate CPU-local scheduler data.
-    sched_cpulocal_t *info         = cpu_ctx + smp_cur_cpu();
-    isr_ctx_get()->cpulocal->sched = info;
-    logkf_from_isr(LOG_DEBUG, "Starting scheduler on CPU%{d}", smp_cur_cpu());
+    cpulocal_t       *cpulocal = isr_ctx_get()->cpulocal;
+    sched_cpulocal_t *info     = cpu_ctx + smp_get_cpu(cpulocal->cpuid);
+    cpulocal->sched            = info;
+    logkf_from_isr(LOG_INFO, "Starting scheduler on CPU%{d}", smp_cur_cpu());
 
     // Set next timestamp to measure load average.
     info->load_average      = 0;

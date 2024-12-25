@@ -181,7 +181,7 @@ static inline sbi_ret_t sbi_remote_sfence_vma(
 static inline sbi_ret_t sbi_remote_sfence_vma_asid(
     unsigned long hart_mask, unsigned long hart_base, unsigned long start_addr, unsigned long size, unsigned long asid
 ) {
-    return SBI_CALL(0, SBI_RFENCE_EID, a0 = hart_mask, a1 = hart_base, a2 = start_addr, a3 = size);
+    return SBI_CALL(0, SBI_RFENCE_EID, a0 = hart_mask, a1 = hart_base, a2 = start_addr, a3 = size, a4 = asid);
 }
 
 // The hypervisor fences are not implemented because BadgerOS does not support virtualization.

@@ -10,7 +10,7 @@ set(cpu_riscv_enable_riscv_intc true)
 set(cpu_riscv_enable_riscv_plic true)
 set(cpu_riscv_enable_sbi_time true)
 set(cpu_riscv_enable_mmu true)
-set(cpu_multicore true)
+set(cpu_enable_smp true)
 
 set(port_src
     ${CMAKE_CURRENT_LIST_DIR}/src/driver/pcie.c
@@ -22,7 +22,6 @@ set(port_src
     ${CMAKE_CURRENT_LIST_DIR}/src/interrupt.c
     ${CMAKE_CURRENT_LIST_DIR}/src/memprotect.c
     ${CMAKE_CURRENT_LIST_DIR}/src/port.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/smp.c
 )
 set(port_include
     ${CMAKE_CURRENT_LIST_DIR}/include

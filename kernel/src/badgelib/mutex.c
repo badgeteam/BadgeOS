@@ -22,19 +22,15 @@
 void mutex_init(badge_err_t *ec, mutex_t *mutex, bool shared, bool allow_isr) {
     *mutex = ((mutex_t){shared, allow_isr, ATOMIC_FLAG_INIT, 0, {0}});
     atomic_thread_fence(memory_order_release);
+    badge_err_set_ok(ec);
 }
 
 // Clean up the mutex.
 void mutex_destroy(badge_err_t *ec, mutex_t *mutex) {
     // The mutex must always be completely unlocked to guarantee no threads are waiting on it.
-    assert_dev_drop(mutex->shares == 0);
+    assert_always(mutex->shares == 0);
     assert_dev_drop(!atomic_flag_test_and_set(&mutex->wait_spinlock));
-    irq_disable();
-    int cur_cpu = smp_cur_cpu();
-    while (mutex->waiting_list.len) {
-        thread_handoff((sched_thread_t *)dlist_pop_front(&mutex->waiting_list), cur_cpu, true, 0);
-    }
-    irq_enable();
+    badge_err_set_ok(ec);
 }
 
 
