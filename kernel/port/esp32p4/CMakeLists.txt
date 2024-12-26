@@ -3,9 +3,6 @@
 
 cmake_minimum_required(VERSION 3.10.0)
 
-set(target_arch "rv32imafc_zicsr_zifencei")
-set(target_abi "ilp32")
-
 set(cpu_riscv_enable_pmp true)
 set(cpu_multicore true)
 

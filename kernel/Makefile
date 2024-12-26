@@ -25,6 +25,10 @@ $(BUILDDIR)/fs_root.c: $(shell find '$(BADGER_RAMFS_ROOT)' 2>/dev/null)
 	mkdir -p '$(BUILDDIR)'
 	../tools/ramfs-gen.py '$(BADGER_RAMFS_ROOT)' '$(BUILDDIR)/fs_root.c' init_ramfs
 
+.PHONY: _on_config
+_on_config: _port_on_config
+	git submodule update --init lib/kbelf
+
 .PHONY: build
 build: cmake-configure
 	cmake --build '$(BUILDDIR)'

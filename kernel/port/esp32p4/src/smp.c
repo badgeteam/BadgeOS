@@ -3,9 +3,9 @@
 
 #include "smp.h"
 
-#include "cpu/panic.h"
 #include "hal/cpu_utility_ll.h"
 #include "isr_ctx.h"
+#include "panic.h"
 #include "rom/ets_sys.h"
 #include "soc/hp_sys_clkrst_struct.h"
 

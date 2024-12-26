@@ -4,8 +4,8 @@
 #include "interrupt.h"
 
 #include "cpu/isr.h"
-#include "cpu/panic.h"
 #include "isr_ctx.h"
+#include "panic.h"
 #include "port/hardware.h"
 #include "port/hardware_allocation.h"
 #include "soc/interrupts.h"

@@ -6,7 +6,9 @@
 #include "backtrace.h"
 #include "cpu/isr.h"
 #include "interrupt.h"
+#include "log.h"
 #include "malloc.h"
+#include "memprotect.h"
 #include "process/internal.h"
 #include "process/types.h"
 #include "scheduler/cpu.h"
@@ -65,7 +67,11 @@ static void run_sighandler(int signum, uint64_t cause) {
 #if MEMMAP_VMEM
             mmu_enable_sum();
 #endif
+#ifdef __riscv
             backtrace_from_ptr((void *)thread->user_isr_ctx.regs.s0);
+#elif defined(__x86_86__)
+            backtrace_from_ptr((void *)thread->user_isr_ctx.regs.rbp);
+#endif
 #if MEMMAP_VMEM
             mmu_disable_sum();
 #endif
@@ -133,7 +139,11 @@ static void trap_signal_handler(int signum, uint64_t cause) {
 #if MEMMAP_VMEM
         mmu_enable_sum();
 #endif
+#ifdef __riscv
         backtrace_from_ptr((void *)thread->user_isr_ctx.regs.s0);
+#elif defined(__x86_86__)
+        backtrace_from_ptr((void *)thread->user_isr_ctx.regs.rbp);
+#endif
 #if MEMMAP_VMEM
         mmu_disable_sum();
 #endif

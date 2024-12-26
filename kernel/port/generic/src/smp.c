@@ -6,13 +6,16 @@
 #include "arrays.h"
 #include "assertions.h"
 #include "cpu/mmu.h"
-#include "cpu/riscv_sbi.h"
 #include "interrupt.h"
 #include "isr_ctx.h"
 #include "mutex.h"
 #include "port/dtb.h"
 
 #include <limine.h>
+
+#ifdef __riscv
+#include "cpu/riscv_sbi.h"
+#endif
 
 #define REQ __attribute__((section(".requests")))
 
@@ -64,10 +67,8 @@ static int smp_cpuid_cmp(void const *a, void const *b) {
     }
 }
 
-// SMP operation mutex.
-static mutex_t smp_mtx   = MUTEX_T_INIT;
 // Number of detected CPU cores.
-int            smp_count = 1;
+int smp_count = 1;
 
 // CPUID to SMP index map length.
 static size_t     smp_map_len;
@@ -80,8 +81,16 @@ static smp_map_t *smp_unmap;
 
 // Current status per CPU.
 static smp_status_t *cpu_status;
+#ifdef __riscv
 // Whether the SBI supports HSM.
-static bool          sbi_supports_hsm;
+static bool sbi_supports_hsm;
+#endif
+
+#ifdef __riscv
+#define smp_resp_procid hartid
+#elif defined(__x86_64__)
+#define smp_resp_procid lapic_id
+#endif
 
 
 static REQ struct limine_smp_request smp_req = {
@@ -93,8 +102,7 @@ static REQ struct limine_smp_request smp_req = {
 
 // Initialise the SMP subsystem.
 void smp_init_dtb(dtb_handle_t *dtb) {
-    int cpu_index = 0;
-
+#ifdef __riscv
     sbi_ret_t res = sbi_probe_extension(SBI_HART_MGMT_EID);
     sbi_supports_hsm == res.retval && !res.status;
     if (sbi_supports_hsm) {
@@ -104,6 +112,7 @@ void smp_init_dtb(dtb_handle_t *dtb) {
         // SBI doesn't support HSM; CPUs can be started but not stopped.
         logk(LOG_DEBUG, "SBI doesn't support HSM");
     }
+#endif
 
     // Parse CPU ID information from the DTB.
     dtb_node_t *cpus = dtb_get_node(dtb, dtb_root_node(dtb), "cpus");
@@ -113,7 +122,11 @@ void smp_init_dtb(dtb_handle_t *dtb) {
     uint32_t cpu_acells = dtb_read_uint(dtb, cpus, "#address-cells");
     assert_always(cpu_acells && cpu_acells <= sizeof(size_t) / 4);
     assert_always(dtb_read_uint(dtb, cpus, "#size-cells") == 0);
-    size_t bsp_hartid = smp_req.response->bsp_hartid;
+#ifdef __riscv
+    size_t bsp_cpuid = smp_req.response->bsp_hartid;
+#elif defined(__x86_64__)
+    size_t bsp_cpuid = smp_req.response->bsp_lapic_id;
+#endif
 
     while (cpu) {
         // Detect usable architecture.
@@ -124,6 +137,7 @@ void smp_init_dtb(dtb_handle_t *dtb) {
             cpu = cpu->next;
             continue;
         }
+#elif defined(__x86_64__)
 #else
 #error "smp_init: Unsupported architecture"
 #endif
@@ -141,7 +155,7 @@ void smp_init_dtb(dtb_handle_t *dtb) {
         assert_always(reg && reg->content_len == 4 * cpu_acells);
         size_t cpuid = dtb_prop_read_uint(dtb, reg);
         int    detected_cpu;
-        if (cpuid == bsp_hartid) {
+        if (cpuid == bsp_cpuid) {
             detected_cpu = 0;
         } else {
             detected_cpu = smp_count;
@@ -212,6 +226,7 @@ size_t smp_get_cpuid(int cpu) {
 // First stage entrypoint for secondary CPUs.
 static NAKED void cpu1_init0_limine(struct limine_smp_info *info) {
     // clang-format off
+#ifdef __riscv
     asm(
         ".option push;"
         ".option norelax;"
@@ -219,6 +234,8 @@ static NAKED void cpu1_init0_limine(struct limine_smp_info *info) {
         ".option pop;"
         "j cpu1_init1_limine;"
     );
+#elif defined(__x86_64__)
+#endif
     // clang-format on
 }
 
@@ -228,9 +245,12 @@ static void cpu1_init1_limine(struct limine_smp_info *info) {
     isr_ctx_t tmp_ctx       = {0};
     tmp_ctx.flags           = ISR_CTX_FLAG_KERNEL;
     tmp_ctx.cpulocal        = &cpu_status[cur_cpu].cpulocal;
-    tmp_ctx.cpulocal->cpuid = info->hartid;
+    tmp_ctx.cpulocal->cpuid = info->smp_resp_procid;
     tmp_ctx.cpulocal->cpu   = cur_cpu;
+#ifdef __riscv
     asm("csrw sscratch, %0" ::"r"(&tmp_ctx));
+#elif defined(__x86_64__)
+#endif
     cpu_status[cur_cpu].entrypoint();
     __builtin_trap();
 }
@@ -248,7 +268,7 @@ bool smp_poweron(int cpu, void *entrypoint, void *stack) {
     // Start the CPU up.
     if (!cpu_status[cpu].did_jump) {
         for (uint64_t i = 0; i < smp_req.response->cpu_count; i++) {
-            if (smp_req.response->cpus[i]->hartid == smp_map[cpu].cpuid) {
+            if (smp_req.response->cpus[i]->smp_resp_procid == smp_map[cpu].cpuid) {
                 smp_req.response->cpus[i]->extra_argument = cpu;
                 atomic_store(&smp_req.response->cpus[i]->goto_address, &cpu1_init0_limine);
                 cpu_status[cpu].did_jump = true;

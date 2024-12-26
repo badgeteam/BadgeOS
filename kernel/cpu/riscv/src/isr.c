@@ -5,9 +5,9 @@
 
 #include "backtrace.h"
 #include "cpu/isr_ctx.h"
-#include "cpu/panic.h"
 #include "interrupt.h"
 #include "log.h"
+#include "panic.h"
 #include "port/hardware.h"
 #include "process/internal.h"
 #include "process/sighandler.h"

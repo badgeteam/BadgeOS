@@ -4,10 +4,10 @@
 #include "interrupt.h"
 
 #include "cpu/isr.h"
-#include "cpu/panic.h"
 #include "esp_intmtx.h"
 #include "isr_ctx.h"
 #include "log.h"
+#include "panic.h"
 #include "port/hardware_allocation.h"
 
 #include <soc/clic_reg.h>

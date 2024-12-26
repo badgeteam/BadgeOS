@@ -5,10 +5,10 @@
 
 #include "assertions.h"
 #include "cpu/mmu.h"
-#include "cpu/panic.h"
 #include "interrupt.h"
 #include "isr_ctx.h"
 #include "memprotect.h"
+#include "panic.h"
 #include "port/dtparse.h"
 #include "port/hardware_allocation.h"
 #include "rawprint.h"
@@ -206,9 +206,13 @@ void port_init() {
 
 // Send a single character to the log output.
 void port_putc(char msg) {
+    // TODO: More proper way to do this.
+#ifdef __x86_64__
+#else
     register char a0 asm("a0") = msg;
     // SBI console putchar.
     asm("li a7, 1; ecall" ::"r"(a0));
+#endif
 }
 
 // Power off.

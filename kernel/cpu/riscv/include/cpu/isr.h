@@ -13,9 +13,6 @@
 #include <stdint.h>
 #endif
 
-// Word size of the stack used for interrupt and trap handlers.
-#define ISR_STACK_DEPTH 4096
-
 #ifdef __ASSEMBLER__
 // clang-format off
 

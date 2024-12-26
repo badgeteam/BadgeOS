@@ -58,8 +58,6 @@ STRUCT_FIELD_PTR(isr_ctx_t, mpu_ctx_t, mpu_ctx, 0)
 STRUCT_FIELD_PTR(isr_ctx_t, void, frameptr, 1)
 // Registers storage.
 // The trap/interrupt handler will save registers to here.
-// *Note: The syscall handler only saves/restores t0-t3, sp, gp, tp and ra, any other registers are not visible to the
-// kernel.*
 STRUCT_FIELD_STRUCT(isr_ctx_t, cpu_regs_t, regs, 2)
 // Pointer to next isr_ctx_t to switch to.
 // If nonnull, the trap/interrupt handler will context switch to this new context before exiting.
@@ -95,9 +93,7 @@ STRUCT_END(isr_ctx_t)
 #ifndef __ASSEMBLER__
 
 // Stack alignment is defined to be 16 by the RISC-V calling convention
-enum {
-    STACK_ALIGNMENT = 16,
-};
+#define STACK_ALIGNMENT 16
 
 // Get the current ISR context.
 static inline isr_ctx_t *isr_ctx_get() {

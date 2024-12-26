@@ -1,7 +1,7 @@
 
 // SPDX-License-Identifier: MIT
 
-#include "cpu/panic.h"
+#include "panic.h"
 
 #include "backtrace.h"
 #include "interrupt.h"

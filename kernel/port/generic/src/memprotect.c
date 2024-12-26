@@ -7,9 +7,9 @@
 #include "assertions.h"
 #include "badge_strings.h"
 #include "cpu/mmu.h"
-#include "cpu/panic.h"
 #include "isr_ctx.h"
 #include "page_alloc.h"
+#include "panic.h"
 #include "port/port.h"
 
 // Page table walk result.

@@ -5,13 +5,13 @@
 
 #include "assertions.h"
 #include "badge_strings.h"
-#include "cpu/panic.h"
 #include "interrupt.h"
 #include "isr_ctx.h"
 #include "limine.h"
 #include "log.h"
 #include "memprotect.h"
 #include "page_alloc.h"
+#include "panic.h"
 #include "port/hardware_allocation.h"
 
 _Static_assert(MEMMAP_PAGE_SIZE == MMU_PAGE_SIZE, "MEMMAP_PAGE_SIZE must equal MMU_PAGE_SIZE");

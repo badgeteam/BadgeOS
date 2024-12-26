@@ -20,6 +20,10 @@ void port_putc(char msg);
 
 // Fence data and instruction memory for executable mapping.
 static inline void port_fencei() {
+#ifdef __riscv
     asm("fence rw,rw");
     asm("fence.i");
+#elif defined(__x86_64__)
+    // TODO: Figure out which fence to use.
+#endif
 }

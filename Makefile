@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 MAKEFLAGS += --silent
-SHELL    := /usr/bin/env bash
+SHELL     := /usr/bin/env bash
 
 .PHONY: all
 all: build
@@ -11,21 +11,23 @@ all: build
 configure: config
 config:
 	./tools/config.py
-	python -m venv .venv
-	.venv/bin/pip install esptool
 	git submodule update --init
+	$(MAKE) -C kernel _on_config
 
 .PHONY: hh24_defconfig
 hh24_defconfig:
 	./tools/config.py --target esp32c6 --use-default
+	$(MAKE) -C kernel _on_config
 
 .PHONY: why2025_defconfig
 why2025_defconfig:
 	./tools/config.py --target esp32p4 --use-default
+	$(MAKE) -C kernel _on_config
 
 .PHONY: unmatched_defconfig
 unmatched_defconfig:
 	./tools/config.py --target generic --use-default --vec_spec none
+	$(MAKE) -C kernel _on_config
 
 .PHONY: build
 build:

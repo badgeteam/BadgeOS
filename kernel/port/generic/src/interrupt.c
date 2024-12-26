@@ -12,6 +12,9 @@ static isr_ctx_t tmp_ctx = {.flags = ISR_CTX_FLAG_KERNEL};
 
 // Initialise interrupt drivers for this CPU.
 void irq_init() {
+    // TODO: Proper way to do this.
+#ifdef __x86_64__
+#else
     // Install interrupt handler.
     asm volatile("csrw sstatus, 0");
     asm volatile("csrw stvec, %0" ::"r"(riscv_interrupt_vector_table));
@@ -19,4 +22,5 @@ void irq_init() {
 
     // Disable all internal interrupts.
     asm volatile("csrw sie, 0");
+#endif
 }

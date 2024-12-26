@@ -3,10 +3,10 @@
 
 #include "cpu/riscv_pmp.h"
 
-#include "cpu/panic.h"
 #include "isr_ctx.h"
 #include "log.h"
 #include "memprotect.h"
+#include "panic.h"
 #include "port/hardware_allocation.h"
 #include "scheduler/types.h"
 

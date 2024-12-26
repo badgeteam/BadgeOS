@@ -10,8 +10,6 @@
 #include "time.h"
 #include "time_private.h"
 
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-
 
 
 // Whether the SBI time extension is supported.

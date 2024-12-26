@@ -1,4 +1,6 @@
 
+include port/esp_common/port.mk
+
 PORT              ?= /dev/ttyACM0
 
 .PHONY: openocd

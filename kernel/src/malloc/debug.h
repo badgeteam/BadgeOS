@@ -76,8 +76,8 @@
 
 #else
 
-#include "cpu/panic.h"
 #include "log.h"
+#include "panic.h"
 
 #include <stdarg.h>
 

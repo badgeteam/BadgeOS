@@ -1,10 +1,10 @@
 
 // SPDX-License-Identifier: MIT
 
-#include "cpu/panic.h"
 #include "cpu/riscv.h"
 #include "interrupt.h"
 #include "log.h"
+#include "panic.h"
 
 #ifdef CPU_RISCV_ENABLE_SBI_TIME
 // Called by the interrupt handler when the CPU-local timer fires.

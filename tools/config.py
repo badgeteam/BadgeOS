@@ -3,14 +3,43 @@
 # SPDX-License-Identifier: MIT
 
 from argparse import *
-import os, re, typing
+import os, re, typing, subprocess
 
 assert __name__ == "__main__"
 
 T = typing.TypeVar('T')
 parser  = ArgumentParser()
 options = {}
+known_compiler_names = ["cc", "gcc", "clang"]
 
+
+
+def prompt_option(prompt: str, options: dict[str,T]|list[T], default: str|int|T = None) -> T:
+    if type(options) != dict:
+        options = [(str(x), x) for x in options]
+    else:
+        options = [(k, options[k]) for k in options]
+    defidx = None
+    if type(default) != int:
+        for i in range(len(options)):
+            if options[i][0] == default or options[i][1] == default:
+                defidx = i
+                break
+    print(f"Available {prompt} options:")
+    for i in range(len(options)):
+        print(f"[{i+1}] {options[i][0]}")
+    while True:
+        if defidx != None:
+            idx = input(f"Select {prompt} [{defidx+1}] ")
+            if not idx: return options[defidx][1]
+        else:
+            idx = input(f"Select {prompt}: ")
+        try:
+            idx = int(idx)
+            if idx >= 1 and idx <= len(options):
+                return options[idx-1][1]
+        except:
+            pass
 
 
 class Desc:
@@ -136,6 +165,11 @@ class OptCompiler(Option[str]):
                 return i
         return None
     
+    def _query_compiler_arch(self, path):
+        res = subprocess.run([path, '-dumpmachine'], capture_output=True)
+        if res.returncode != 0: return None
+        return res.stdout.decode().strip()
+    
     def _search(self):
         self.options = []
         self.defidx  = 0
@@ -143,8 +177,11 @@ class OptCompiler(Option[str]):
         for dir in os.getenv("PATH").split(os.pathsep):
             try:
                 for bin in os.listdir(dir):
-                    if not bin.endswith("-gcc") and not bin.endswith("-cc"): continue
-                    if not self.match.match(bin): continue
+                    # Check for RE-matched compilers.
+                    if not bin.split('-')[-1] in known_compiler_names: continue
+                    arch = self._query_compiler_arch(bin)
+                    if arch == None: continue
+                    if not self.match.match(arch): continue
                     self.options.append(dir + os.path.sep + bin)
                     opt_prio = self._prio(bin)
                     if opt_prio != None and priority == None:
@@ -213,27 +250,38 @@ option_desc = {x.id: x for x in [
 ]}
 
 default_options = {
-    "stack_size": OptInt(8192, 65536, 4096, 8192),
-    "float_spec": OptConst("none"),
-    "vec_spec":   OptConst("none"),
+    "stack_size": OptInt(8192, 65536, 4096, 16384),
+    "float_spec": OptEnum(["none", "single", "double"], "double"),
 }
+
+arch_default_options = {
+    "riscv64": {
+        "compiler": OptCompiler("^riscv64.*-linux-", ["^riscv64-badgeros-", "^riscv64-linux-"]),
+        "vec_spec": OptEnum(["none", "rvv_1"], "rvv_1"),
+    },
+    "amd64": {
+        "compiler": OptCompiler("^x86_64.*-linux-", ["^x86_64-badgeros-", "^x86_64-linux-"]),
+        "vec_spec": OptEnum(["none", "sse", "avx", "avx2"], "avx"),
+    }
+}
+arch_default_options["riscv32"] = arch_default_options["riscv64"]
 
 default_target = "esp32p4"
 targets = {
     "esp32c6": {
         "compiler":   OptCompiler("^riscv32.*-linux-", ["^riscv32-badgeros-", "^riscv32-linux-"]),
         "cpu":        OptConst("riscv32"),
+        "float_spec": OptConst("none"),
+        "vec_spec":   OptConst("none"),
     },
     "esp32p4": {
         "compiler":   OptCompiler("^riscv32.*-linux-", ["^riscv32-badgeros-", "^riscv32-linux-"]),
         "cpu":        OptConst("riscv32"),
         "float_spec": OptConst("single"),
+        "vec_spec":   OptConst("none"),
     },
     "generic": {
-        "compiler":   OptCompiler("^riscv64.*-linux-", ["^riscv64-badgeros-", "^riscv64-linux-"]),
-        "cpu":        OptConst("riscv64"),
-        "float_spec": OptEnum(["none", "single", "double"], "double"),
-        "vec_spec":   OptEnum(["none", "rvv_1"], "rvv_1"),
+        "cpu":        OptEnum(["riscv64", "amd64"], "riscv64"),
     }
 }
 
@@ -252,35 +300,47 @@ for desc in option_desc.values():
 
 args = vars(parser.parse_args())
 
-while args["target"] == None:
-    print("Available targets:")
-    keys = list(targets.keys())
-    for i in range(len(keys)):
-        print(f"[{i+1}] {keys[i]}")
-    val = input(f"Select target [{keys.index(default_target)+1}] ")
-    if len(val) == 0:
-        args["target"] = default_target
-    try:
-        args["target"] = keys[int(val)-1]
-    except ValueError or IndexError:
-        continue
+try:
+    if args["target"] == None:
+        args["target"] = prompt_option("target", targets.keys(), "generic")
 
+    config = {}
+    config["target"] = args["target"]
+    options: dict[str, Option] = {}
+    for k in targets[args["target"]]:
+        options[k] = targets[args["target"]][k]
 
-
-config = {}
-config["target"] = args["target"]
-options: dict[str, Option] = default_options.copy()
-for k in targets[args["target"]]:
-    options[k] = targets[args["target"]][k]
-
-for k in options:
-    if args[k] != None:
-        config[k] = options[k].parse(option_desc[k], args[k])
-    elif args["use_default"]:
-        config[k] = options[k].use_default()
-        print(f"Using {option_desc[k].name} `{config[k]}`")
+    if args["cpu"] == None:
+        if args["use_default"]:
+            config["cpu"] = options["cpu"].use_default()
+        else:
+            config["cpu"] = options["cpu"].select(option_desc["cpu"])
     else:
-        config[k] = options[k].select(option_desc[k])
+        config["cpu"] = args["cpu"]
+    del options["cpu"]
+    cpu = args["cpu"]
+    
+    for k in arch_default_options[config["cpu"]]:
+        if k not in options:
+            options[k] = arch_default_options[config["cpu"]][k]
+    
+    for k in default_options:
+        if k not in options:
+            options[k] = default_options[k]
+
+    for k in options:
+        if args[k] != None:
+            config[k] = options[k].parse(option_desc[k], args[k])
+        elif args["use_default"]:
+            config[k] = options[k].use_default()
+            print(f"Using {option_desc[k].name} `{config[k]}`")
+        else:
+            config[k] = options[k].select(option_desc[k])
+
+except (KeyboardInterrupt, EOFError):
+    print()
+    print("Cancelled")
+    exit(1)
 
 cc_re = re.match("^(.+?)\\w+$", config["compiler"])
 if not cc_re:

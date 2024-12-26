@@ -138,6 +138,8 @@ static bool pcie_dtb_ranges(dtb_handle_t *handle, dtb_node_t *node, uint32_t add
     return true;
 }
 
+
+
 // DTB init for normal PCIe.
 static void pcie_driver_dtbinit(dtb_handle_t *handle, dtb_node_t *node, uint32_t addr_cells, uint32_t size_cells) {
     ctl.type = PCIE_CTYPE_GENERIC_ECAM;
@@ -152,15 +154,6 @@ static void pcie_driver_dtbinit(dtb_handle_t *handle, dtb_node_t *node, uint32_t
     pcie_controller_init();
 }
 
-// DTB init for FU740 PCIe.
-static void
-    pcie_fu740_driver_dtbinit(dtb_handle_t *handle, dtb_node_t *node, uint32_t addr_cells, uint32_t size_cells) {
-    ctl.type = PCIE_CTYPE_SIFIVE_FU740;
-    pcie_dtb_ranges(handle, node, addr_cells, size_cells);
-}
-
-
-
 // Driver for normal no-nonsense PCIe.
 DRIVER_DECL(pcie_driver) = {
     .dtb_supports_len = 1,
@@ -168,9 +161,20 @@ DRIVER_DECL(pcie_driver) = {
     .dtbinit          = pcie_driver_dtbinit,
 };
 
+
+
+#ifdef __riscv
+// DTB init for FU740 PCIe.
+static void
+    pcie_fu740_driver_dtbinit(dtb_handle_t *handle, dtb_node_t *node, uint32_t addr_cells, uint32_t size_cells) {
+    ctl.type = PCIE_CTYPE_SIFIVE_FU740;
+    pcie_dtb_ranges(handle, node, addr_cells, size_cells);
+}
+
 // Driver for the factually stupid incoherent SiFive FU740 proprietary nonsense PCIe.
 DRIVER_DECL(pcie_fu740_driver) = {
     .dtb_supports_len = 1,
     .dtb_supports     = (char const *[]){"sifive,fu740-pcie"},
     .dtbinit          = pcie_fu740_driver_dtbinit,
 };
+#endif

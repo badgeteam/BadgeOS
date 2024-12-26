@@ -6,8 +6,8 @@
 #include "arrays.h"
 #include "assertions.h"
 #include "badge_strings.h"
-#include "cpu/panic.h"
 #include "log.h"
+#include "panic.h"
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #define htobe32(x) __builtin_bswap32(x)

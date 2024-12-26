@@ -40,9 +40,11 @@ set(common_compiler_flags
     -DBADGEROS_MALLOC_DEBUG_LEVEL=2    # Malloc debug level set to WARN
     -DSOFTBIT                          # Turn on our emulated bit operations
     -fno-omit-frame-pointer            # Always use frame pointer
+    -static
     -ffunction-sections
     -fno-stack-protector
     -fno-exceptions
+    -Wno-unused-parameter
 )
 if("${CMAKE_BUILD_TYPE}" MATCHES "Release")
 message("Building in release mode")
