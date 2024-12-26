@@ -31,5 +31,5 @@ else()
         set(target_float_frac)
     endif()
 
-    set(target_arch "${target_arch_prefix}ima${target_float_frac}c")
+    set(target_arch "${target_arch_prefix}ima${target_float_frac}c_zicsr_zifencei")
 endif()

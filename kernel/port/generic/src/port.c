@@ -208,6 +208,7 @@ void port_init() {
 void port_putc(char msg) {
     // TODO: More proper way to do this.
 #ifdef __x86_64__
+    asm("outb 0xe9, %0" ::"r"(msg));
 #else
     register char a0 asm("a0") = msg;
     // SBI console putchar.

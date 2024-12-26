@@ -4,6 +4,8 @@
 #include "cpu/mmu.h"
 
 #include "assertions.h"
+#include "interrupt.h"
+#include "isr_ctx.h"
 
 _Static_assert(MEMMAP_PAGE_SIZE == MMU_PAGE_SIZE, "MEMMAP_PAGE_SIZE must equal MMU_PAGE_SIZE");
 
@@ -36,6 +38,16 @@ static inline void pmem_store(size_t paddr, size_t data) {
 
 
 
+// MMU-specific init code.
+void mmu_early_init() {
+}
+
+// MMU-specific init code.
+void mmu_init() {
+}
+
+
+
 // Whether a certain DTB MMU type is supported.
 bool mmu_dtb_supported(char const *type) {
     // TODO.
@@ -51,4 +63,19 @@ mmu_pte_t mmu_read_pte(size_t pte_paddr) {
 // Write a PTE to the page table.
 void mmu_write_pte(size_t pte_paddr, mmu_pte_t pte) {
     pmem_store(pte_paddr, pte.val);
+}
+
+
+
+// Swap in memory protections for the given context.
+void memprotect_swap_from_isr() {
+    memprotect_swap(isr_ctx_get()->mpu_ctx);
+}
+
+// Swap in memory protections for a given context.
+void memprotect_swap(mpu_ctx_t *mpu) {
+    mpu     = mpu ?: &mpu_global_ctx;
+    bool ie = irq_disable();
+    // TODO.
+    irq_enable_if(ie);
 }

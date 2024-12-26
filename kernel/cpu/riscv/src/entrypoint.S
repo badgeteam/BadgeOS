@@ -23,7 +23,11 @@
 	.align 2
 	.global _start
 	.type _start, %function
+	.cfi_startproc
 _start:
+	.cfi_undefined %sp
+	.cfi_undefined %fp
+	.cfi_undefined %ra
 	# Set up registers.
 	.option push
 	.option norelax
@@ -47,3 +51,4 @@ _start:
 	jal  basic_runtime_init
 	# This function isn't allowed to return.
 	ebreak
+	.cfi_endproc
