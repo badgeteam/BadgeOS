@@ -31,7 +31,7 @@ void x86_setup_gdt() {
         uint16_t size;
         void    *addr;
     } gdtr = {
-        4,
+        sizeof(gdt) - 1,
         gdt,
     };
     asm volatile("lgdt [%0]" ::"m"(gdtr));
