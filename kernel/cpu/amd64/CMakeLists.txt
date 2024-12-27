@@ -10,6 +10,7 @@ set(cpu_src
     ${CMAKE_CURRENT_LIST_DIR}/src/syscall.S
 
     ${CMAKE_CURRENT_LIST_DIR}/src/backtrace.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/interrupt.c
     ${CMAKE_CURRENT_LIST_DIR}/src/isr.c
     ${CMAKE_CURRENT_LIST_DIR}/src/isr_ctx.c
     ${CMAKE_CURRENT_LIST_DIR}/src/panic.c

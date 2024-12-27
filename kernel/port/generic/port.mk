@@ -7,6 +7,7 @@ include port/generic/port_$(CONFIG_CPU).mk
 .PHONY: _port_on_config
 _port_on_config: _cpu_on_config
 	git submodule update --init lib/limine
+	git submodule update --init lib/uacpi
 
 image: build $(OUTPUT)/image.hdd
 

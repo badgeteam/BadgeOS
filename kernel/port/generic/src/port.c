@@ -12,6 +12,7 @@
 #include "port/dtparse.h"
 #include "port/hardware_allocation.h"
 #include "rawprint.h"
+#include "uacpi/uacpi.h"
 
 #include <stdbool.h>
 
@@ -25,29 +26,47 @@ void init_pool(void *mem_start, void *mem_end, uint32_t flags);
 
 __attribute__((section(".requests_start"))) LIMINE_REQUESTS_START_MARKER;
 
-LIMINE_BASE_REVISION(2);
+LIMINE_BASE_REVISION(3);
 
 static REQ struct limine_memmap_request mm_req = {
     .id       = LIMINE_MEMMAP_REQUEST,
-    .revision = 2,
+    .revision = 3,
 };
 
+#ifdef PORT_ENABLE_DTB
 static REQ struct limine_dtb_request dtb_req = {
     .id       = LIMINE_DTB_REQUEST,
-    .revision = 2,
+    .revision = 3,
+};
+#endif
+
+static REQ struct limine_rsdp_request rsdp_req = {
+    .id       = LIMINE_RSDP_REQUEST,
+    .revision = 3,
 };
 
 static REQ struct limine_kernel_address_request addr_req = {
     .id       = LIMINE_KERNEL_ADDRESS_REQUEST,
-    .revision = 2,
+    .revision = 3,
 };
 
 static REQ struct limine_hhdm_request hhdm_req = {
     .id       = LIMINE_HHDM_REQUEST,
-    .revision = 2,
+    .revision = 3,
 };
 
 __attribute__((section(".requests_end"))) LIMINE_REQUESTS_END_MARKER;
+
+// Returns the PHYSICAL address of the RSDP structure via *out_rsdp_address.
+uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr *out_rsdp_address) {
+    if (rsdp_req.response) {
+        *out_rsdp_address = (uacpi_phys_addr)rsdp_req.response->address;
+        return UACPI_STATUS_OK;
+    } else {
+        logk(LOG_WARN, "uACPI asked for RSDP, but it does not exist");
+        return UACPI_STATUS_NOT_FOUND;
+    }
+}
 
 
 
@@ -67,11 +86,17 @@ void port_early_init() {
         logk_from_isr(LOG_FATAL, "Limine memmap response missing");
         panic_poweroff();
     }
-    if (!dtb_req.response) {
-        logk_from_isr(LOG_FATAL, "Limine DTB response missing");
-        logk_from_isr(LOG_FATAL, "HINT: If running QEMU, try `-M virt,acpi=off`");
+#ifdef PORT_ENABLE_DTB
+    if (!dtb_req.response && !rsdp_req.response) {
+        logk_from_isr(LOG_FATAL, "Both Limine DTB and Limine RSDP response missing");
         panic_poweroff();
     }
+#else
+    if (!rsdp_req.response) {
+        logk_from_isr(LOG_FATAL, "Limine RSDP response missing");
+        panic_poweroff();
+    }
+#endif
     if (!addr_req.response) {
         logk_from_isr(LOG_FATAL, "Limine kernel address response missing");
         panic_poweroff();
@@ -118,15 +143,19 @@ void port_early_init() {
         if (entry->type == LIMINE_MEMMAP_KERNEL_AND_MODULES) {
             kernel_len = entry->length;
         }
+#ifdef PORT_ENABLE_DTB
         // Workaround: Limine has a bug where the DTB is in usable, not reclaimable, memory.
         if ((size_t)dtb_req.response->dtb_ptr - hhdm_req.response->offset < entry->base ||
             (size_t)dtb_req.response->dtb_ptr - hhdm_req.response->offset >= entry->base + entry->length) {
+#endif
             // This second check was always there and just picks the largest candidate.
             if (entry->type == LIMINE_MEMMAP_USABLE && entry->length > biggest_pool_size) {
                 biggest_pool_index = i;
                 biggest_pool_size  = entry->length;
             }
+#ifdef PORT_ENABLE_DTB
         }
+#endif
         if (entry->type != LIMINE_MEMMAP_BAD_MEMORY && entry->type != LIMINE_MEMMAP_RESERVED) {
             mmu_hhdm_size = entry->base + entry->length;
         }
@@ -169,9 +198,16 @@ void port_early_init() {
 
 // Post-heap hardware initialization.
 void port_postheap_init() {
-    // Parse and process DTB.
-    dtdump(dtb_req.response->dtb_ptr);
-    dtparse(dtb_req.response->dtb_ptr);
+#ifdef PORT_ENABLE_DTB
+    if (dtb_req.response) {
+        // Parse and process DTB.
+        dtdump(dtb_req.response->dtb_ptr);
+        dtparse(dtb_req.response->dtb_ptr);
+    } else
+#endif
+    {
+        // Initialize ACPI.
+    }
 
     // Reclaim all reclaimable memory.
     size_t base = 0;
@@ -179,8 +215,8 @@ void port_postheap_init() {
     for (uint64_t i = 0; i < mm_req.response->entry_count; i++) {
         struct limine_memmap_entry *entry = mm_req.response->entries[i];
         if (i == early_alloc_index ||
-            (entry->type != LIMINE_MEMMAP_USABLE && entry->type != LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE &&
-             entry->type != LIMINE_MEMMAP_ACPI_RECLAIMABLE)) {
+            (entry->type != LIMINE_MEMMAP_USABLE && entry->type != LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE)) {
+            // TODO: LIMINE_MEMMAP_ACPI_RECLAIMABLE is currently not reclaimed.
             continue;
         }
         if (entry->base != base + len) {

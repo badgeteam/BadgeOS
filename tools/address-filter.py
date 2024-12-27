@@ -36,7 +36,10 @@ def addr2line():
     sys.stdout.write(")")
 
 while True:
-    msg_raw = sys.stdin.buffer.read(1)
+    try:
+        msg_raw = sys.stdin.buffer.read(1)
+    except (KeyboardInterrupt, EOFError):
+        break
     if not len(msg_raw): break
     msg = chr(msg_raw[0])
     for char in msg:

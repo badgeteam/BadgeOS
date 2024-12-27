@@ -5,7 +5,9 @@
 
 
 
+#ifdef PORT_ENABLE_DTB
 #include "port/dtb.h"
+#endif
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -13,8 +15,10 @@
 
 
 
+#ifdef PORT_ENABLE_DTB
 // Init function for devices detected from DTB.
 typedef void (*driver_dtbinit_t)(dtb_handle_t *dtb, dtb_node_t *node, uint32_t addr_cells, uint32_t size_cells);
+#endif
 
 // Generic driver information.
 typedef struct {
@@ -22,8 +26,10 @@ typedef struct {
     size_t                   dtb_supports_len;
     // Supported DTB compatible keywords.
     char const *const *const dtb_supports;
+#ifdef PORT_ENABLE_DTB
     // Init from DTB.
-    driver_dtbinit_t         dtbinit;
+    driver_dtbinit_t dtbinit;
+#endif
 } driver_t;
 
 // Start of driver list.

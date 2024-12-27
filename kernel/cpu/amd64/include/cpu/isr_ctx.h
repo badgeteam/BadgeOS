@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "cpu/msr.h"
 #include "cpu/regs.h"
 
 #ifndef __ASSEMBLER__
@@ -95,23 +96,24 @@ STRUCT_END(isr_ctx_t)
 
 // Get the current ISR context.
 static inline isr_ctx_t *isr_ctx_get() {
-    // TODO.
-    return NULL;
+    return (isr_ctx_t *)msr_read(MSR_GSBASE);
 }
 // Get the outstanding context swap target, if any.
 static inline isr_ctx_t *isr_ctx_switch_get() {
-    // TODO.
-    return NULL;
+    isr_ctx_t *rdata;
+    asm("mov %0, [gs:%1]" : "=r"(rdata) : "i"((size_t)offsetof(isr_ctx_t, ctxswitch)));
+    return rdata;
 }
 // Set the context swap target to swap to before exiting the trap/interrupt handler.
 static inline void isr_ctx_switch_set(isr_ctx_t *switch_to) {
-    // TODO.
-    (void)switch_to;
+    asm volatile("mov [gs:%1], %0" ::"r"(switch_to), "i"((size_t)offsetof(isr_ctx_t, ctxswitch)) : "memory");
 }
 // Immediately swap the ISR context handle.
 static inline isr_ctx_t *isr_ctx_swap(isr_ctx_t *kctx) {
-    // TODO.
-    (void)kctx;
+    isr_ctx_t *old = isr_ctx_get();
+    msr_write(MSR_GSBASE, (uint64_t)kctx);
+    asm volatile("mov [gs:%1], %0" ::"r"(old->ctxswitch), "i"((size_t)offsetof(isr_ctx_t, ctxswitch)) : "memory");
+    asm volatile("mov [gs:%1], %0" ::"r"(old->cpulocal), "i"((size_t)offsetof(isr_ctx_t, cpulocal)) : "memory");
     return NULL;
 }
 // Print a register dump given isr_ctx_t.

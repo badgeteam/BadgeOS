@@ -92,6 +92,7 @@ void *pcie_ecam_vaddr(pcie_addr_t addr) {
 
 
 
+#ifdef PORT_ENABLE_DTB
 // Extract ranges from DTB.
 static bool pcie_dtb_ranges(dtb_handle_t *handle, dtb_node_t *node, uint32_t addr_cells, uint32_t size_cells) {
     (void)addr_cells;
@@ -153,12 +154,15 @@ static void pcie_driver_dtbinit(dtb_handle_t *handle, dtb_node_t *node, uint32_t
     ctl.bus_end      = dtb_read_cell(handle, node, "bus-range", 1);
     pcie_controller_init();
 }
+#endif
 
 // Driver for normal no-nonsense PCIe.
 DRIVER_DECL(pcie_driver) = {
     .dtb_supports_len = 1,
     .dtb_supports     = (char const *[]){"pci-host-ecam-generic"},
-    .dtbinit          = pcie_driver_dtbinit,
+#ifdef PORT_ENABLE_DTB
+    .dtbinit = pcie_driver_dtbinit,
+#endif
 };
 
 

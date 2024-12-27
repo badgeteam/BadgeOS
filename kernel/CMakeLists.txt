@@ -60,9 +60,8 @@ add_link_options(
     -Wl,--gc-sections -Wl,--build-id=none -nodefaultlibs -nostartfiles
 )
 
+# Define executable.
 project(badgeros C ASM)
-
-# Define executable file.
 set(target badger-os.elf)
 add_executable(${target}
     ${CMAKE_CURRENT_LIST_DIR}/build/fs_root.c
