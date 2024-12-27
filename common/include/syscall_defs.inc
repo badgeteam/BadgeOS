@@ -8,7 +8,7 @@
 
 // Normal syscall definition.
 #ifndef SYSCALL_DEF
-#define SYSCALL_DEF(...)
+#define SYSCALL_DEF(no, enum, name, returns, ...)
 #endif
 
 // Normal syscall definition (returning void).

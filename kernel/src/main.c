@@ -54,10 +54,6 @@ static void kernel_lifetime_func();
 void basic_runtime_init() {
     badge_err_t ec = {0};
 
-    port_putc('H');
-    port_putc('i');
-    port_putc('\n');
-
     // ISR initialization.
     irq_init();
     // Early memory protection initialization.

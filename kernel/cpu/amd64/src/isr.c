@@ -40,7 +40,10 @@ void amd64_trap_handler() {
 void syscall_return(long long value) {
     sched_thread_t *thread = isr_ctx_get()->thread;
     isr_ctx_t      *usr    = &thread->user_isr_ctx;
-    // TODO: Increment RIP and shuffle return values.
+
+    usr->regs.rax = value;
+    usr->regs.rip = usr->regs.rcx;
+
     if (proc_signals_pending_raw(thread->process)) {
         proc_signal_handler();
     }

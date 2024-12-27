@@ -23,6 +23,9 @@ static uint64_t gdt[] = {
     GDT_ACCESS_S | GDT_ACCESS_RW | GDT_ACCESS_P | (PRIV_USER << GDT_ACCESS_DPL_BASE),
 };
 
+// Interrupt descriptor table.
+static x86_idtent_t idt[256] = {};
+
 // Set up the GDT in BadgerOS-owned memory.
 void x86_setup_gdt() {
     struct PACKED {
@@ -67,6 +70,13 @@ void x86_reload_segments() {
 // Temporary interrupt context before scheduler.
 static isr_ctx_t tmp_ctx = {.flags = ISR_CTX_FLAG_KERNEL};
 
+// Assembly entry point for traps with error code.
+void __amd64_trap_ec();
+// Assembly entry point for traps without code.
+void __amd64_trap_noec();
+// Assembly entry point for NMIs.
+void __amd64_nmi();
+
 // Initialise interrupt drivers for this CPU.
 void irq_init() {
     // Set up GDT for booting CPU.
@@ -74,4 +84,10 @@ void irq_init() {
     x86_reload_segments();
     // Set GSBASE to the address of the ISR context.
     msr_write(MSR_GSBASE, (uint64_t)&tmp_ctx);
+
+    // Set up IDT handlers.
+    for (int i = 0; i < 32; i++) {
+        idt[i] =
+            FORMAT_IDTENT((size_t)&__amd64_trap_ec, FORMAT_SEGMENT(SEGNO_KCODE, 0, PRIV_KERNEL), PRIV_KERNEL, 0, 0);
+    }
 }

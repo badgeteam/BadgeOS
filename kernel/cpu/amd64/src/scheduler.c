@@ -6,6 +6,8 @@
 #include "assertions.h"
 #include "backtrace.h"
 #include "badge_strings.h"
+#include "cpu/priv_level.h"
+#include "cpu/segmentation.h"
 #include "isr_ctx.h"
 #include "log.h"
 #include "process/internal.h"
@@ -26,7 +28,19 @@ void sched_raise_from_isr(sched_thread_t *thread, bool syscall, void *entry_poin
     assert_dev_drop(!(thread->flags & THREAD_KERNEL) && !(thread->flags & THREAD_PRIVILEGED));
     thread->flags |= THREAD_PRIVILEGED;
 
-    // TODO: Shuffle data between registers.
+    // Set up kernel entrypoint.
+    thread->kernel_isr_ctx.regs.rip = (size_t)entry_point;
+    thread->kernel_isr_ctx.regs.rsp = thread->kernel_stack_top;
+
+    if (syscall) {
+        // Transfer syscall arguments.
+        thread->kernel_isr_ctx.regs.rdi = thread->user_isr_ctx.regs.rdi;
+        thread->kernel_isr_ctx.regs.rsi = thread->user_isr_ctx.regs.rsi;
+        thread->kernel_isr_ctx.regs.rdx = thread->user_isr_ctx.regs.rdx;
+        thread->kernel_isr_ctx.regs.rcx = thread->user_isr_ctx.regs.rcx;
+        thread->kernel_isr_ctx.regs.r8  = thread->user_isr_ctx.regs.r8;
+        thread->kernel_isr_ctx.regs.r9  = thread->user_isr_ctx.regs.r9;
+    }
 
     // Do time accounting.
     timestamp_us_t    now         = time_us();
@@ -151,13 +165,34 @@ static void sched_exit_self(int code) {
 void sched_prepare_kernel_entry(sched_thread_t *thread, void *entry_point, void *arg) {
     // Initialize registers.
     mem_set(&thread->kernel_isr_ctx.regs, 0, sizeof(thread->kernel_isr_ctx.regs));
-    // TODO.
+    thread->kernel_isr_ctx.regs.rip = (size_t)entry_point;
+    thread->kernel_isr_ctx.regs.rsp = thread->kernel_stack_top;
+    thread->kernel_isr_ctx.regs.cs  = FORMAT_SEGMENT(SEGNO_KCODE, 0, PRIV_KERNEL);
+    thread->kernel_isr_ctx.regs.ds  = FORMAT_SEGMENT(SEGNO_KDATA, 0, PRIV_KERNEL);
+    thread->kernel_isr_ctx.regs.es  = FORMAT_SEGMENT(SEGNO_KDATA, 0, PRIV_KERNEL);
+    thread->kernel_isr_ctx.regs.fs  = FORMAT_SEGMENT(SEGNO_KDATA, 0, PRIV_KERNEL);
+    thread->kernel_isr_ctx.regs.gs  = FORMAT_SEGMENT(SEGNO_KDATA, 0, PRIV_KERNEL);
+    thread->kernel_isr_ctx.regs.ss  = FORMAT_SEGMENT(SEGNO_KDATA, 0, PRIV_KERNEL);
 }
 
 // Prepares a pair of contexts to be invoked as a userland thread.
 // Kernel-side in these threads is always started by an ISR and the entry point is given at that time.
 void sched_prepare_user_entry(sched_thread_t *thread, size_t entry_point, size_t arg) {
     // Initialize kernel registers.
-    mem_set(&thread->kernel_isr_ctx.regs, 0, sizeof(thread->kernel_isr_ctx.regs));
-    // TODO.
+    mem_set(&thread->kernel_isr_ctx.regs, 0, sizeof(thread->user_isr_ctx.regs));
+    thread->kernel_isr_ctx.regs.cs = FORMAT_SEGMENT(SEGNO_KCODE, 0, PRIV_KERNEL);
+    thread->kernel_isr_ctx.regs.ds = FORMAT_SEGMENT(SEGNO_KDATA, 0, PRIV_KERNEL);
+    thread->kernel_isr_ctx.regs.es = FORMAT_SEGMENT(SEGNO_KDATA, 0, PRIV_KERNEL);
+    thread->kernel_isr_ctx.regs.fs = FORMAT_SEGMENT(SEGNO_KDATA, 0, PRIV_KERNEL);
+    thread->kernel_isr_ctx.regs.gs = FORMAT_SEGMENT(SEGNO_KDATA, 0, PRIV_KERNEL);
+    thread->kernel_isr_ctx.regs.ss = FORMAT_SEGMENT(SEGNO_KDATA, 0, PRIV_KERNEL);
+    mem_set(&thread->user_isr_ctx.regs, 0, sizeof(thread->user_isr_ctx.regs));
+    thread->user_isr_ctx.regs.rip = entry_point;
+    thread->user_isr_ctx.regs.rsp = thread->kernel_stack_top;
+    thread->user_isr_ctx.regs.cs  = FORMAT_SEGMENT(SEGNO_UCODE, 0, PRIV_USER);
+    thread->user_isr_ctx.regs.ds  = FORMAT_SEGMENT(SEGNO_UDATA, 0, PRIV_USER);
+    thread->user_isr_ctx.regs.es  = FORMAT_SEGMENT(SEGNO_UDATA, 0, PRIV_USER);
+    thread->user_isr_ctx.regs.fs  = FORMAT_SEGMENT(SEGNO_UDATA, 0, PRIV_USER);
+    thread->user_isr_ctx.regs.gs  = FORMAT_SEGMENT(SEGNO_UDATA, 0, PRIV_USER);
+    thread->user_isr_ctx.regs.ss  = FORMAT_SEGMENT(SEGNO_UDATA, 0, PRIV_USER);
 }
