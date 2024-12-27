@@ -21,4 +21,4 @@ set(cpu_src
 )
 set(cpu_include ${CMAKE_CURRENT_LIST_DIR}/include)
 set(cpu_link)
-set(cpu_flags -masm=intel)
+set(cpu_flags -masm=intel -mgeneral-regs-only -mno-red-zone)

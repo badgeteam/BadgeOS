@@ -4,6 +4,7 @@
 #include "cpu/mmu.h"
 
 #include "assertions.h"
+#include "cpu/x86_cr.h"
 #include "interrupt.h"
 #include "isr_ctx.h"
 
@@ -40,6 +41,20 @@ static inline void pmem_store(size_t paddr, size_t data) {
 
 // MMU-specific init code.
 void mmu_early_init() {
+    // Enable NXE feature.
+    msr_efer_t efer;
+    efer.val = msr_read(MSR_EFER);
+    efer.nxe = 1;
+    msr_write(MSR_EFER, efer.val);
+
+    // Enable PCIDE.
+    x86_cr4_t cr4;
+    asm volatile("mov %0, cr0" : "=r"(cr4));
+    cr4.pcide = 1;
+    asm volatile("mov cr0, %0" ::"r"(cr4));
+
+    // TODO: Detect number of paging levels supported by the CPU.
+    mmu_levels = 4;
 }
 
 // MMU-specific init code.

@@ -9,6 +9,33 @@
 
 
 
+#ifndef __ASSEMBLER__
+// Format of EFER MSR.
+typedef union {
+    struct {
+        // System call extensions.
+        uint64_t sce   : 1;
+        // Reserved.
+        uint64_t       : 7;
+        // Long mode enable.
+        uint64_t lme   : 1;
+        // Long mode active.
+        uint64_t lma   : 1;
+        // No-execute enable.
+        uint64_t nxe   : 1;
+        // Secure virtual machine enable.
+        uint64_t svme  : 1;
+        // Fast FXSAVE/FXSTOR.
+        uint64_t ffxsr : 1;
+        // Translation cache extension.
+        uint64_t tce   : 1;
+    };
+    uint64_t val;
+} msr_efer_t;
+#endif
+
+
+
 // Address of FSBASE MSR; base address of `fs` segment.
 #define MSR_FSBASE  0xc0000100
 // Address of GSBASE MSR; base address of `gs` segment.
@@ -17,6 +44,8 @@
 // Address of KGSBASE MSR; temporary value for kernel `gs` segment.
 // Swapped with GSBASE using the `swapgs` instruction.
 #define MSR_KGSBASE 0xc0000102
+// Address of EFER MSR; extended feature enable register.
+#define MSR_EFER    0xc0000080
 
 
 

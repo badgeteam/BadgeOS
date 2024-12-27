@@ -99,12 +99,12 @@ static pt_walk_t pt_walk(size_t pt_ppn, size_t vpn) {
         int level  = mmu_levels - i - 1;
         pte_addr   = pt_ppn * MMU_PAGE_SIZE + mmu_vpn_part(vpn, level) * sizeof(mmu_pte_t);
         pte        = mmu_read_pte(pte_addr);
-        size_t ppn = mmu_pte_get_ppn(pte);
+        size_t ppn = mmu_pte_get_ppn(pte, level);
 
-        if (!mmu_pte_is_valid(pte)) {
+        if (!mmu_pte_is_valid(pte, level)) {
             // PTE invalid.
             return (pt_walk_t){pte_addr, pte, level, false, true};
-        } else if (mmu_pte_is_leaf(pte)) {
+        } else if (mmu_pte_is_leaf(pte, level)) {
 // Leaf PTE.
 #if MMU_SUPPORT_SUPERPAGES
             if (level && ppn & ((1 << MMU_BITS_PER_LEVEL * level) - 1)) {
@@ -154,15 +154,15 @@ static inline size_t pt_split(size_t pt_ppn, int pt_level, size_t pte_paddr, mmu
     assert_always(next_pt);
 
     // Populate with new entries.
-    size_t   ppn   = mmu_pte_get_ppn(pte);
-    uint32_t flags = mmu_pte_get_flags(pte);
+    size_t   ppn   = mmu_pte_get_ppn(pte, pt_level);
+    uint32_t flags = mmu_pte_get_flags(pte, pt_level);
     for (size_t i = 0; i < (1 << MMU_BITS_PER_LEVEL); i++) {
         size_t low_pte_paddr = next_pt * MMU_PAGE_SIZE + i * sizeof(mmu_pte_t);
-        mmu_write_pte(low_pte_paddr, mmu_pte_new_leaf(ppn + i, flags));
+        mmu_write_pte(low_pte_paddr, mmu_pte_new_leaf(ppn + i, pt_level - 1, flags));
     }
 
     // Overwrite old entry.
-    mmu_write_pte(pte_paddr, mmu_pte_new(next_pt));
+    mmu_write_pte(pte_paddr, mmu_pte_new(next_pt, pt_level));
     return next_pt;
 #else
     (void)pt_ppn;
@@ -203,26 +203,26 @@ static bool pt_map_1(size_t pt_ppn, int pt_level, size_t vpn, size_t ppn, int pt
         size_t    pte_paddr = pt_ppn * MMU_PAGE_SIZE + mmu_vpn_part(vpn, pt_level) * sizeof(mmu_pte_t);
         // Too high; read PTE to go to next table.
         mmu_pte_t pte       = mmu_read_pte(pte_paddr);
-        if (!mmu_pte_is_valid(pte)) {
+        if (!mmu_pte_is_valid(pte, pt_level)) {
             // Make new level of page table.
             size_t next_pt = phys_page_alloc(1, false);
             assert_always(next_pt);
-            mmu_write_pte(pte_paddr, mmu_pte_new(next_pt));
+            mmu_write_pte(pte_paddr, mmu_pte_new(next_pt, pt_level));
             top_edit |= orig_pt_level == pt_level;
             pt_ppn    = next_pt;
-        } else if (mmu_pte_is_leaf(pte)) {
+        } else if (mmu_pte_is_leaf(pte, pt_level)) {
             // Split page.
             pt_ppn    = pt_split(pt_ppn, pt_level, pte_paddr, pte, vpn);
             top_edit |= orig_pt_level == pt_level;
         } else {
             // Walk to next level of page table.
-            pt_ppn = mmu_pte_get_ppn(pte);
+            pt_ppn = mmu_pte_get_ppn(pte, pt_level);
         }
     }
 
     // At the correct level; write leaf PTE.
     size_t pte_paddr = pt_ppn * MMU_PAGE_SIZE + mmu_vpn_part(vpn, pte_level) * sizeof(mmu_pte_t);
-    mmu_write_pte(pte_paddr, mmu_pte_new_leaf(ppn, flags));
+    mmu_write_pte(pte_paddr, mmu_pte_new_leaf(ppn, pte_level, flags));
     return top_edit;
 }
 
@@ -247,16 +247,16 @@ static bool pt_unmap_1(size_t pt_ppn, int pt_level, size_t vpn, int pte_level) {
         size_t    pte_paddr = pt_ppn * MMU_PAGE_SIZE + mmu_vpn_part(vpn, pte_level) * sizeof(mmu_pte_t);
         // Too high; read PTE to go to next table.
         mmu_pte_t pte       = mmu_read_pte(pte_paddr);
-        if (!mmu_pte_is_valid(pte)) {
+        if (!mmu_pte_is_valid(pte, pt_level)) {
             // Nothing mapped here.
             return top_edit;
-        } else if (mmu_pte_is_leaf(pte)) {
+        } else if (mmu_pte_is_leaf(pte, pt_level)) {
             // Split page.
             pt_ppn    = pt_split(pt_ppn, pt_level, pte_paddr, pte, vpn);
             top_edit |= orig_pt_level == pt_level;
         } else {
             // Walk to next level of page table.
-            pt_ppn = mmu_pte_get_ppn(pte);
+            pt_ppn = mmu_pte_get_ppn(pte, pt_level);
         }
     }
 
@@ -269,6 +269,11 @@ static bool pt_unmap_1(size_t pt_ppn, int pt_level, size_t vpn, int pte_level) {
 // Calculate the biggest superpage level that will fit a range.
 static int pt_calc_superpage(int max_level, size_t vpn, size_t ppn, size_t max_len) {
 #if MMU_SUPPORT_SUPERPAGES
+#ifdef MMU_LEAF_MAX_LEVEL
+    if (max_level > MMU_LEAF_MAX_LEVEL) {
+        max_level = MMU_LEAF_MAX_LEVEL;
+    }
+#endif
     for (int i = max_level; i > 0; i--) {
         size_t super_len = 1LLU << (MMU_BITS_PER_LEVEL * i);
         if ((vpn & (super_len - 1)) == 0 && (ppn & (super_len - 1)) == 0 && max_len >= super_len) {
@@ -312,7 +317,7 @@ static bool pt_unmap(size_t pt_ppn, int pt_level, size_t vpn, size_t pages) {
 static void broadcast_to(size_t dest_pt_ppn, size_t src_pt_ppn) {
     for (size_t i = 1 << (MMU_BITS_PER_LEVEL - 1); i < (1 << MMU_BITS_PER_LEVEL); i++) {
         mmu_pte_t pte = mmu_read_pte(src_pt_ppn * MMU_PAGE_SIZE + i * sizeof(mmu_pte_t));
-        if (mmu_pte_is_valid(pte)) {
+        if (mmu_pte_is_valid(pte, mmu_levels - 1)) {
             mmu_write_pte(dest_pt_ppn * MMU_PAGE_SIZE + i * sizeof(mmu_pte_t), pte);
         }
     }
@@ -331,9 +336,9 @@ virt2phys_t memprotect_virt2phys(mpu_ctx_t *ctx, size_t vaddr) {
     pt_walk_t walk = pt_walk(ctx->root_ppn, vaddr / MMU_PAGE_SIZE);
     if (walk.found) {
         size_t page_size  = MMU_PAGE_SIZE << (MMU_BITS_PER_LEVEL * walk.level);
-        size_t page_paddr = mmu_pte_get_ppn(walk.pte) * MMU_PAGE_SIZE;
+        size_t page_paddr = mmu_pte_get_ppn(walk.pte, walk.level) * MMU_PAGE_SIZE;
         return (virt2phys_t){
-            mmu_pte_get_flags(walk.pte),
+            mmu_pte_get_flags(walk.pte, walk.level),
             page_paddr + (vaddr & (page_size - 1)),
             vaddr & ~(page_size - 1),
             page_paddr,

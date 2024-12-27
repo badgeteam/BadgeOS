@@ -144,7 +144,8 @@ mmu_pte_t mmu_read_pte(size_t pte_paddr);
 void      mmu_write_pte(size_t pte_paddr, mmu_pte_t pte);
 
 // Create a new leaf node PTE.
-static inline mmu_pte_t mmu_pte_new_leaf(size_t ppn, uint32_t flags) {
+static inline mmu_pte_t mmu_pte_new_leaf(size_t ppn, int level, uint32_t flags) {
+    (void)level;
     mmu_pte_t pte = {0};
     pte.v         = !!(flags & MEMPROTECT_FLAG_RWX);
     pte.rwx       = flags & MEMPROTECT_FLAG_RWX;
@@ -161,7 +162,8 @@ static inline mmu_pte_t mmu_pte_new_leaf(size_t ppn, uint32_t flags) {
     return pte;
 }
 // Create a new internal PTE.
-static inline mmu_pte_t mmu_pte_new(size_t ppn) {
+static inline mmu_pte_t mmu_pte_new(size_t ppn, int level) {
+    (void)level;
     mmu_pte_t pte = {0};
     pte.v         = 1;
     pte.ppn       = ppn;
@@ -171,19 +173,23 @@ static inline mmu_pte_t mmu_pte_new(size_t ppn) {
 #define MMU_PTE_NULL ((mmu_pte_t){0})
 
 // Whether a PTE's valid/present bit is set.
-static inline bool mmu_pte_is_valid(mmu_pte_t pte) {
+static inline bool mmu_pte_is_valid(mmu_pte_t pte, int level) {
+    (void)level;
     return pte.v;
 }
 // Whether a PTE represents a leaf node.
-static inline bool mmu_pte_is_leaf(mmu_pte_t pte) {
+static inline bool mmu_pte_is_leaf(mmu_pte_t pte, int level) {
+    (void)level;
     return pte.rwx != 0;
 }
 // Get memory protection flags encoded in PTE.
-static inline uint32_t mmu_pte_get_flags(mmu_pte_t pte) {
+static inline uint32_t mmu_pte_get_flags(mmu_pte_t pte, int level) {
+    (void)level;
     return pte.rwx | (pte.g * MEMPROTECT_FLAG_GLOBAL) | (!pte.u * MEMPROTECT_FLAG_KERNEL);
 }
 // Get physical page number encoded in PTE.
-static inline size_t mmu_pte_get_ppn(mmu_pte_t pte) {
+static inline size_t mmu_pte_get_ppn(mmu_pte_t pte, int level) {
+    (void)level;
     return pte.ppn;
 }
 
