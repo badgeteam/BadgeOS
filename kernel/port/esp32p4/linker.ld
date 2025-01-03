@@ -98,6 +98,9 @@ PROVIDE(CLIC_CTL = 0x20801000);
 	.rodata : AT(LOADADDR(.plt) + SIZEOF(.plt)) {
 		. = ALIGN(__section_alignment);
 		*(.rodata) *(.rodata.*)
+        __start_fsdrivers = .;
+        KEEP(*(.fsdrivers .fsdrivers.*))
+        __stop_fsdrivers = .;
 		. = ALIGN(4);
 	} >xip :rodataseg
 	__stop_rodata = .;

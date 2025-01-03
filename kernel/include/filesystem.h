@@ -59,19 +59,9 @@ typedef long inode_t;
 // Value used for absent file / directory handle.
 #define FILE_NONE ((file_t) - 1)
 // Type used for file / directory handles in the kernel.
-typedef int  file_t;
+typedef int64_t file_t;
 // Type used for file offsets.
-typedef long fileoff_t;
-
-// Supported filesystem types.
-typedef enum {
-    // Unknown / auto-detect filesystem type.
-    FS_TYPE_UNKNOWN,
-    // FAT12, FAT16 or FAT32.
-    FS_TYPE_FAT,
-    // RAM filesystem.
-    FS_TYPE_RAMFS,
-} fs_type_t;
+typedef int64_t fileoff_t;
 
 // Modes for VFS seek.
 typedef enum {
@@ -120,6 +110,18 @@ typedef struct {
     char      name[FILESYSTEM_NAME_MAX + 1];
 } dirent_t;
 
+// List of dirents as created by `fs_dir_read`.
+typedef struct {
+    // Pointer to packed array of `dirent_t`, each aligned to 8 bytes.
+    // Dirent names are null-terminated.
+    // Dirents are shortened at the name to conserve memory.
+    void  *mem;
+    // Byte size of `mem`.
+    size_t size;
+    // Number of dirents in the list.
+    size_t ent_count;
+} dirent_list_t;
+
 // File or directory status.
 typedef struct stat {
     // ID of device containing file.
@@ -143,39 +145,62 @@ typedef struct stat {
 // Try to mount a filesystem.
 // Some filesystems (like RAMFS) do not use a block device, for which `media` must be NULL.
 // Filesystems which do use a block device can often be automatically detected.
-void      fs_mount(badge_err_t *ec, fs_type_t type, blkdev_t *media, char const *mountpoint, mountflags_t flags);
+void        fs_mount(badge_err_t *ec, char const *type, blkdev_t *media, char const *mountpoint, mountflags_t flags);
 // Unmount a filesystem.
 // Only raises an error if there isn't a valid filesystem to unmount.
-void      fs_umount(badge_err_t *ec, char const *mountpoint);
+void        fs_umount(badge_err_t *ec, char const *mountpoint);
 // Try to identify the filesystem stored in the block device
-// Returns `FS_TYPE_UNKNOWN` on error or if the filesystem is unknown.
-fs_type_t fs_detect(badge_err_t *ec, blkdev_t *media);
+// Returns `NULL` on error or if the filesystem is unknown.
+char const *fs_detect(badge_err_t *ec, blkdev_t *media);
 
 // Test whether a path is a canonical path, but not for the existence of the file or directory.
 // A canonical path starts with '/' and contains none of the following regex: `\.\.?/|//+`
-bool fs_is_canonical_path(char const *path);
-// Get file status given path.
-bool fs_stat(badge_err_t *ec, stat_t *stat_out, char const *path);
-// Get file status given path.
-// If the path ends in a symlink, show it's status instead of that of the target file.
-bool fs_lstat(badge_err_t *ec, stat_t *stat_out, char const *path);
-// Get file status given file handle.
-bool fs_fstat(badge_err_t *ec, stat_t *stat_out, file_t file);
+bool fs_is_canonical_path(char const *path, size_t path_len);
+// TODO: stat functions:
+// // Get file status given path relative to a dir handle.
+// // If `at` is `FILE_NONE`, it is relative to the root dir.
+// bool fs_stat(badge_err_t *ec, stat_t *stat_out, file_t at, char const *path, size_t path_len);
+// // Get file status given path relative to a dir handle.
+// // If `at` is `FILE_NONE`, it is relative to the root dir.
+// // If the path ends in a symlink, show it's status instead of that of the target file.
+// bool fs_lstat(badge_err_t *ec, stat_t *stat_out, file_t at, char const *path, size_t path_len);
+// // Get file status given file handle.
+// bool fs_fstat(badge_err_t *ec, stat_t *stat_out, file_t file);
 
-// Create a new directory.
+// Create a new directory relative to a dir handle.
+// If `at` is `FILE_NONE`, it is relative to the root dir.
 // Returns whether the target exists and is a directory.
-bool   fs_dir_create(badge_err_t *ec, char const *path);
-// Open a directory for reading.
-file_t fs_dir_open(badge_err_t *ec, char const *path, oflags_t oflags);
+bool   fs_dir_create(badge_err_t *ec, file_t at, char const *path, size_t path_len);
+// Open a directory for reading relative to a dir handle.
+// If `at` is `FILE_NONE`, it is relative to the root dir.
+file_t fs_dir_open(badge_err_t *ec, file_t at, char const *path, size_t path_len, oflags_t oflags);
+// Remove a directory, which must be empty, relative to a dir handle.
+// If `at` is `FILE_NONE`, it is relative to the root dir.
+void   fs_dir_remove(badge_err_t *ec, file_t at, char const *path, size_t path_len);
+
 // Close a directory opened by `fs_dir_open`.
 // Only raises an error if `dir` is an invalid directory descriptor.
-void   fs_dir_close(badge_err_t *ec, file_t dir);
-// Read the current directory entry.
-// Returns whether a directory entry was successfully read.
-bool   fs_dir_read(badge_err_t *ec, dirent_t *dirent_out, file_t dir);
+void          fs_dir_close(badge_err_t *ec, file_t dir);
+// Read all entries from a directory.
+dirent_list_t fs_dir_read(badge_err_t *ec, file_t dir);
 
-// Open a file for reading and/or writing.
-file_t    fs_open(badge_err_t *ec, char const *path, oflags_t oflags);
+// Open a file for reading and/or writing relative to a dir handle.
+// If `at` is `FILE_NONE`, it is relative to the root dir.
+file_t fs_open(badge_err_t *ec, file_t at, char const *path, size_t path_len, oflags_t oflags);
+// Unlink a file from the given directory relative to a dir handle.
+// If `at` is `FILE_NONE`, it is relative to the root dir.
+// If this is the last reference to an inode, the inode is deleted.
+// Fails if this is a directory.
+void   fs_unlink(badge_err_t *ec, file_t at, char const *path, size_t path_len);
+// Create a new hard link from one path to another relative to their respective dirs.
+// If `*_at` is `FILE_NONE`, it is relative to the root dir.
+// Fails if `old_path` names a directory.
+void   fs_link(badge_err_t *ec, file_t old_at, char const *old_path, file_t new_at, char const *new_path);
+// Create a new symbolic link from one path to another, the latter relative to a dir handle.
+// The `old_path` specifies a path that is relative to the symlink's location.
+// If `new_at` is `FILE_NONE`, it is relative to the root dir.
+void   fs_symlink(badge_err_t *ec, char const *old_path, file_t new_at, char const *new_path);
+
 // Close a file opened by `fs_open`.
 // Only raises an error if `file` is an invalid file descriptor.
 void      fs_close(badge_err_t *ec, file_t file);
@@ -190,6 +215,7 @@ fileoff_t fs_tell(badge_err_t *ec, file_t file);
 // Set the current offset in the file.
 // Returns the new offset in the file.
 fileoff_t fs_seek(badge_err_t *ec, file_t file, fileoff_t off, fs_seek_t seekmode);
+
 // Force any write caches to be flushed for a given file.
 // If the file is `FILE_NONE`, all open files are flushed.
-void      fs_flush(badge_err_t *ec, file_t file);
+void fs_flush(badge_err_t *ec, file_t file);

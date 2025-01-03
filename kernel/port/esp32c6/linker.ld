@@ -95,6 +95,9 @@ PROVIDE(CLINT_U = 0x20001C00);
 	.rodata : AT(LOADADDR(.plt) + SIZEOF(.plt)) {
 		. = ALIGN(__section_alignment);
 		*(.rodata) *(.rodata.*)
+        __start_fsdrivers = .;
+        KEEP(*(.fsdrivers .fsdrivers.*))
+        __stop_fsdrivers = .;
 		. = ALIGN(4);
 	} >xip :rodataseg
 	__stop_rodata = .;

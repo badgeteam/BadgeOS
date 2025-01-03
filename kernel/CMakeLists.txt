@@ -76,8 +76,8 @@ add_executable(${target}
     
     ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/filesystem.c
     ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/syscall_impl.c
-    # ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/vfs_fat.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/vfs_ramfs.c
+    # ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/fs_fat.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/fs_ramfs.c
     ${CMAKE_CURRENT_LIST_DIR}/src/filesystem/vfs_internal.c
     ${CMAKE_CURRENT_LIST_DIR}/src/freestanding/int_routines.c
     ${CMAKE_CURRENT_LIST_DIR}/src/freestanding/string.c

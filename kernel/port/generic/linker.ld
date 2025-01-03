@@ -34,6 +34,9 @@ SECTIONS
         __start_drivers = .;
         KEEP(*(.drivers .drivers.*))
         __stop_drivers = .;
+        __start_fsdrivers = .;
+        KEEP(*(.fsdrivers .fsdrivers.*))
+        __stop_fsdrivers = .;
     } :rodata
     .dynstr : { *(.dynstr) } :rodata
     .dynsym : { *(.dynsym) } :rodata

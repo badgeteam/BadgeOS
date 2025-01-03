@@ -44,7 +44,7 @@ typedef struct {
     int      uid;
     // Owner group ID.
     int      gid;
-} vfs_ramfs_inode_t;
+} fs_ramfs_inode_t;
 
 // RAMFS directory entry.
 typedef struct {
@@ -56,26 +56,26 @@ typedef struct {
     size_t  name_len;
     // Filename.
     char    name[VFS_RAMFS_NAME_MAX + 1];
-} vfs_ramfs_dirent_t;
+} fs_ramfs_dirent_t;
 
 // RAM filesystem file / directory handle.
 // This handle is shared between multiple holders of the same file.
-typedef vfs_ramfs_inode_t *vfs_ramfs_file_t;
+typedef fs_ramfs_inode_t *fs_ramfs_file_t;
 
 // Mounted RAM filesystem.
 typedef struct {
     // RAM limit for the entire filesystem.
-    size_t             ram_limit;
+    size_t            ram_limit;
     // RAM usage.
-    atomic_size_t      ram_usage;
+    atomic_size_t     ram_usage;
     // Inode table, indices 0 and 1 are unused.
-    vfs_ramfs_inode_t *inode_list;
+    fs_ramfs_inode_t *inode_list;
     // Inode table usage map.
-    bool              *inode_usage;
+    bool             *inode_usage;
     // Number of allocated inodes.
-    size_t             inode_list_len;
+    size_t            inode_list_len;
     // THE RAMFS mutex.
     // Acquired shared for all read-only operations.
     // Acquired exclusive for any write operation.
-    mutex_t            mtx;
-} vfs_ramfs_t;
+    mutex_t           mtx;
+} fs_ramfs_t;
