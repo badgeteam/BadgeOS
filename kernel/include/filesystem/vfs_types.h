@@ -10,6 +10,8 @@ typedef struct vfs_file_obj  vfs_file_obj_t;
 typedef struct vfs_file_desc vfs_file_desc_t;
 // VFS mounted filesystem.
 typedef struct vfs           vfs_t;
+// Filesystem implementation info.
+typedef struct fs_driver     fs_driver_t;
 
 #include "blockdevice.h"
 #include "filesystem.h"
@@ -22,8 +24,6 @@ typedef struct vfs           vfs_t;
 struct vfs_file_obj {
     // Reference count (how many `vfs_file_desc_t` reference this).
     atomic_int refcount;
-    // Index in the shared file handle table.
-    ptrdiff_t  index;
     // Current file size.
     fileoff_t  size;
     // Filesystem-specific information.
@@ -38,6 +38,8 @@ struct vfs_file_obj {
     vfs_t     *vfs;
     // Handle mutex for concurrency.
     mutex_t    mutex;
+    // FS mounted in this directory, if any.
+    vfs_t     *mounted_fs;
 };
 
 // VFS opened file handle.
@@ -64,32 +66,40 @@ struct vfs_file_desc {
 // VFS mounted filesystem.
 struct vfs {
     // Filesystem vtable.
-    vfs_vtable_t const *vtable;
+    vfs_vtable_t       vtable;
     // Copy of mount point.
-    char               *mountpoint;
+    char              *mountpoint;
     // Read-only flag.
-    bool                readonly;
+    bool               readonly;
     // Associated block device.
-    blkdev_t           *media;
+    blkdev_t          *media;
     // Filesystem type.
-    fs_driver_t const  *driver;
+    fs_driver_t const *driver;
     // Inode number given to the root directory.
-    inode_t             inode_root;
+    inode_t            inode_root;
     // Filesystem-specific information.
-    void               *cookie;
+    void              *cookie;
+    // Number of currently open files.
+    atomic_int         n_open_fd;
 };
 
+// Identify whether a block device contains a this filesystem.
+// Returns false on error.
+typedef bool (*vfs_detect_t)(badge_err_t *ec, blkdev_t *dev);
+
 // Filesystem implementation info.
-typedef struct {
+struct fs_driver {
     // Filesystem ID.
     char const         *id;
     // Filesystem vtable.
     vfs_vtable_t const *vtable;
+    // Filesystem detection function.
+    vfs_detect_t        detect;
     // Size to allocate for the VFS cookie.
     size_t              vfs_cookie_size;
     // Size to allocate for the file handle cookie.
     size_t              file_cookie_size;
-} fs_driver_t;
+};
 
 // Declare a filesystem driver.
-#define FS_DRIVER_DECL(ident) __attribute__((section(".fsdrivers"))) static fs_driver_t const ident
+#define FS_DRIVER_DECL(ident) __attribute__((used, section(".fsdrivers"))) static fs_driver_t const ident

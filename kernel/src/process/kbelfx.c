@@ -135,7 +135,7 @@ void kbelfx_seg_free(kbelf_inst inst, size_t segs_len, kbelf_segment *segs) {
 // Open a binary file for reading.
 // User-defined.
 void *kbelfx_open(char const *path) {
-    file_t fd = fs_open(NULL, path, OFLAGS_READONLY);
+    file_t fd = fs_open(NULL, FILE_NONE, path, cstr_length(path), OFLAGS_READONLY);
     if (fd == -1)
         return NULL;
     else

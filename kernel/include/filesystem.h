@@ -145,10 +145,12 @@ typedef struct stat {
 // Try to mount a filesystem.
 // Some filesystems (like RAMFS) do not use a block device, for which `media` must be NULL.
 // Filesystems which do use a block device can often be automatically detected.
-void        fs_mount(badge_err_t *ec, char const *type, blkdev_t *media, char const *mountpoint, mountflags_t flags);
-// Unmount a filesystem.
-// Only raises an error if there isn't a valid filesystem to unmount.
-void        fs_umount(badge_err_t *ec, char const *mountpoint);
+void fs_mount(
+    badge_err_t *ec, char const *type, blkdev_t *media, file_t at, char const *path, size_t path_len, mountflags_t flags
+);
+// Try to unmount a filesystem.
+// May fail if there any any files open on the target filesystem.
+void        fs_umount(badge_err_t *ec, file_t at, char const *path, size_t path_len);
 // Try to identify the filesystem stored in the block device
 // Returns `NULL` on error or if the filesystem is unknown.
 char const *fs_detect(badge_err_t *ec, blkdev_t *media);
@@ -169,8 +171,7 @@ bool fs_is_canonical_path(char const *path, size_t path_len);
 
 // Create a new directory relative to a dir handle.
 // If `at` is `FILE_NONE`, it is relative to the root dir.
-// Returns whether the target exists and is a directory.
-bool   fs_dir_create(badge_err_t *ec, file_t at, char const *path, size_t path_len);
+void   fs_dir_create(badge_err_t *ec, file_t at, char const *path, size_t path_len);
 // Open a directory for reading relative to a dir handle.
 // If `at` is `FILE_NONE`, it is relative to the root dir.
 file_t fs_dir_open(badge_err_t *ec, file_t at, char const *path, size_t path_len, oflags_t oflags);

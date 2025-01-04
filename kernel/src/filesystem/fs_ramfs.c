@@ -98,13 +98,14 @@ static void remove_dirent(vfs_t *vfs, fs_ramfs_inode_t *dir, fs_ramfs_dirent_t *
 
 // Find the directory entry of a given filename in a directory.
 // Returns a pointer to an entry in the directory's buffer, or NULL if not found.
-static fs_ramfs_dirent_t *find_dirent(badge_err_t *ec, vfs_t *vfs, fs_ramfs_inode_t *dir, char const *name) {
+static fs_ramfs_dirent_t *
+    find_dirent(badge_err_t *ec, vfs_t *vfs, fs_ramfs_inode_t *dir, char const *name, size_t name_len) {
     (void)vfs;
     badge_err_set_ok(ec);
     size_t off = 0;
     while (off < dir->len) {
         fs_ramfs_dirent_t *ent = (fs_ramfs_dirent_t *)(dir->buf + off);
-        if (cstr_equals(name, ent->name)) {
+        if (ent->name_len == name_len && mem_equals(name, ent->name, name_len)) {
             return ent;
         }
         off += ent->size;
@@ -115,8 +116,7 @@ static fs_ramfs_dirent_t *find_dirent(badge_err_t *ec, vfs_t *vfs, fs_ramfs_inod
 // Insert a new file or directory into the given directory.
 // If the file already exists, does nothing.
 static fs_ramfs_inode_t *
-    create_file(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, char const *name, filetype_t type) {
-    size_t name_len = cstr_length_upto(name, VFS_RAMFS_NAME_MAX + 1);
+    create_file(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, char const *name, size_t name_len, filetype_t type) {
     if (name_len > VFS_RAMFS_NAME_MAX) {
         badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_TOOLONG);
     }
@@ -124,7 +124,7 @@ static fs_ramfs_inode_t *
 
     // Test whether the file already exists.
     fs_ramfs_inode_t  *dirptr   = RAMFILE(dir);
-    fs_ramfs_dirent_t *existing = find_dirent(ec, vfs, dirptr, name);
+    fs_ramfs_dirent_t *existing = find_dirent(ec, vfs, dirptr, name, name_len);
     if (existing) {
         mutex_release(NULL, &RAMFS(vfs).mtx);
         badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_EXISTS);
@@ -146,7 +146,8 @@ static fs_ramfs_inode_t *
         .inode    = inum,
     };
     ent.size += (~ent.size + 1) % sizeof(size_t);
-    mem_copy(ent.name, name, name_len + 1);
+    mem_copy(ent.name, name, name_len);
+    ent.name[name_len] = 0;
 
     // Set up inode.
     fs_ramfs_inode_t *iptr = &RAMFS(vfs).inode_list[inum];
@@ -186,11 +187,11 @@ static bool is_dir_empty(fs_ramfs_inode_t *dir) {
 
 
 // Try to mount a ramfs filesystem.
-void fs_ramfs_mount(badge_err_t *ec, vfs_t *vfs) {
+bool fs_ramfs_mount(badge_err_t *ec, vfs_t *vfs) {
     // RAMFS does not use a block device.
     if (vfs->media) {
         badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_PARAM);
-        return;
+        return false;
     }
 
     // TODO: Parameters.
@@ -199,11 +200,11 @@ void fs_ramfs_mount(badge_err_t *ec, vfs_t *vfs) {
     RAMFS(vfs).inode_list_len = 32;
     RAMFS(vfs).inode_list     = malloc(sizeof(*RAMFS(vfs).inode_list) * RAMFS(vfs).inode_list_len);
     if (!badge_err_is_ok(ec))
-        return;
+        return false;
     RAMFS(vfs).inode_usage = malloc(sizeof(*RAMFS(vfs).inode_usage) * RAMFS(vfs).inode_list_len);
     if (!badge_err_is_ok(ec)) {
         free(RAMFS(vfs).inode_list);
-        return;
+        return false;
     }
     vfs->inode_root = VFS_RAMFS_INODE_ROOT;
     mutex_init(ec, &RAMFS(vfs).mtx, true, false);
@@ -237,6 +238,7 @@ void fs_ramfs_mount(badge_err_t *ec, vfs_t *vfs) {
         free(RAMFS(vfs).inode_list);
         free(RAMFS(vfs).inode_usage);
         mutex_destroy(NULL, &RAMFS(vfs).mtx);
+        return false;
     }
 
     ent.name_len = 2;
@@ -248,7 +250,10 @@ void fs_ramfs_mount(badge_err_t *ec, vfs_t *vfs) {
         free(RAMFS(vfs).inode_list);
         free(RAMFS(vfs).inode_usage);
         mutex_destroy(NULL, &RAMFS(vfs).mtx);
+        return false;
     }
+
+    return true;
 }
 
 // Unmount a ramfs filesystem.
@@ -262,19 +267,19 @@ void fs_ramfs_umount(vfs_t *vfs) {
 
 // Insert a new file into the given directory.
 // If the file already exists, does nothing.
-void fs_ramfs_create_file(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, char const *name) {
-    create_file(ec, vfs, dir, name, FILETYPE_REG);
+void fs_ramfs_create_file(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, char const *name, size_t name_len) {
+    create_file(ec, vfs, dir, name, name_len, FILETYPE_REG);
 }
 
 // Insert a new directory into the given directory.
 // If the file already exists, does nothing.
-void fs_ramfs_create_dir(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, char const *name) {
+void fs_ramfs_create_dir(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, char const *name, size_t name_len) {
     badge_err_t ec0;
     if (!ec)
         ec = &ec0;
 
     // Create new directory.
-    fs_ramfs_inode_t *iptr = create_file(ec, vfs, dir, name, FILETYPE_DIR);
+    fs_ramfs_inode_t *iptr = create_file(ec, vfs, dir, name, name_len, FILETYPE_DIR);
     if (!badge_err_is_ok(ec))
         return;
 
@@ -288,7 +293,7 @@ void fs_ramfs_create_dir(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, char 
     insert_dirent(ec, vfs, iptr, &ent);
     if (!badge_err_is_ok(ec)) {
         pop_inode_refcount(vfs, iptr);
-        fs_ramfs_dirent_t *ent = find_dirent(ec, vfs, RAMFILE(dir), name);
+        fs_ramfs_dirent_t *ent = find_dirent(ec, vfs, RAMFILE(dir), name, name_len);
         assert_dev_drop(ent != NULL);
         remove_dirent(vfs, RAMFILE(dir), ent);
         return;
@@ -301,7 +306,7 @@ void fs_ramfs_create_dir(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, char 
     insert_dirent(ec, vfs, iptr, &ent);
     if (!badge_err_is_ok(ec)) {
         pop_inode_refcount(vfs, iptr);
-        fs_ramfs_dirent_t *ent = find_dirent(ec, vfs, RAMFILE(dir), name);
+        fs_ramfs_dirent_t *ent = find_dirent(ec, vfs, RAMFILE(dir), name, name_len);
         assert_dev_drop(ent != NULL);
         remove_dirent(vfs, RAMFILE(dir), ent);
         return;
@@ -310,14 +315,13 @@ void fs_ramfs_create_dir(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, char 
 
 // Unlink a file from the given directory.
 // If this is the last reference to an inode, the inode is deleted.
-void fs_ramfs_unlink(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, char const *name) {
-    size_t name_len = cstr_length_upto(name, VFS_RAMFS_NAME_MAX + 1);
+void fs_ramfs_unlink(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, char const *name, size_t name_len) {
     if (name_len > VFS_RAMFS_NAME_MAX) {
         badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_TOOLONG);
     }
 
     // The . and .. entries can not be removed.
-    if (cstr_equals(name, ".") || cstr_equals(name, "..")) {
+    if ((name_len == 1 && name[0] == '.') || (name_len == 2 && name[0] == '.' && name[1] == '.')) {
         badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_PARAM);
         return;
     }
@@ -326,7 +330,7 @@ void fs_ramfs_unlink(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, char cons
 
     // Find the directory entry with the given name.
     fs_ramfs_inode_t  *dirptr = RAMFILE(dir);
-    fs_ramfs_dirent_t *ent    = find_dirent(ec, vfs, dirptr, name);
+    fs_ramfs_dirent_t *ent    = find_dirent(ec, vfs, dirptr, name, name_len);
     if (!ent) {
         mutex_release(NULL, &RAMFS(vfs).mtx);
         badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_NOTFOUND);
@@ -352,21 +356,6 @@ void fs_ramfs_unlink(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, char cons
     remove_dirent(vfs, dirptr, ent);
 
     mutex_release(NULL, &RAMFS(vfs).mtx);
-}
-
-// Test for the existence of a file in the given directory.
-bool fs_ramfs_exists(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, char const *name) {
-    size_t name_len = cstr_length_upto(name, VFS_RAMFS_NAME_MAX + 1);
-    if (name_len > VFS_RAMFS_NAME_MAX) {
-        badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_TOOLONG);
-    }
-
-    assert_always(mutex_acquire_shared(ec, &RAMFS(vfs).mtx, TIMESTAMP_US_MAX));
-    fs_ramfs_inode_t  *dirptr = RAMFILE(dir);
-    fs_ramfs_dirent_t *ent    = find_dirent(ec, vfs, dirptr, name);
-    mutex_release_shared(NULL, &RAMFS(vfs).mtx);
-
-    return ent != NULL;
 }
 
 
@@ -415,7 +404,7 @@ dirent_list_t fs_ramfs_dir_read(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir
     if (!mem) {
         mutex_release_shared(NULL, &RAMFS(vfs).mtx);
         badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_NOMEM);
-        return;
+        return res;
     }
     res.mem  = mem;
     res.size = cap;
@@ -440,9 +429,11 @@ dirent_list_t fs_ramfs_dir_read(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir
 
 // Atomically read the directory entry with the matching name.
 // Returns true if the entry was found.
-bool fs_ramfs_dir_find_ent(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, dirent_t *out, char const *name) {
+bool fs_ramfs_dir_find_ent(
+    badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, dirent_t *out, char const *name, size_t name_len
+) {
     fs_ramfs_inode_t  *iptr = RAMFILE(dir);
-    fs_ramfs_dirent_t *in   = find_dirent(ec, vfs, iptr, name);
+    fs_ramfs_dirent_t *in   = find_dirent(ec, vfs, iptr, name, name_len);
     if (!in) {
         return false;
     } else {
@@ -461,7 +452,6 @@ void fs_ramfs_root_open(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *file) {
     fs_ramfs_inode_t *iptr = &RAMFS(vfs).inode_list[VFS_RAMFS_INODE_ROOT];
     RAMFILE(file)          = iptr;
     file->inode            = VFS_RAMFS_INODE_ROOT;
-    file->vfs              = vfs;
     file->refcount         = 1;
 
     iptr->links++;
@@ -471,12 +461,14 @@ void fs_ramfs_root_open(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *file) {
 }
 
 // Open a file for reading and/or writing.
-void fs_ramfs_file_open(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, vfs_file_obj_t *file, char const *name) {
+void fs_ramfs_file_open(
+    badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, vfs_file_obj_t *file, char const *name, size_t name_len
+) {
     assert_always(mutex_acquire(NULL, &RAMFS(vfs).mtx, TIMESTAMP_US_MAX));
 
     // Look up the file in question.
     fs_ramfs_inode_t  *dirptr = RAMFILE(dir);
-    fs_ramfs_dirent_t *ent    = find_dirent(ec, vfs, dirptr, name);
+    fs_ramfs_dirent_t *ent    = find_dirent(ec, vfs, dirptr, name, name_len);
     if (!badge_err_is_ok(ec)) {
         mutex_release(NULL, &RAMFS(vfs).mtx);
         return;
@@ -504,12 +496,11 @@ void fs_ramfs_file_open(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *dir, vfs_fi
 
 // Close a file opened by `fs_ramfs_file_open`.
 // Only raises an error if `file` is an invalid file descriptor.
-void fs_ramfs_file_close(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *file) {
+void fs_ramfs_file_close(vfs_t *vfs, vfs_file_obj_t *file) {
     assert_always(mutex_acquire(NULL, &RAMFS(vfs).mtx, TIMESTAMP_US_MAX));
     pop_inode_refcount(vfs, RAMFILE(file));
     mutex_release(NULL, &RAMFS(vfs).mtx);
     RAMFILE(file) = NULL;
-    badge_err_set_ok(ec);
 }
 
 // Read bytes from a file.
@@ -602,7 +593,6 @@ static vfs_vtable_t ramfs_vtable = {
     .create_file  = fs_ramfs_create_file,
     .create_dir   = fs_ramfs_create_dir,
     .unlink       = fs_ramfs_unlink,
-    .exists       = fs_ramfs_exists,
     .dir_read     = fs_ramfs_dir_read,
     .dir_find_ent = fs_ramfs_dir_find_ent,
     .root_open    = fs_ramfs_root_open,

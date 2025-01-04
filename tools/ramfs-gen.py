@@ -41,7 +41,7 @@ def add_rom(path, virtpath, name):
         roms += "0x{:02x},".format(byte)
     roms += "\n};\n"
     roms += "fileoff_t const {}_len = {};\n".format(name, len(data))
-    files += "    fd = fs_open(&ec, \"{}\", OFLAGS_CREATE | OFLAGS_WRITEONLY);\n".format(escape(virtpath))
+    files += "    fd = fs_open(&ec, FILE_NONE, \"{}\", {}, OFLAGS_CREATE | OFLAGS_WRITEONLY);\n".format(escape(virtpath), len(virtpath))
     files += "    badge_err_assert_dev(&ec);\n"
     files += "    len = fs_write(&ec, fd, {}, {}_len);\n".format(name, name)
     files += "    badge_err_assert_dev(&ec);\n"
@@ -55,7 +55,7 @@ def add_dir(path, virtpath):
     global dirs, file_count
     for filename in os.listdir(path):
         if os.path.isdir(path + "/" + filename):
-            dirs += "    fs_dir_create(&ec, \"{}\");\n".format(escape(virtpath + "/" + filename))
+            dirs += "    fs_dir_create(&ec, FILE_NONE, \"{}\", {});\n".format(escape(virtpath + "/" + filename), len(virtpath) + 1 + len(filename))
             dirs += "    badge_err_assert_dev(&ec);\n"
             add_dir(path + "/" + filename, virtpath + "/" + filename)
         else:

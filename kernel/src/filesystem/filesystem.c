@@ -28,6 +28,9 @@ typedef struct {
     size_t          filename_len;
 } walk_t;
 
+static bool  root_mounted;
+static vfs_t root_fs;
+
 
 
 // Compare file handle by ID.
@@ -44,9 +47,9 @@ static int vfs_file_desc_id_cmp(void const *a_ptr, void const *b_ptr) {
 }
 
 // Compare file handle by ID.
-static int vfs_file_desc_id_search(void const *a_ptr, void const *b) {
+static int vfs_file_desc_id_search(void const *a_ptr, void const *b_ptr) {
     vfs_file_desc_t const *a = *(void *const *)a_ptr;
-    int                    b = (int)(ptrdiff_t)b;
+    int                    b = (int)(ptrdiff_t)b_ptr;
     if (a->fileno < b) {
         return -1;
     } else if (a->fileno > b) {
@@ -139,6 +142,7 @@ static vfs_file_desc_t *get_fd_ptr(badge_err_t *ec, file_t fileno) {
         badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_PARAM);
     }
     mutex_release_shared(NULL, &files_mtx);
+    return fd;
 }
 
 // Helper to get FD pointer from file number and increase refcount.
@@ -167,35 +171,168 @@ static vfs_file_desc_t *get_dir_fd_ptr(badge_err_t *ec, file_t fileno) {
 
 
 
+// Filesystem mount helper function.
+static bool mount_at(badge_err_t *ec, vfs_t *vfs, blkdev_t *media, char const *type, mountflags_t flags) {
+    // Get driver object.
+    fs_driver_t const *driver;
+    for (driver = __start_fsdrivers; driver != __stop_fsdrivers; driver++) {
+        if (driver->id == type || cstr_equals(driver->id, type)) {
+            break;
+        }
+    }
+    if (driver == __stop_fsdrivers) {
+        logkf(LOG_ERROR, "Unsupported FS type: ", type);
+        badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_UNAVAIL);
+        return false;
+    }
+
+    vfs->cookie = calloc(1, driver->vfs_cookie_size);
+    if (!vfs->cookie) {
+        badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_NOMEM);
+        return false;
+    }
+
+    vfs->driver    = driver;
+    vfs->media     = media;
+    vfs->readonly  = flags & MOUNTFLAGS_READONLY;
+    vfs->vtable    = *driver->vtable;
+    vfs->n_open_fd = 0;
+
+    if (!driver->vtable->mount(ec, vfs)) {
+        free(vfs->cookie);
+        return false;
+    }
+
+    return true;
+}
+
 // Try to mount a filesystem.
 // Some filesystems (like RAMFS) do not use a block device, for which `media` must be NULL.
 // Filesystems which do use a block device can often be automatically detected.
-void fs_mount(badge_err_t *ec, char const *type, blkdev_t *media, char const *mountpoint, mountflags_t flags) {
+void fs_mount(
+    badge_err_t *ec, char const *type, blkdev_t *media, file_t at, char const *path, size_t path_len, mountflags_t flags
+) {
+    // Assert the first mounted FS to be the root.
+    if (!root_mounted) {
+        if (at != FILE_NONE || path_len != 1 || path[0] != '/') {
+            logk(LOG_ERROR, "First filesystem mounted must be mounted at /");
+            badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_ILLEGAL);
+            return;
+        }
+        mount_at(ec, &root_fs, media, type, flags);
+        return;
+    }
+
+    if (!type) {
+        type = fs_detect(ec, media);
+        if (!type) {
+            logk(LOG_ERROR, "Cannot determine FS type");
+            if (badge_err_is_ok(ec)) {
+                badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_UNAVAIL);
+            }
+            return;
+        }
+    }
+
+    // Get handle for relative directory.
+    vfs_file_obj_t *at_obj;
+    if (at == FILE_NONE) {
+        at_obj = vfs_file_dup(root_shared_fd);
+    } else {
+        vfs_file_desc_t *at_fd = get_dir_fd_ptr(ec, at);
+        if (!at_fd) {
+            badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_PARAM);
+            return;
+        }
+        at_obj = vfs_file_dup(at_fd->obj);
+        fd_drop_ref(at_fd);
+    }
+
+    // Mount the filesystem.
+    mutex_acquire(NULL, &dirs_mtx, TIMESTAMP_US_MAX);
+    walk_t res = walk(ec, at_obj, path, path_len, true);
+    vfs_file_close(at_obj);
+    if (!res.file) {
+        badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_NOTFOUND);
+    } else {
+        res.file->mounted_fs = calloc(1, sizeof(vfs_t));
+        if (res.file->mounted_fs) {
+            if (!mount_at(ec, res.file->mounted_fs, media, type, flags)) {
+                free(res.file->mounted_fs);
+                res.file->mounted_fs = NULL;
+            }
+        } else {
+            badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_NOMEM);
+        }
+        vfs_file_close(res.file);
+    }
+    if (res.parent) {
+        vfs_file_close(res.parent);
+    }
+    mutex_release(NULL, &dirs_mtx);
 }
 
-// Unmount a filesystem.
-// Only raises an error if there isn't a valid filesystem to unmount.
-void fs_umount(badge_err_t *ec, char const *mountpoint) {
+// Try to unmount a filesystem.
+// May fail if there any any files open on the target filesystem.
+void fs_umount(badge_err_t *ec, file_t at, char const *path, size_t path_len) {
+    logk(LOG_WARN, "TODO: fs_umount");
 }
 
 // Try to identify the filesystem stored in the block device
 // Returns `NULL` on error or if the filesystem is unknown.
 char const *fs_detect(badge_err_t *ec, blkdev_t *media) {
+    for (fs_driver_t *driver = __start_fsdrivers; driver != __stop_fsdrivers; driver++) {
+        if (driver->detect(ec, media)) {
+            return driver->id;
+        }
+    }
+    return NULL;
 }
 
 
 
 // Test whether a path is a canonical path, but not for the existence of the file or directory.
-// A canonical path starts with '/' and contains none of the following regex: `\.\.?/|//+`
-bool fs_is_canonical_path(char const *path, size_t path_len) {
-}
+// A canonical path starts with '/' and contains none of the following regex: `(^|/)\.\.?/|//+`
+bool fs_is_canonical_path(char const *path, size_t path_len);
 
 
 
 // Create a new directory relative to a dir handle.
 // If `at` is `FILE_NONE`, it is relative to the root dir.
-// Returns whether the target exists and is a directory.
-bool fs_dir_create(badge_err_t *ec, file_t at, char const *path, size_t path_len) {
+void fs_dir_create(badge_err_t *ec, file_t at, char const *path, size_t path_len) {
+    if (!root_mounted) {
+        badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_UNAVAIL);
+        logk(LOG_ERROR, "Filesystem op run without a filesystem mounted");
+        return;
+    }
+
+    // Get handle for relative directory.
+    vfs_file_obj_t *at_obj;
+    if (at == FILE_NONE) {
+        at_obj = vfs_file_dup(root_shared_fd);
+    } else {
+        vfs_file_desc_t *at_fd = get_dir_fd_ptr(ec, at);
+        if (!at_fd) {
+            badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_PARAM);
+            return;
+        }
+        at_obj = vfs_file_dup(at_fd->obj);
+        fd_drop_ref(at_fd);
+    }
+
+    mutex_acquire(NULL, &dirs_mtx, TIMESTAMP_US_MAX);
+    walk_t res = walk(ec, at_obj, path, path_len, true);
+    vfs_file_close(at_obj);
+    if (res.file) {
+        badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_EXISTS);
+        vfs_file_close(res.file);
+    } else {
+        vfs_dir_create(ec, res.parent, res.filename, res.filename_len);
+    }
+    if (res.parent) {
+        vfs_file_close(res.parent);
+    }
+    mutex_release(NULL, &dirs_mtx);
 }
 
 // Open a directory for reading relative to a dir handle.
@@ -234,6 +371,12 @@ dirent_list_t fs_dir_read(badge_err_t *ec, file_t dir) {
 // Open a file for reading and/or writing relative to a dir handle.
 // If `at` is `FILE_NONE`, it is relative to the root dir.
 file_t fs_open(badge_err_t *ec, file_t at, char const *path, size_t path_len, oflags_t oflags) {
+    if (!root_mounted) {
+        badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_UNAVAIL);
+        logk(LOG_ERROR, "Filesystem op run without a filesystem mounted");
+        return FILE_NONE;
+    }
+
     if ((oflags & OFLAGS_DIRECTORY) && (oflags & ~VALID_OFLAGS_DIRECTORY)) {
         // Invalid flags for opening dir.
         badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_PARAM);
@@ -256,17 +399,17 @@ file_t fs_open(badge_err_t *ec, file_t at, char const *path, size_t path_len, of
     }
 
     // Get handle for relative directory.
-    vfs_file_obj_t *at_fd = root_shared_fd;
-    if (at != FILE_NONE) {
-        mutex_acquire_shared(NULL, &files_mtx, TIMESTAMP_US_MAX);
-        array_binsearch_t res =
-            array_binsearch(files, sizeof(void *), files_len, (void *)(ptrdiff_t)at, vfs_file_desc_id_search);
-        if (!res.found) {
-            mutex_release_shared(NULL, &files_mtx);
+    vfs_file_obj_t *at_obj;
+    if (at == FILE_NONE) {
+        at_obj = vfs_file_dup(root_shared_fd);
+    } else {
+        vfs_file_desc_t *at_fd = get_dir_fd_ptr(ec, at);
+        if (!at_fd) {
             badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_PARAM);
             return FILE_NONE;
         }
-        at_fd = files[res.index]->obj;
+        at_obj = vfs_file_dup(at_fd->obj);
+        fd_drop_ref(at_fd);
     }
 
     // Lock dir modifications.
@@ -277,10 +420,15 @@ file_t fs_open(badge_err_t *ec, file_t at, char const *path, size_t path_len, of
     }
 
     // Walk the filesystem.
-    walk_t res = walk(ec, at_fd, path, path_len, false);
+    walk_t res = walk(ec, at_obj, path, path_len, false);
+    vfs_file_close(at_obj);
     if (!res.file && res.parent && (oflags & OFLAGS_CREATE)) {
         // Create file if OFLAGS_CREATE is set.
         res.file = vfs_file_create(ec, res.parent, res.filename, res.filename_len);
+    }
+
+    if (res.file) {
+        atomic_fetch_add(&res.file->vfs->n_open_fd, 1);
     }
 
     // Unlock dir modifications.
@@ -288,9 +436,6 @@ file_t fs_open(badge_err_t *ec, file_t at, char const *path, size_t path_len, of
         mutex_release(NULL, &dirs_mtx);
     } else {
         mutex_release_shared(NULL, &dirs_mtx);
-    }
-    if (at != FILE_NONE) {
-        mutex_release_shared(NULL, &files_mtx);
     }
 
     if (!res.file) {
@@ -327,18 +472,33 @@ file_t fs_open(badge_err_t *ec, file_t at, char const *path, size_t path_len, of
 // If this is the last reference to an inode, the inode is deleted.
 // Fails if this is a directory.
 void fs_unlink(badge_err_t *ec, file_t at, char const *path, size_t path_len) {
+    if (!root_mounted) {
+        badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_UNAVAIL);
+        logk(LOG_ERROR, "Filesystem op run without a filesystem mounted");
+        return;
+    }
 }
 
 // Create a new hard link from one path to another relative to their respective dirs.
 // If `*_at` is `FILE_NONE`, it is relative to the root dir.
 // Fails if `old_path` names a directory.
 void fs_link(badge_err_t *ec, file_t old_at, char const *old_path, file_t new_at, char const *new_path) {
+    if (!root_mounted) {
+        badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_UNAVAIL);
+        logk(LOG_ERROR, "Filesystem op run without a filesystem mounted");
+        return;
+    }
 }
 
 // Create a new symbolic link from one path to another, the latter relative to a dir handle.
 // The `old_path` specifies a path that is relative to the symlink's location.
 // If `new_at` is `FILE_NONE`, it is relative to the root dir.
 void fs_symlink(badge_err_t *ec, char const *old_path, file_t new_at, char const *new_path) {
+    if (!root_mounted) {
+        badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_UNAVAIL);
+        logk(LOG_ERROR, "Filesystem op run without a filesystem mounted");
+        return;
+    }
 }
 
 

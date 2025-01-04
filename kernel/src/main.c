@@ -138,7 +138,7 @@ static void kernel_init() {
     port_init();
 
     // Temporary filesystem image.
-    fs_mount(&ec, FS_TYPE_RAMFS, NULL, "/", 0);
+    fs_mount(&ec, "ramfs", NULL, FILE_NONE, "/", 1, 0);
     badge_err_assert_always(&ec);
     init_ramfs();
 }

@@ -53,7 +53,7 @@ typedef struct proc_memmap_t {
 
 // Process file descriptor.
 typedef struct {
-    int    virt;
+    file_t virt;
     file_t real;
 } proc_fd_t;
 

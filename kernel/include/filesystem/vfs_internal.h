@@ -9,18 +9,16 @@
 
 
 
-// Open the root directory of the root filesystem.
-vfs_file_obj_t *vfs_root_open();
+// Open the root directory of the filesystem.
+vfs_file_obj_t *vfs_root_open(badge_err_t *ec, vfs_t *vfs);
 
-// Insert a new file into the given directory.
-// If the file already exists, does nothing.
-void vfs_create_file(badge_err_t *ec, vfs_file_obj_t *dir, char const *name, size_t name_len);
+// Create a new empty file.
+vfs_file_obj_t *vfs_file_create(badge_err_t *ec, vfs_file_obj_t *dir, char const *name, size_t name_len);
 // Insert a new directory into the given directory.
-// If the file already exists, does nothing.
-void vfs_create_dir(badge_err_t *ec, vfs_file_obj_t *dir, char const *name, size_t name_len);
+void            vfs_dir_create(badge_err_t *ec, vfs_file_obj_t *dir, char const *name, size_t name_len);
 // Unlink a file from the given directory.
 // If this is the last reference to an inode, the inode is deleted.
-void vfs_unlink(badge_err_t *ec, vfs_file_obj_t *dir, char const *name, size_t name_len);
+void            vfs_unlink(badge_err_t *ec, vfs_file_obj_t *dir, char const *name, size_t name_len);
 
 // Read all entries from a directory.
 dirent_list_t vfs_dir_read(badge_err_t *ec, vfs_file_obj_t *dir);
@@ -30,8 +28,6 @@ bool          vfs_dir_find_ent(badge_err_t *ec, vfs_file_obj_t *dir, dirent_t *e
 
 // Open a file or directory for reading and/or writing given parent directory handle.
 vfs_file_obj_t *vfs_file_open(badge_err_t *ec, vfs_file_obj_t *dir, char const *name, size_t name_len);
-// Create a new empty file.
-vfs_file_obj_t *vfs_file_create(badge_err_t *ec, vfs_file_obj_t *dir, char const *name, size_t name_len);
 // Duplicate a file or directory handle.
 vfs_file_obj_t *vfs_file_dup(vfs_file_obj_t *orig);
 // Close a file opened by `vfs_file_open`.

@@ -384,7 +384,7 @@ void proc_delete_thread_raw_unsafe(badge_err_t *ec, process_t *process, sched_th
 }
 
 // Add a file to the process file handle list.
-int proc_add_fd_raw(badge_err_t *ec, process_t *process, file_t real) {
+file_t proc_add_fd_raw(badge_err_t *ec, process_t *process, file_t real) {
     proc_fd_t fd = {.real = real, .virt = 0};
     for (size_t i = 0; i < process->fds_len; i++) {
         if (process->fds[i].virt > fd.virt) {
@@ -401,7 +401,7 @@ int proc_add_fd_raw(badge_err_t *ec, process_t *process, file_t real) {
 }
 
 // Find a file in the process file handle list.
-file_t proc_find_fd_raw(badge_err_t *ec, process_t *process, int virt) {
+file_t proc_find_fd_raw(badge_err_t *ec, process_t *process, file_t virt) {
     for (size_t i = 0; i < process->fds_len; i++) {
         if (process->fds[i].virt == virt) {
             badge_err_set_ok(ec);
@@ -413,7 +413,7 @@ file_t proc_find_fd_raw(badge_err_t *ec, process_t *process, int virt) {
 }
 
 // Remove a file from the process file handle list.
-void proc_remove_fd_raw(badge_err_t *ec, process_t *process, int virt) {
+void proc_remove_fd_raw(badge_err_t *ec, process_t *process, file_t virt) {
     for (size_t i = 0; i < process->fds_len; i++) {
         if (process->fds[i].virt == virt) {
             array_len_remove(&process->fds, sizeof(proc_fd_t), &process->fds_len, NULL, i);

@@ -93,7 +93,7 @@ SYSCALL_DEF(15, SYSCALL_PROC_WAITPID, syscall_proc_waitpid, int, int pid, int *w
 
 // Open a file, optionally relative to a directory.
 // Returns <= -1 on error, file descriptor number on success.
-SYSCALL_DEF(16, SYSCALL_FS_OPEN, syscall_fs_open, file_t, char const *path, file_t relative_to, int oflags)
+SYSCALL_DEF(16, SYSCALL_FS_OPEN, syscall_fs_open, file_t, file_t dirfd, char const *path, size_t path_len, int oflags)
 
 // Flush and close a file.
 SYSCALL_DEF(17, SYSCALL_FS_CLOSE, syscall_fs_close, bool, file_t fd)
