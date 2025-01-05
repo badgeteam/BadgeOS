@@ -69,18 +69,33 @@ static int vfs_file_obj_cmp(void const *a_ptr, void const *b_ptr) {
     }
 }
 
+// Open existing file object.
+static vfs_file_obj_t *open_existing(vfs_t *vfs, inode_t inode) {
+    vfs_file_obj_t  dummy     = {.vfs = vfs, .inode = inode};
+    vfs_file_obj_t *dummy_ptr = &dummy;
+
+    array_binsearch_t res  = array_binsearch(objs, sizeof(void *), objs_len, &dummy_ptr, vfs_file_obj_cmp);
+    vfs_file_obj_t   *fobj = NULL;
+    if (res.found) {
+        fobj = vfs_file_dup(objs[res.index]);
+    }
+
+    return fobj;
+}
+
 
 
 // Open the root directory of the filesystem.
 vfs_file_obj_t *vfs_root_open(badge_err_t *ec, vfs_t *vfs) {
+    mutex_acquire(NULL, &objs_mtx, TIMESTAMP_US_MAX);
+
     // Try to get existing file object.
     vfs_file_obj_t *fobj = open_existing(vfs, vfs->inode_root);
     if (fobj) {
+        mutex_release(NULL, &objs_mtx);
         badge_err_set_ok(ec);
         return fobj;
     }
-
-    mutex_acquire(NULL, &objs_mtx, TIMESTAMP_US_MAX);
 
     // Create new file object.
     fobj = create_root_fobj(ec, vfs);
@@ -108,7 +123,13 @@ vfs_file_obj_t *vfs_root_open(badge_err_t *ec, vfs_t *vfs) {
 
 // Create a new empty file.
 vfs_file_obj_t *vfs_file_create(badge_err_t *ec, vfs_file_obj_t *dir, char const *name, size_t name_len) {
+    badge_err_t ec0 = {0};
+    ec              = ec ?: &ec0;
     dir->vfs->vtable.create_file(ec, dir->vfs, dir, name, name_len);
+    if (!badge_err_is_ok(ec)) {
+        return NULL;
+    }
+    return vfs_file_open(ec, dir, name, name_len);
 }
 
 // Insert a new directory into the given directory.
@@ -125,7 +146,7 @@ void vfs_unlink(badge_err_t *ec, vfs_file_obj_t *dir, char const *name, size_t n
 
 // Read all entries from a directory.
 dirent_list_t vfs_dir_read(badge_err_t *ec, vfs_file_obj_t *dir) {
-    dir->vfs->vtable.dir_read(ec, dir->vfs, dir);
+    return dir->vfs->vtable.dir_read(ec, dir->vfs, dir);
 }
 
 // Read the directory entry with the matching name.
@@ -137,7 +158,59 @@ bool vfs_dir_find_ent(badge_err_t *ec, vfs_file_obj_t *dir, dirent_t *ent, char 
 
 // Open a file or directory for reading and/or writing given parent directory handle.
 vfs_file_obj_t *vfs_file_open(badge_err_t *ec, vfs_file_obj_t *dir, char const *name, size_t name_len) {
-    // TODO: Refcounts.
+    badge_err_t ec0 = {0};
+    ec              = ec ?: &ec0;
+
+    // If an FS is mounted here, redirect to its root directory.
+    if (dir->mounted_fs) {
+        dir = dir->mounted_fs->root_dir_obj;
+    }
+
+    // Find the dirent.
+    dirent_t ent;
+    if (!dir->vfs->vtable.dir_find_ent(ec, dir->vfs, dir, &ent, name, name_len)) {
+        badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_NOTFOUND);
+        return NULL;
+    }
+
+    mutex_acquire(NULL, &objs_mtx, TIMESTAMP_US_MAX);
+
+    // Try to get existing file object.
+    vfs_file_obj_t *fobj = open_existing(dir->vfs, ent.inode);
+    if (fobj) {
+        mutex_release(NULL, &objs_mtx);
+        badge_err_set_ok(ec);
+        return fobj;
+    }
+
+    // Allocate new file object.
+    fobj = calloc(1, sizeof(vfs_file_obj_t));
+    if (!fobj) {
+        goto err0;
+    }
+    fobj->cookie = calloc(1, dir->vfs->driver->file_cookie_size);
+    if (!fobj->cookie) {
+        goto err1;
+    }
+
+    // Open new file object.
+    dir->vfs->vtable.file_open(ec, dir->vfs, dir, fobj, name, name_len);
+    if (!badge_err_is_ok(ec)) {
+        goto err2;
+    }
+
+    mutex_release(NULL, &objs_mtx);
+
+    return fobj;
+
+err2:
+    free(fobj->cookie);
+err1:
+    free(fobj);
+err0:
+    mutex_release(NULL, &objs_mtx);
+    badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_NOMEM);
+    return NULL;
 }
 
 // Duplicate a file or directory handle.

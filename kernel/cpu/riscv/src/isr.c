@@ -44,7 +44,10 @@ static char const *const trapnames[] = {
 enum { TRAPNAMES_LEN = sizeof(trapnames) / sizeof(trapnames[0]) };
 
 // Bitmask of traps that have associated memory addresses.
-#define MEM_ADDR_TRAPS 0x000b0f0
+#define MEM_ADDR_TRAPS                                                                                                 \
+    ((1 << RISCV_TRAP_IACCESS) | (1 << RISCV_TRAP_LACCESS) | (1 << RISCV_TRAP_SACCESS) | (1 << RISCV_TRAP_IALIGN) |    \
+     (1 << RISCV_TRAP_LALIGN) | (1 << RISCV_TRAP_SALIGN) | (1 << RISCV_TRAP_IPAGE) | (1 << RISCV_TRAP_LPAGE) |         \
+     (1 << RISCV_TRAP_SPAGE))
 
 // Kill a process from a trap / ISR.
 static void kill_proc_on_trap() {
@@ -145,13 +148,14 @@ void riscv_trap_handler() {
     asm volatile("csrr %0, " CSR_EPC_STR : "=r"(epc));
     rawprint(" at PC 0x");
     rawprinthex(epc, sizeof(size_t) * 2);
+    rawputc('\n');
 
     // Print trap value.
-    if (tval && ((1 << trapno) & MEM_ADDR_TRAPS)) {
-        rawprint(" while accessing 0x");
+    if (((1 << trapno) & MEM_ADDR_TRAPS)) {
+        rawprint("While accessing 0x");
         rawprinthex(tval, sizeof(size_t) * 2);
     } else if (tval && trapno == RISCV_TRAP_IILLEGAL) {
-        rawprint(" while decoding 0x");
+        rawprint("While decoding 0x");
         rawprinthex(tval, 8);
     }
 
@@ -159,7 +163,7 @@ void riscv_trap_handler() {
 
 #if MEMMAP_VMEM
     // Print what page table thinks.
-    if (tval && ((1 << trapno) & MEM_ADDR_TRAPS)) {
+    if (((1 << trapno) & MEM_ADDR_TRAPS)) {
         virt2phys_t info = memprotect_virt2phys(kctx->mpu_ctx, tval);
         if (info.flags & MEMPROTECT_FLAG_RWX) {
             rawprint("Memory at this address: ");

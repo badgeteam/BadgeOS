@@ -81,6 +81,8 @@ struct vfs {
     void              *cookie;
     // Number of currently open files.
     atomic_int         n_open_fd;
+    // Roor directory file object.
+    vfs_file_obj_t    *root_dir_obj;
 };
 
 // Identify whether a block device contains a this filesystem.

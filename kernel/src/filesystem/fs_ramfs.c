@@ -199,15 +199,19 @@ bool fs_ramfs_mount(badge_err_t *ec, vfs_t *vfs) {
     RAMFS(vfs).ram_limit      = 65536;
     RAMFS(vfs).inode_list_len = 32;
     RAMFS(vfs).inode_list     = malloc(sizeof(*RAMFS(vfs).inode_list) * RAMFS(vfs).inode_list_len);
-    if (!badge_err_is_ok(ec))
+    if (!RAMFS(vfs).inode_list) {
+        badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_NOMEM);
         return false;
+    }
     RAMFS(vfs).inode_usage = malloc(sizeof(*RAMFS(vfs).inode_usage) * RAMFS(vfs).inode_list_len);
-    if (!badge_err_is_ok(ec)) {
+    if (!RAMFS(vfs).inode_usage) {
         free(RAMFS(vfs).inode_list);
+        badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_NOMEM);
         return false;
     }
     vfs->inode_root = VFS_RAMFS_INODE_ROOT;
     mutex_init(ec, &RAMFS(vfs).mtx, true, false);
+    badge_err_assert_dev(ec);
 
     // Clear inode usage.
     mem_set(RAMFS(vfs).inode_list, 0, sizeof(*RAMFS(vfs).inode_list) * RAMFS(vfs).inode_list_len);
@@ -453,6 +457,7 @@ void fs_ramfs_root_open(badge_err_t *ec, vfs_t *vfs, vfs_file_obj_t *file) {
     RAMFILE(file)          = iptr;
     file->inode            = VFS_RAMFS_INODE_ROOT;
     file->refcount         = 1;
+    file->type             = FILETYPE_DIR;
 
     iptr->links++;
 
@@ -489,6 +494,7 @@ void fs_ramfs_file_open(
     file->vfs      = vfs;
     file->refcount = 1;
     file->size     = (fileoff_t)iptr->len;
+    file->type     = (iptr->mode & VFS_RAMFS_MODE_MASK) >> VFS_RAMFS_MODE_BIT;
 
     mutex_release(NULL, &RAMFS(vfs).mtx);
     badge_err_set_ok(ec);

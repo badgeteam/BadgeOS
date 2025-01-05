@@ -12,8 +12,6 @@
 extern fs_driver_t const __start_fsdrivers[];
 extern fs_driver_t const __stop_fsdrivers[];
 
-static vfs_file_obj_t *root_shared_fd;
-
 static mutex_t           files_mtx = MUTEX_T_INIT_SHARED;
 static size_t            files_len, files_cap;
 static vfs_file_desc_t **files;
@@ -63,7 +61,7 @@ static int vfs_file_desc_id_search(void const *a_ptr, void const *b_ptr) {
 static walk_t walk(badge_err_t *ec, vfs_file_obj_t *dirfd, char const *path, size_t path_len, bool no_follow_symlink) {
     if (path[0] == '/') {
         // TODO: chroot support?
-        dirfd = root_shared_fd;
+        dirfd = root_fs.root_dir_obj;
     }
     dirfd      = vfs_file_dup(dirfd);
     walk_t out = {0};
@@ -106,6 +104,9 @@ static walk_t walk(badge_err_t *ec, vfs_file_obj_t *dirfd, char const *path, siz
         out.parent = dirfd;
         out.file   = vfs_file_open(ec, dirfd, path, delim);
         dirfd      = out.file;
+
+        path     += delim;
+        path_len -= delim;
     }
 
     // TODO: symlink deref (unless `no_follow_symlink`).
@@ -203,6 +204,13 @@ static bool mount_at(badge_err_t *ec, vfs_t *vfs, blkdev_t *media, char const *t
         return false;
     }
 
+    vfs->root_dir_obj = vfs_root_open(ec, vfs);
+    if (!vfs->root_dir_obj) {
+        driver->vtable->umount(vfs);
+        free(vfs->cookie);
+        return false;
+    }
+
     return true;
 }
 
@@ -219,7 +227,9 @@ void fs_mount(
             badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_ILLEGAL);
             return;
         }
-        mount_at(ec, &root_fs, media, type, flags);
+        if (mount_at(ec, &root_fs, media, type, flags)) {
+            root_mounted = true;
+        }
         return;
     }
 
@@ -237,7 +247,7 @@ void fs_mount(
     // Get handle for relative directory.
     vfs_file_obj_t *at_obj;
     if (at == FILE_NONE) {
-        at_obj = vfs_file_dup(root_shared_fd);
+        at_obj = vfs_file_dup(root_fs.root_dir_obj);
     } else {
         vfs_file_desc_t *at_fd = get_dir_fd_ptr(ec, at);
         if (!at_fd) {
@@ -255,6 +265,7 @@ void fs_mount(
     if (!res.file) {
         badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_NOTFOUND);
     } else {
+        // TODO: Assert that dir is empty.
         res.file->mounted_fs = calloc(1, sizeof(vfs_t));
         if (res.file->mounted_fs) {
             if (!mount_at(ec, res.file->mounted_fs, media, type, flags)) {
@@ -309,7 +320,7 @@ void fs_dir_create(badge_err_t *ec, file_t at, char const *path, size_t path_len
     // Get handle for relative directory.
     vfs_file_obj_t *at_obj;
     if (at == FILE_NONE) {
-        at_obj = vfs_file_dup(root_shared_fd);
+        at_obj = vfs_file_dup(root_fs.root_dir_obj);
     } else {
         vfs_file_desc_t *at_fd = get_dir_fd_ptr(ec, at);
         if (!at_fd) {
@@ -326,7 +337,7 @@ void fs_dir_create(badge_err_t *ec, file_t at, char const *path, size_t path_len
     if (res.file) {
         badge_err_set(ec, ELOC_FILESYSTEM, ECAUSE_EXISTS);
         vfs_file_close(res.file);
-    } else {
+    } else if (res.parent) {
         vfs_dir_create(ec, res.parent, res.filename, res.filename_len);
     }
     if (res.parent) {
@@ -401,7 +412,7 @@ file_t fs_open(badge_err_t *ec, file_t at, char const *path, size_t path_len, of
     // Get handle for relative directory.
     vfs_file_obj_t *at_obj;
     if (at == FILE_NONE) {
-        at_obj = vfs_file_dup(root_shared_fd);
+        at_obj = vfs_file_dup(root_fs.root_dir_obj);
     } else {
         vfs_file_desc_t *at_fd = get_dir_fd_ptr(ec, at);
         if (!at_fd) {
@@ -605,7 +616,7 @@ fileoff_t fs_write(badge_err_t *ec, file_t file, void const *writebuf, fileoff_t
 
             while (offset + writelen > fd->obj->size) {
                 // Grow the file.
-                mutex_release_shared(NULL, &fd->obj->mutex);
+                mutex_release_shared(NULL, &fd->obj->mutex); // TODO: It brokey her.e
                 mutex_acquire(NULL, &fd->obj->mutex, TIMESTAMP_US_MAX);
 
                 // Mutex was released for a moment, check size again.
